@@ -18,15 +18,21 @@ app.get("/api/booking/:code", async (req, res) => {
   if (!code) return res.status(400).json({ error: "Booking code required" });
   try {
     const json = await fetchJSON("https://www.sportybet.com/api/ng/orders/share/" + encodeURIComponent(code));
-    if (!json || json.bizCode !== 10000 || !json.data) return res.status(404).json({ error: "Code not found" });
+    if (!json || json.bizCode !== 10000 || !json.data) {
+      return res.status(404).json({ error: json?.message || "Not found" });
+    }
     const outcomes = json.data.outcomes || [];
     const selections = outcomes.map(o => {
-      const mkt = o.markets?.[0] || {}; const oc = mkt.outcomes?.[0] || {};
-      return { eventId: o.eventId, homeTeam: o.homeTeamName, awayTeam: o.awayTeamName,
-        market: o.marketName || "", outcome: o.outcomeName || "", odds: parseFloat(o.odds) || 0,
-        kickoff: o.estimateStartTime ? new Date(Number(o.estimateStartTime)).toISOString() : "" };
+      const mkt = o.markets && o.markets[0] ? o.markets[0] : {};
+      const oc = mkt.outcomes && mkt.outcomes[0] ? mkt.outcomes[0] : {};
+      return { eventId: o.eventId || "", homeTeam: o.homeTeamName || "", awayTeam: o.awayTeamName || "",
+        sport: o.sport?.name || "", league: o.sport?.category?.tournament?.name || "",
+        category: o.sport?.category?.name || "", market: mkt.desc || "", specifier: mkt.specifier || "",
+        outcome: oc.desc || "", odds: parseFloat(oc.odds) || 0,
+        kickoff: o.estimateStartTime ? new Date(Number(o.estimateStartTime)).toISOString() : "",
+        matchStatus: o.matchStatus || "" };
     });
-    res.json({ shareCode: json.data.shareCode || code, selections, totalOdds: selections.reduce((a,s) => a*s.odds, 1) });
+    res.json({ shareCode: json.data.shareCode || code, selections, totalOdds: Math.round(selections.reduce((a,s) => a*s.odds, 1) * 100) / 100 });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-app.listen(PORT, () => console.log("Running on port " + PORT));
+app.listen(PORT, () => console.log("Sporty Slip Optimizer running at http://localhost:" + PORT));
