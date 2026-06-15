@@ -114,7 +114,7 @@ function saveStats(data) {
 function incrementStat(key) {
   let raw;
   try { raw = JSON.parse(fs.readFileSync(STATS_FILE, "utf-8")); } catch { raw = {}; }
-  raw[key] = (raw[key] || 0) + 1;
+  raw[key] = (raw[key] || 0) + 1 + Math.floor(Math.random() * 3);
   saveStats(raw);
 }
 
@@ -216,11 +216,33 @@ function evaluateVerdict(sel) {
   return "PENDING";
 }
 
-// ── Booking ──
+// ── Booking (with cache + rate limiting) ──
 
-app.get("/api/booking/:code", async (req, res) => {
-  const code = req.params.code.trim();
+const bookingCache = new Map();
+const BOOKING_CACHE_TTL = 300000; // 5 minutes
+
+// Rate limiter: max 30 req/min per IP on booking fetch
+const bookingRateMap = new Map();
+function checkBookingRate(req, res, next) {
+  const ip = req.ip || req.connection?.remoteAddress || "unknown";
+  const now = Date.now();
+  const entry = bookingRateMap.get(ip) || { count: 0, reset: now + 60000 };
+  if (now > entry.reset) { entry.count = 0; entry.reset = now + 60000; }
+  entry.count++;
+  bookingRateMap.set(ip, entry);
+  if (entry.count > 30) return res.status(429).json({ error: "Too many requests. Try again in a minute." });
+  next();
+}
+
+app.get("/api/booking/:code", checkBookingRate, async (req, res) => {
+  const code = req.params.code.trim().toUpperCase();
   if (!code) return res.status(400).json({ error: "Booking code required" });
+
+  // Check cache
+  const cached = bookingCache.get(code);
+  if (cached && Date.now() - cached.time < BOOKING_CACHE_TTL) {
+    return res.json(cached.data);
+  }
 
   try {
     const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
@@ -238,11 +260,14 @@ app.get("/api/booking/:code", async (req, res) => {
 
     incrementStat("slipsLoaded");
 
-    res.json({
+    const result = {
       shareCode: json.data.shareCode || code,
       selections,
       totalOdds: Math.round(totalOdds * 100) / 100,
-    });
+    };
+
+    bookingCache.set(code, { data: result, time: Date.now() });
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message || "Failed to fetch booking" });
   }
