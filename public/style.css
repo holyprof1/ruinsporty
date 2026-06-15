@@ -9,3 +9,10 @@ header h1{font-size:28px;color:#34d399}
 .code-input-row button{padding:12px 24px;border-radius:8px;border:none;background:#34d399;color:#0f1117;font-weight:600;cursor:pointer}
 .hidden{display:none!important}
 .error{color:#f87171;font-size:13px;margin-top:8px;text-align:center}
+.sel-card{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #1e2130}
+.sel-card:hover{background:#1a1d28}
+.sel-info{flex:1;min-width:0}
+.sel-teams{font-size:13px;font-weight:600}
+.sel-meta{font-size:11px;color:#8b8fa3;margin-top:2px}
+.sel-odds{font-size:16px;font-weight:800;color:#facc15}
+.sel-kickoff{font-size:11px;color:#8b8fa3}
