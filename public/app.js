@@ -66,7 +66,8 @@ function activateTab(tab) {
     const pg = $(`tab-${tab}`);
     if (pg) pg.classList.add("active");
     currentTab = tab;
-    if (tab === "leaderboard") loadLeaderboard();
+    if (tab === "leaderboard") showLeaderboardView();
+    if (tab === "convert") checkAdminConvert();
   }, 300);
 }
 function getSharedPunterName() {
@@ -1195,6 +1196,73 @@ async function saveScanPunter() {
 
 // ── Leaderboard ──
 let lbData = [];
+
+function showLeaderboardView() {
+  $("lbGate").classList.add("hidden");
+  $("lbPublic").classList.add("hidden");
+  $("lbAdmin").classList.add("hidden");
+  if (isAdmin) {
+    $("lbAdmin").classList.remove("hidden");
+    loadLeaderboard();
+  } else {
+    $("lbGate").classList.remove("hidden");
+    loadPublicLeaderboard();
+  }
+}
+
+window.lbAdminLogin = async function() {
+  const pw = $("lbPw").value;
+  if (!pw) return;
+  try {
+    const r = await fetch("/api/admin/verify", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw})});
+    const j = await r.json();
+    if (j.success) {
+      isAdmin = true; window.__adminPw = pw;
+      document.body.classList.add("admin-mode");
+      $("adminBadge").classList.remove("hidden");
+      $("lbGate").classList.add("hidden");
+      $("lbAdmin").classList.remove("hidden");
+      loadLeaderboard();
+      showToast("Admin access granted", "success");
+    } else { showErr("lbGateErr", "Wrong password"); }
+  } catch(e) { showErr("lbGateErr", e.message); }
+};
+
+async function loadPublicLeaderboard() {
+  try {
+    const r = await fetch("/api/punters");
+    const data = (await r.json()).leaderboard || [];
+    const el = $("lbPublicTable");
+    if (!data.length) { el.innerHTML = '<div class="empty-state">No punters tracked yet.</div>'; return; }
+    el.innerHTML = `<table class="lb-table"><thead><tr><th>#</th><th>Punter</th><th>Slips</th><th>Hit Rate</th><th></th></tr></thead><tbody>${data.map((p,i) => `<tr><td style="font-weight:800;color:${i<3?'#ffb300':'#8a9e8a'}">${i+1}</td><td style="font-weight:700">${esc(p.name)}</td><td>${p.slipCount}</td><td style="color:#00c853;font-weight:800">${p.hitRate}%</td><td><button class="btn-sm" onclick="showPublicAddCode(this,'${esc(p.name)}')">Add Code</button></td></tr>`).join("")}</tbody></table>`;
+    $("lbPublic").classList.remove("hidden");
+  } catch {}
+}
+
+window.showPublicAddCode = function(btn, name) {
+  const row = btn.closest("tr");
+  if (row.nextElementSibling?.classList.contains("lb-add-row")) { row.nextElementSibling.remove(); return; }
+  const addRow = document.createElement("tr");
+  addRow.className = "lb-add-row";
+  addRow.innerHTML = `<td colspan="5" style="padding:8px"><div style="display:flex;gap:8px;align-items:center"><input type="text" class="field" placeholder="Booking code" id="pubAdd_${name.replace(/\s/g,'_')}" style="max-width:140px;padding:6px 10px;font-size:12px" /><button class="btn-sm btn-optimize" onclick="pubAddCode('${name}')">Scan & Add</button><span id="pubAddMsg_${name.replace(/\s/g,'_')}" style="font-size:11px;color:#8a9e8a"></span></div></td>`;
+  row.after(addRow);
+};
+
+window.pubAddCode = async function(name) {
+  const key = name.replace(/\s/g, "_");
+  const code = $("pubAdd_" + key)?.value?.trim().toUpperCase();
+  const msg = $("pubAddMsg_" + key);
+  if (!code) return;
+  if (!isAdmin) { if (msg) msg.textContent = "Admin access required"; return; }
+  if (msg) msg.textContent = "Scanning...";
+  try {
+    const r = await fetch("/api/punters/" + encodeURIComponent(name) + "/add-code", { method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": window.__adminPw }, body: JSON.stringify({ code, date: new Date().toISOString().slice(0, 10) }) });
+    const j = await r.json();
+    if (j.success) { if (msg) msg.textContent = j.won + "W/" + j.lost + "L/" + j.void + "V (" + j.hitRate + "%)"; showToast(name + ": " + j.hitRate + "% hit", "success"); loadPublicLeaderboard(); }
+    else { if (msg) msg.textContent = j.error || "Failed"; }
+  } catch (e) { if (msg) msg.textContent = e.message; }
+};
+
 async function loadLeaderboard() {
   try { const r = await fetch("/api/punters"); lbData = (await r.json()).leaderboard||[]; renderLeaderboard(); }
   catch(e) { $("leaderboardTable").innerHTML = `<div class="empty-state">${esc(e.message)}</div>`; }
@@ -1673,16 +1741,23 @@ window.generateConvertCode = async function() {
 
 // ── PWA Install Sheet ──
 let deferredPrompt = null;
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isAndroid = /Android/.test(navigator.userAgent);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
 
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; });
 
 window.showInstallSheet = function() {
+  if (isStandalone) return;
   const sheet = $("installSheet");
   if (!sheet) return;
-  if (isIOS) { $("installAndroid").classList.add("hidden"); $("installIOS").classList.remove("hidden"); }
-  else { $("installAndroid").classList.remove("hidden"); $("installIOS").classList.add("hidden"); }
+  $("installAndroid").classList.add("hidden");
+  $("installIOS").classList.add("hidden");
+  $("installAndroidManual").classList.add("hidden");
+  if (isIOS) { $("installIOS").classList.remove("hidden"); }
+  else if (deferredPrompt) { $("installAndroid").classList.remove("hidden"); }
+  else if (isAndroid) { $("installAndroidManual").classList.remove("hidden"); }
+  else { $("installAndroid").classList.remove("hidden"); }
   sheet.classList.remove("hidden");
 };
 
@@ -1691,16 +1766,19 @@ window.dismissInstall = function() {
   localStorage.setItem("installPromptShown", "1");
 };
 
-$("installBtn").addEventListener("click", () => {
+$("installBtn")?.addEventListener("click", () => {
   if (deferredPrompt) {
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(() => { $("installSheet").classList.add("hidden"); deferredPrompt = null; });
+  } else if (isAndroid) {
+    $("installAndroid").classList.add("hidden");
+    $("installAndroidManual").classList.remove("hidden");
   }
 });
 
 setTimeout(() => {
   if (!isStandalone && !localStorage.getItem("installPromptShown")) {
-    if (deferredPrompt || isIOS) showInstallSheet();
+    if (deferredPrompt || isIOS || isAndroid) showInstallSheet();
   }
 }, 10000);
 
@@ -1738,6 +1816,287 @@ window.submitSupport = async function() {
 
 // Admin support page
 if (location.pathname.startsWith("/admin/support")) activateTab("leaderboard");
+
+// ── Admin Smart Generator (Convert tab) ──
+let adminGenPool = [];
+let adminGenSettings = { convStyle: "safer", edition: "conservative", minOdds: 1000 };
+
+// Show admin section when convert tab activates
+function checkAdminConvert() {
+  if (isAdmin) $("adminGenSection").classList.remove("hidden");
+  else $("adminGenSection").classList.add("hidden");
+}
+
+window.setAdminOpt = function(btn, key, val) {
+  btn.parentElement.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  if (key === "adminConvStyle") adminGenSettings.convStyle = val;
+  else if (key === "adminEdition") adminGenSettings.edition = val;
+  else if (key === "adminMinOdds") adminGenSettings.minOdds = parseInt(val);
+};
+
+const TODAY_PUNTER_CODES = { "39 Billion": "HPS13S", "9Z": "LU84JS", "Big Strategic": "QU303D", "Ayo Jordan": "MDTXU3", "Bayo Bets": "RE9N9N", "OY": "M9J9KV", "Princewill": "V3XV6K", "Sirtee": "HXQH8Q" };
+
+window.adminFetchPunters = async function() {
+  const btn = $("adminFetchBtn");
+  const status = $("adminFetchStatus");
+  btn.disabled = true; btn.textContent = "Fetching...";
+  status.innerHTML = "";
+  adminGenPool = [];
+  const seen = new Set();
+  const now = Date.now();
+  let totalFetched = 0;
+
+  for (const [name, code] of Object.entries(TODAY_PUNTER_CODES)) {
+    try {
+      const r = await fetch(`/api/booking/${code}`);
+      const j = await r.json();
+      if (j.selections) {
+        let added = 0;
+        for (const s of j.selections) {
+          if (s.kickoff && new Date(s.kickoff).getTime() <= now) continue;
+          if (!seen.has(s.eventId)) {
+            seen.add(s.eventId);
+            s._punters = [name];
+            s._punterCount = 1;
+            adminGenPool.push(s);
+            added++;
+          } else {
+            const existing = adminGenPool.find(g => g.eventId === s.eventId);
+            if (existing && !existing._punters.includes(name)) {
+              existing._punters.push(name);
+              existing._punterCount = existing._punters.length;
+            }
+          }
+        }
+        totalFetched++;
+        status.innerHTML += `<div style="color:var(--green)">${name}: ${code} — ${added} games &#10003;</div>`;
+      } else {
+        status.innerHTML += `<div style="color:var(--red)">${name}: ${code} — failed</div>`;
+      }
+    } catch (e) {
+      status.innerHTML += `<div style="color:var(--red)">${name}: ${e.message}</div>`;
+    }
+  }
+
+  const consensus = adminGenPool.filter(g => g._punterCount >= 2).length;
+  status.innerHTML += `<div style="margin-top:8px;font-weight:700;color:#fff">Total pool: ${adminGenPool.length} unique future games | ${consensus} consensus picks</div>`;
+  btn.disabled = false; btn.textContent = "Fetch Today's Punter Codes";
+  $("adminGenSettings").classList.remove("hidden");
+};
+
+window.adminRunGenerate = async function() {
+  if (!adminGenPool.length) { showToast("Fetch punter codes first", "error"); return; }
+  const btn = $("adminGenBtn");
+  const prog = $("adminGenProgress");
+  btn.disabled = true;
+  prog.textContent = "Preparing pool...";
+
+  const deepScan = $("adminTglH2H")?.classList.contains("on");
+  const consensusOnly = $("adminTglConsensus")?.classList.contains("on");
+  const removeUncertain = $("adminTglUncertain")?.classList.contains("on");
+  const codeCount = parseInt($("adminCodeCount").value) || 30;
+  const convStyle = adminGenSettings.convStyle;
+  const edition = adminGenSettings.edition;
+  const minOdds = adminGenSettings.minOdds;
+
+  let pool = [...adminGenPool];
+
+  // Filter consensus only
+  if (consensusOnly) {
+    pool = pool.filter(g => g._punterCount >= 2);
+    prog.textContent = `Consensus filter: ${pool.length} picks remaining...`;
+  }
+
+  // H2H deep scan
+  if (deepScan) {
+    for (let i = 0; i < pool.length; i++) {
+      prog.textContent = `Scanning H2H ${i + 1}/${pool.length}...`;
+      try {
+        const r = await fetch(`/api/h2h?eventId=${encodeURIComponent(pool[i].eventId)}&home=${encodeURIComponent(pool[i].homeTeam)}&away=${encodeURIComponent(pool[i].awayTeam)}&pick=${encodeURIComponent(pool[i].outcome)}`);
+        const j = await r.json();
+        pool[i]._h2h = j;
+        pool[i]._safetyScore = j.safetyScore || calcLocalSafety(pool[i], j);
+      } catch { pool[i]._safetyScore = calcLocalSafety(pool[i], null); }
+    }
+  } else {
+    pool.forEach(g => { g._safetyScore = calcLocalSafety(g, null); });
+  }
+
+  // Apply conversions
+  let convCount = 0;
+  if (convStyle === "safer") {
+    prog.textContent = "Applying safe conversions...";
+    for (const g of pool) {
+      const conv = await adminConvertPick(g, convStyle);
+      if (conv) { Object.assign(g, conv); convCount++; }
+    }
+  } else if (convStyle === "aggressive") {
+    prog.textContent = "Applying aggressive upgrades...";
+    for (const g of pool) {
+      const conv = await adminConvertPick(g, convStyle);
+      if (conv) { Object.assign(g, conv); convCount++; }
+    }
+  }
+
+  // Remove uncertain
+  let removedPicks = [];
+  if (removeUncertain) {
+    const before = pool.length;
+    removedPicks = pool.filter(g => g._safetyScore < 35);
+    pool = pool.filter(g => g._safetyScore >= 35);
+    prog.textContent = `Removed ${removedPicks.length} uncertain picks (score < 35)`;
+  }
+
+  // Determine games per code based on edition
+  let minG, maxG;
+  if (edition === "conservative") { minG = 8; maxG = 15; }
+  else if (edition === "balanced") { minG = 15; maxG = 25; }
+  else { minG = 30; maxG = 50; }
+
+  // Sort pool by safety score
+  pool.sort((a, b) => (b._safetyScore || 0) - (a._safetyScore || 0));
+
+  // Generate codes
+  prog.textContent = `Generating ${codeCount} codes...`;
+  const codes = [];
+  for (let i = 0; i < codeCount; i++) {
+    const n = minG + Math.floor(Math.random() * (maxG - minG + 1));
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const sels = shuffled.slice(0, Math.min(n, pool.length));
+    const odds = sels.reduce((a, s) => a * (s.odds || 1), 1);
+
+    prog.textContent = `Generating ${i + 1}/${codeCount}...`;
+    try {
+      const payload = sels.map(s => ({ eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId, specifier: s.specifier || "", productId: s.productId || 3, sportId: s.sportId || "" }));
+      const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ selections: payload }) });
+      const j = await r.json();
+      if (j.success && j.shareCode) codes.push({ code: j.shareCode, games: sels.length, odds: Math.round(odds * 100) / 100, edition });
+    } catch {}
+  }
+
+  // Save to server
+  try {
+    const existingR = await fetch("/api/generated-codes", { headers: { "x-admin-password": window.__adminPw || "" } });
+    const existing = await existingR.json();
+    const grouped = { ...(existing || {}) };
+    const groupKey = edition === "conservative" ? "A" : edition === "balanced" ? "B" : "C";
+    grouped[groupKey] = codes.map(c => ({ code: c.code, games: c.games, odds: c.odds, topPicks: [] }));
+    await fetch("/api/admin/save-codes", { method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": window.__adminPw || "" }, body: JSON.stringify(grouped) });
+  } catch {}
+
+  // Render results
+  const consensus = adminGenPool.filter(g => g._punterCount >= 2);
+  prog.textContent = "";
+  btn.disabled = false;
+
+  const resEl = $("adminGenResults");
+  resEl.classList.remove("hidden");
+  let html = `<div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:12px">&#10003; ${codes.length} codes generated | ${adminGenPool.length} games analyzed | ${convCount} conversions applied</div>`;
+
+  // Group codes by edition
+  const editionLabel = { conservative: "CONSERVATIVE", balanced: "BALANCED", moonshot: "MOONSHOT" }[edition] || edition.toUpperCase();
+  const stakeLabel = { conservative: "Stake ₦50 each", balanced: "Stake ₦20 each", moonshot: "Stake ₦10 each" }[edition] || "";
+  html += `<h3 style="color:#fff;margin-top:0">${editionLabel} (${codes.length} codes) — ${stakeLabel}</h3>`;
+
+  codes.forEach(c => {
+    const oddsStr = c.odds >= 1e6 ? (c.odds / 1e6).toFixed(1) + "M" : c.odds >= 1000 ? Math.round(c.odds / 1000) + "K" : Math.round(c.odds);
+    html += `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px"><span style="font-family:monospace;font-weight:800;color:var(--green);letter-spacing:1px;min-width:70px">${c.code}</span><span style="color:var(--text2)">${c.games} games</span><span style="color:var(--amber);font-weight:700">${oddsStr}x</span><button class="btn-sm" onclick="copyToClipboard('${c.code}',this)">Copy</button><a href="https://www.sportybet.com/ng/?shareCode=${c.code}" target="_blank" style="color:var(--text3);font-size:11px;text-decoration:none;border:1px solid var(--border);padding:2px 8px;border-radius:6px">Load &#8599;</a></div>`;
+  });
+
+  // Consensus picks
+  if (consensus.length > 0) {
+    html += `<h3 style="color:var(--amber);margin-top:16px">&#128293; TOP CONSENSUS PICKS</h3>`;
+    consensus.sort((a, b) => (b._safetyScore || 0) - (a._safetyScore || 0)).slice(0, 10).forEach(g => {
+      html += `<div style="font-size:12px;padding:4px 0;color:var(--text2)">${g.homeTeam} vs ${g.awayTeam} — <strong style="color:#fff">${g.outcome}</strong> — ${g._punters.join(", ")} — Score: ${g._safetyScore || "?"}</div>`;
+    });
+  }
+
+  // Removed picks
+  if (removedPicks.length > 0) {
+    html += `<h3 style="color:var(--red);margin-top:16px">&#9888; REMOVED AS UNCERTAIN (${removedPicks.length})</h3>`;
+    removedPicks.slice(0, 8).forEach(g => {
+      html += `<div style="font-size:11px;padding:2px 0;color:var(--text3)">${g.homeTeam} vs ${g.awayTeam} — ${g.outcome} — Score: ${g._safetyScore || 0}</div>`;
+    });
+  }
+
+  // Copy all / export
+  html += `<div style="margin-top:16px;display:flex;gap:8px"><button class="btn btn-green" onclick="copyToClipboard('${codes.map(c => c.code).join("\\n")}')">Copy All Codes</button><button class="btn btn-ghost" onclick="adminExportCodes()">Export to Text</button></div>`;
+
+  resEl.innerHTML = html;
+};
+
+function calcLocalSafety(pick, h2h) {
+  let score = 50;
+  const odds = pick.odds || 1;
+  const out = (pick.outcome || "").toLowerCase();
+  const consensus = (pick._punterCount || 1) >= 2;
+  const strong = (pick._punterCount || 1) >= 3;
+
+  if (h2h?.found && h2h?.keyStats && h2h.keyStats.avgGoals !== null) {
+    const ks = h2h.keyStats;
+    if (out.includes("over 1.5") && ks.over25Pct > 70) score += 20;
+    if (out.includes("over 2.5") && ks.over25Pct > 60) score += 20;
+    if (out.includes("over 2.5") && ks.avgGoals < 2.0) score -= 20;
+    if (out.includes("yes") && ks.bttsPct > 60) score += 20;
+    if (out.includes("yes") && ks.bttsPct < 40) score -= 20;
+  } else {
+    // No H2H data (international teams, obscure leagues) — score by odds only, don't penalize
+    if (odds < 1.25) score = 72;
+    else if (odds < 1.40) score = 62;
+    else if (odds < 1.55) score = 52;
+    else if (odds < 1.70) score = 42;
+    else if (odds < 2.00) score = 35;
+    else score = 28;
+  }
+
+  if (strong) score += 25;
+  else if (consensus) score += 15;
+  return Math.max(0, Math.min(100, score));
+}
+
+async function adminConvertPick(pick, style) {
+  const out = (pick.outcome || "").toLowerCase();
+  const mkt = (pick.market || "").toLowerCase();
+  let targetMkt = null, targetOut = null;
+
+  if (style === "safer") {
+    const overMatch = out.match(/^over (\d+\.?\d*)$/);
+    if (overMatch) {
+      const v = parseFloat(overMatch[1]);
+      if (v >= 3.0) { targetMkt = "Over/Under"; targetOut = "Over 2.5"; }
+      else if (v >= 2.5 && pick._h2h?.keyStats?.avgGoals < 2.0) { targetMkt = "Over/Under"; targetOut = "Over 1.5"; }
+    }
+    if (!targetOut && mkt.includes("gg") && out === "yes" && pick._h2h?.keyStats?.bttsPct < 40) { targetMkt = "Over/Under"; targetOut = "Over 1.5"; }
+    if (!targetOut && mkt === "1x2" && out === "home" && pick._h2h?.keyStats?.homeWinRate < 35) { targetMkt = "Double Chance"; targetOut = "Home or Draw"; }
+    if (!targetOut && mkt.includes("correct score")) { targetMkt = "Over/Under"; targetOut = "Over 1.5"; }
+    if (!targetOut && mkt.includes("both halves") && out === "no") { targetMkt = "Over/Under"; targetOut = "Over 2.5"; }
+  } else if (style === "aggressive") {
+    if (out === "over 1.5" && pick._h2h?.keyStats?.avgGoals > 3.0) { targetMkt = "Over/Under"; targetOut = "Over 2.5"; }
+    if (!targetOut && mkt.includes("double chance") && out.includes("home") && pick._h2h?.keyStats?.homeWinRate > 75) { targetMkt = "1X2"; targetOut = "Home"; }
+    if (!targetOut && mkt.includes("draw no bet") && out.includes("home") && pick._h2h?.keyStats?.homeWinRate > 80) { targetMkt = "1X2"; targetOut = "Home"; }
+  }
+
+  if (!targetMkt) return null;
+  try {
+    const r = await fetch(`/api/markets/${encodeURIComponent(pick.eventId)}`);
+    const j = await r.json();
+    if (j.markets) {
+      const found = j.markets.find(m => m.marketName.toLowerCase().includes(targetMkt.toLowerCase()) && m.outcomeName === targetOut);
+      if (found) return { market: found.marketName, outcome: found.outcomeName, odds: found.odds, marketId: found.marketId, outcomeId: found.outcomeId, specifier: found.specifier || "" };
+    }
+  } catch {}
+  return null;
+}
+
+window.adminExportCodes = function() {
+  const el = $("adminGenResults");
+  const codes = el?.querySelectorAll("[style*='monospace']");
+  if (!codes?.length) return;
+  const text = Array.from(codes).map(c => c.textContent).join("\n");
+  const blob = new Blob([text], { type: "text/plain" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "codes-today.txt"; a.click();
+};
 
 // ── Convert Manual Mode ──
 let manualConvertEdits = {};
