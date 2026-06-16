@@ -22,3 +22,4 @@ function renderCards(sels) {
 function esc(str) { const el = document.createElement("span"); el.textContent = str||""; return el.innerHTML; }
 // filter engine implementation
 // league preset filters: women, friendlies, reserve, youth
+// kickoff presets: after 6pm, 8pm, tomorrow
