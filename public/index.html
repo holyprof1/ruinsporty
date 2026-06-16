@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=99" />
+  <link rel="stylesheet" href="/style.css?v=100" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#00c853" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -229,6 +229,7 @@
       </details>
 
       <div class="wiz-section"><h4>LOADED GAMES</h4>
+        <div id="excludedInfo" class="hidden" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:12px;color:var(--text2)"><span><span id="excludedCount">0</span> games excluded</span><button class="btn-sm" onclick="restoreAllExcluded()">Restore All</button></div>
         <div class="panel wiz-games-panel"><div class="panel-scroll" id="originalTable"></div></div>
       </div>
 
@@ -264,6 +265,7 @@
         </div>
 
         <div id="oddsTargetIndicator" class="target-pill hidden"></div>
+        <div id="optNotice" class="opt-notice hidden"></div>
       </div>
 
       <div id="generateResult" class="hidden"></div>
@@ -275,6 +277,12 @@
         <button class="btn btn-green btn-big" id="copyGenCode">Copy Booking Code</button>
       </div>
       <button id="generateBtn" class="btn btn-green btn-big wiz-cta" disabled>Generate Codes</button>
+
+      <!-- Not satisfied hint -->
+      <div id="notSatisfiedHint" class="hidden" style="text-align:center;padding:16px 0;font-size:13px;color:var(--text3)">
+        Not satisfied with these results?<br>
+        <a href="#" onclick="wizGo('opt',2);return false" style="color:var(--green)">Adjust your settings</a> or <a href="#" onclick="wizGo('opt',2);setTimeout(()=>document.querySelector('.wiz-more').open=true,350);return false" style="color:var(--green)">try Advanced mode</a>
+      </div>
 
       <details class="wiz-more"><summary>Optimized Slip (<span id="optBadge">0</span> games)</summary>
         <div id="optimizedTable"></div>
@@ -378,6 +386,27 @@
           </div>
         </details>
         <div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
+
+        <!-- Permutation Generator -->
+        <div class="perm-section">
+          <h4>Permutation Generator</h4>
+          <p>Lock your best picks, vary the rest. Provide a pool code to pull extra games from.</p>
+          <label class="field-label">POOL CODE (extra games source)</label>
+          <input type="text" id="permPoolCode" class="field wiz-field" placeholder="Booking code for extra games" autocomplete="off" spellcheck="false" />
+          <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#8a9e8a;font-size:11px">Codes to generate</span><span id="permCountVal" style="color:#00c853;font-weight:700;font-size:13px">10</span></div>
+              <input type="range" id="permCount" min="5" max="50" value="10" step="1" style="width:100%;accent-color:#00c853;height:6px" oninput="document.getElementById('permCountVal').textContent=this.value" />
+            </div>
+            <div style="flex:1;min-width:140px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#8a9e8a;font-size:11px">Extra legs per code</span><span id="permExtraVal" style="color:#00c853;font-weight:700;font-size:13px">3</span></div>
+              <input type="range" id="permExtra" min="1" max="10" value="3" step="1" style="width:100%;accent-color:#00c853;height:6px" oninput="document.getElementById('permExtraVal').textContent=this.value" />
+            </div>
+          </div>
+          <button class="btn btn-green btn-big" onclick="runPermutations()" style="margin-top:12px">Generate Permutations</button>
+          <p id="permError" class="error hidden"></p>
+          <div id="permResults" class="perm-results hidden"></div>
+        </div>
       </div>
     </div>
     <div class="wiz-step" data-wiz="split-3">
@@ -436,6 +465,19 @@
         <p id="convertError" class="error hidden"></p>
       </div>
       <div id="convertResults" class="hidden">
+        <!-- Install nudge (non-PWA) -->
+        <div id="pwaGateBanner" class="pwa-gate hidden">
+          <span>Get the full experience</span>
+          <button class="btn btn-green" onclick="showInstallSheet()" style="padding:4px 14px;font-size:11px">Install App</button>
+        </div>
+        <!-- Mode pills -->
+        <div class="pill-row" style="margin-bottom:16px">
+          <button class="pill active" onclick="setConvertMode('auto')">Auto</button>
+          <button class="pill" onclick="setConvertMode('manual')">Manual</button>
+        </div>
+
+        <!-- AUTO mode (default) -->
+        <div id="convertAutoMode">
         <!-- TIER 1: Make Safer -->
         <button class="btn btn-green btn-big" onclick="runConvert('safer')" style="margin-bottom:16px">Make Safer</button>
         <div id="deepScanProgress" class="hidden" style="margin-bottom:12px;font-size:13px;color:var(--green)"></div>
@@ -512,6 +554,22 @@
         </div>
         <button id="convertGenBtn" class="btn btn-green btn-big wiz-cta" onclick="generateConvertCode()">Generate New Code</button>
         <div id="convertGenResult" class="hidden"></div>
+        </div><!-- end convertAutoMode -->
+
+        <!-- MANUAL mode -->
+        <div id="convertManualMode" class="hidden">
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Edit each pick individually. Click Edit Pick to see all available markets for that game.</p>
+          <div id="manualConvertList" class="manual-convert-list panel"></div>
+          <div class="stat-bar" style="margin-top:12px">
+            <div class="stat-block"><span class="stat-num mono" id="manualOldOdds">0</span><span class="stat-lbl">Before</span></div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            <div class="stat-block accent"><span class="stat-num mono" id="manualNewOdds">0</span><span class="stat-lbl">After</span></div>
+            <div class="stat-sep"></div>
+            <div class="stat-block"><span class="stat-num mono" id="manualChanged">0</span><span class="stat-lbl">Changed</span></div>
+          </div>
+          <button class="btn btn-green btn-big wiz-cta" onclick="generateManualConvertCode()">Generate New Code</button>
+          <div id="manualConvertGenResult" class="hidden"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -530,8 +588,17 @@
   <!-- Smart Routing Modal -->
   <div id="smartRouteModal" class="modal hidden"><div class="modal-backdrop" onclick="$('smartRouteModal').classList.add('hidden')"></div><div class="modal-content modal-sm"><div class="modal-header"><h3>Mixed Slip</h3><button class="modal-close-btn" onclick="$('smartRouteModal').classList.add('hidden')">&times;</button></div><div class="smart-route-body"><p>Some games have already played.</p><button class="btn btn-green btn-big" onclick="smartRouteChoice('optimizer')" style="margin-bottom:8px">Optimize future games</button><button class="btn btn-ghost btn-big" onclick="smartRouteChoice('scanner')">Scan all results</button></div></div></div>
 
-  <!-- Install Banner -->
-  <div id="installBanner" class="install-banner hidden"><span>Add SlipPilot to your home screen</span><button class="btn btn-green" id="installBtn">Install</button><button class="btn-rm-code" onclick="$('installBanner').classList.add('hidden')">&times;</button></div>
+  <!-- Install Bottom Sheet -->
+  <div id="installSheet" class="install-sheet hidden">
+    <div class="install-sheet-inner">
+      <button class="install-sheet-close" onclick="dismissInstall()">&times;</button>
+      <div class="install-sheet-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00c853" stroke-width="2.4"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <h3>Add SlipPilot to your home screen</h3>
+      <p>Use it like an app. Works offline too.</p>
+      <div id="installAndroid"><button class="btn btn-green btn-big" id="installBtn">Add to Home Screen</button><button class="btn btn-ghost" onclick="dismissInstall()" style="margin-top:8px;width:100%">Maybe later</button></div>
+      <div id="installIOS" class="hidden"><ol style="text-align:left;font-size:13px;color:var(--text2);line-height:1.8;padding-left:20px"><li>Tap the <strong>Share</strong> button (box with arrow) at bottom of Safari</li><li>Scroll down and tap <strong>Add to Home Screen</strong></li><li>Tap <strong>Add</strong></li></ol><button class="btn btn-ghost" onclick="dismissInstall()" style="margin-top:12px;width:100%">Got it</button></div>
+    </div>
+  </div>
 
   <!-- Floating Support Button -->
   <button class="support-fab" onclick="$('supportModal').classList.remove('hidden')">?</button>
@@ -560,6 +627,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=99"></script>
+  <script src="/app.js?v=100"></script>
 </body>
 </html>
