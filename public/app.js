@@ -7,24 +7,67 @@ let isAdmin = false;
 let safetyScores = {};
 let pendingSmartRoute = null;
 let bankers = new Set();
+let excluded = new Set();
 const $ = (id) => document.getElementById(id);
 
 // ── Nav ──
+let currentTab = null;
+
 function showHomepage() {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
   document.querySelectorAll(".tab-page").forEach(p => p.classList.remove("active"));
   $("homepage").classList.add("active");
+  currentTab = null;
   loadLiveStats();
 }
+
+function resetTabState(tab) {
+  if (tab === "optimizer") {
+    allSelections = []; originalSelections = []; filtered = []; changedEventIds = new Set(); safetyScores = {}; bankers = new Set(); excluded = new Set();
+    $("bookingCode").value = ""; $("optPunterName").value = "";
+    showErr("errorMsg",""); $("generateResult").classList.add("hidden"); $("tripleCards").classList.add("hidden"); $("codeCard").classList.add("hidden");
+    wizGo("opt",1);
+  } else if (tab === "merger") {
+    mergerSelections = []; mergerConflicts = [];
+    document.querySelectorAll(".merger-code-field").forEach(f => f.value = "");
+    $("mergerPunterName").value = ""; showErr("mergerError","");
+    wizGo("merger",1);
+  } else if (tab === "splitter") {
+    splitterSels = []; splitData = null;
+    $("splitterCode").value = ""; showErr("splitterError","");
+    $("permPoolCode").value = ""; $("permResults").classList.add("hidden"); $("permResults").innerHTML = "";
+    wizGo("split",1);
+  } else if (tab === "scanner") {
+    scanData = null; manualOverrides = {};
+    $("scanCode").value = ""; $("scanPunterName").value = "";
+    showErr("scanError",""); $("scanResults").classList.add("hidden");
+  } else if (tab === "convert") {
+    convertOriginal = []; convertResult = []; manualConvertEdits = {};
+    $("convertCode").value = ""; showErr("convertError",""); $("convertResults").classList.add("hidden");
+  }
+}
+
 function activateTab(tab) {
-  $("homepage").classList.remove("active");
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".tab-page").forEach(p => p.classList.remove("active"));
-  const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
-  if (btn) btn.classList.add("active");
-  const pg = $(`tab-${tab}`);
-  if (pg) pg.classList.add("active");
-  if (tab === "leaderboard") loadLeaderboard();
+  const prevTab = currentTab;
+  if (prevTab && prevTab !== tab) {
+    resetTabState(prevTab);
+  }
+
+  const allPages = document.querySelectorAll(".tab-page");
+  allPages.forEach(p => p.classList.add("fading"));
+  $("homepage").classList.add("fading");
+
+  setTimeout(() => {
+    $("homepage").classList.remove("active"); $("homepage").classList.remove("fading");
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    allPages.forEach(p => { p.classList.remove("active"); p.classList.remove("fading"); });
+    const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+    if (btn) btn.classList.add("active");
+    const pg = $(`tab-${tab}`);
+    if (pg) pg.classList.add("active");
+    currentTab = tab;
+    if (tab === "leaderboard") loadLeaderboard();
+  }, 300);
 }
 function getSharedPunterName() {
   const match = location.pathname.match(/^\/punter\/([^/]+)/);
@@ -109,6 +152,30 @@ window.toggleBanker = function(eventId) {
   renderOpt(filtered.filter(s=>!s.removed), filtered.filter(s=>s.removed));
 };
 
+// Exclusion system
+window.toggleExclude = function(eventId) {
+  if (excluded.has(eventId)) excluded.delete(eventId); else excluded.add(eventId);
+  updateExcludedUI();
+  renderOpt(filtered.filter(s=>!s.removed), filtered.filter(s=>s.removed));
+};
+window.restoreAllExcluded = function() {
+  excluded.clear();
+  updateExcludedUI();
+  renderOpt(filtered.filter(s=>!s.removed), filtered.filter(s=>s.removed));
+};
+function updateExcludedUI() {
+  const info = $("excludedInfo");
+  if (excluded.size > 0) { info.classList.remove("hidden"); info.style.display = ""; $("excludedCount").textContent = excluded.size; }
+  else { info.classList.add("hidden"); }
+}
+
+// Skeleton loading
+function showSkeleton(containerId) {
+  const el = $(containerId);
+  if (!el) return;
+  el.innerHTML = Array.from({length:5}, () => `<div class="skeleton-card"><div class="skeleton-bar w60" style="height:14px"></div><div class="skeleton-bar w40" style="height:10px;margin-top:4px"></div><div class="skeleton-bar w20" style="height:14px;margin-left:auto"></div></div>`).join("");
+}
+
 // More Options pill groups (goal, style, adjust)
 document.querySelectorAll(".opt-goal,.opt-style,.opt-adjust").forEach(b => b.addEventListener("click", () => {
   b.parentElement.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
@@ -121,23 +188,31 @@ function runOptimize() {
   const kept = filtered.filter(s => !s.removed);
   const removed = filtered.filter(s => s.removed);
   const rg = $('resultGames'); if (rg) rg.textContent = kept.length;
-  // Target indicator
+
+  // Target indicator — never remove games to hit odds target
   const targetEl = $('oddsTargetIndicator');
+  const noticeEl = $('optNotice');
   const targetPill = document.querySelector('[data-target].active');
+  if (noticeEl) noticeEl.classList.add('hidden');
   if (targetEl && targetPill && targetPill.dataset.target !== 'off' && kept.length > 0) {
     const kO = kept.reduce((a,s) => a*s.odds, 1);
     if (targetPill.dataset.target === 'exact') {
       const t = parseFloat($('stanceTargetOdds').value) || 0;
       if (t > 0) {
         const diff = Math.abs(kO - t) / t;
-        targetEl.className = 'target-pill ' + (diff < 0.2 ? 'target-hit' : 'target-miss');
-        targetEl.textContent = diff < 0.2 ? '✓ Within target ' + t + 'x' : '⚠ Outside target ' + t + 'x (got ' + kO.toFixed(1) + 'x)';
+        if (diff < 0.2) {
+          targetEl.className = 'target-pill target-hit';
+          targetEl.textContent = '✓ Within target ' + t + 'x';
+        } else {
+          targetEl.className = 'target-pill target-miss';
+          targetEl.textContent = 'Target ' + t + 'x not reached — your slip is ' + kO.toFixed(1) + 'x. Adjust leg count or stance to get closer.';
+        }
         targetEl.classList.remove('hidden');
       }
     } else if (targetPill.dataset.target === 'range') {
       const mn = parseFloat($('minOdds').value) || 0, mx = parseFloat($('maxOdds').value) || Infinity;
       targetEl.className = 'target-pill ' + (kO >= mn && kO <= mx ? 'target-hit' : 'target-miss');
-      targetEl.textContent = (kO >= mn && kO <= mx) ? '✓ Within ' + mn + 'x–' + mx + 'x' : '⚠ Outside ' + mn + 'x–' + mx + 'x (got ' + kO.toFixed(1) + 'x)';
+      targetEl.textContent = (kO >= mn && kO <= mx) ? '✓ Within ' + mn + 'x–' + mx + 'x' : 'Outside ' + mn + 'x–' + mx + 'x (got ' + kO.toFixed(1) + 'x). Adjust leg count or stance to get closer.';
       targetEl.classList.remove('hidden');
     }
   } else if (targetEl) targetEl.classList.add('hidden');
@@ -153,7 +228,7 @@ document.addEventListener("click", e => {
 // ── Animated count-up ──
 function animateNum(el, target) {
   const start = Math.floor(target * 0.9);
-  const dur = 1500;
+  const dur = 800;
   const t0 = performance.now();
   const fmt = n => n.toLocaleString("en-US");
   el.textContent = fmt(start);
@@ -199,6 +274,7 @@ function renderGenResult(elId, json, kept) {
 
 function cardHtml(s, opts) {
   const rm = opts?.removed;
+  const isExcluded = excluded.has(s.eventId);
   const original = originalSelections.find(o => o.eventId === s.eventId);
   const changed = !rm && original && (original.marketId !== s.marketId || original.outcomeId !== s.outcomeId || original.specifier !== s.specifier);
   const meta = changed
@@ -206,7 +282,7 @@ function cardHtml(s, opts) {
     : `<span class="sel-market">${esc(s.market)}</span> — ${esc(s.outcome)}${s.league?" · "+esc(s.league):""}`;
   const isBanker = bankers.has(s.eventId);
   let btns = "";
-  if (opts?.banker) btns = `<button class="btn-sm ${isBanker?'btn-optimize':'btn-stats'}" onclick="toggleBanker(${jsArg(s.eventId)})" title="Lock as banker">${isBanker?'&#128737; Locked':'&#128737;'}</button>`;
+  if (opts?.banker) btns = `<button class="btn-sm ${isBanker?'btn-optimize':'btn-stats'}" onclick="toggleBanker(${jsArg(s.eventId)})" title="Lock as banker">${isBanker?'&#128737; Locked':'&#128737;'}</button><button class="btn-sm ${isExcluded?'btn-optimize':''}" onclick="toggleExclude(${jsArg(s.eventId)})" title="Exclude from codes" style="margin-left:4px;${isExcluded?'color:var(--red);border-color:var(--red)':''}">${isExcluded?'&#10005; Excluded':'&#10005;'}</button>`;
   if (opts?.actions) btns = `<button class="btn-sm btn-stats" onclick="openH2H(${jsArg(s.eventId)},${jsArg(s.homeTeam)},${jsArg(s.awayTeam)})">Stats</button><button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})">Optimize</button><button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Markets</button>`;
   if (opts?.removable) btns = `<button class="btn-rm-code" onclick="removeMergerGame(${jsArg(s.eventId)})">&times;</button>`;
   if (opts?.splitterRemovable) btns = `<button class="btn-rm-code" onclick="removeSplitterGame(${jsArg(s.eventId)})">&times;</button>`;
@@ -216,7 +292,7 @@ function cardHtml(s, opts) {
     const cls = safetyClass(sc);
     safetyHtml = `<div class="${cls}" style="flex-basis:100%;margin-top:2px"><div class="safety-bar"><div class="safety-fill" style="width:${sc}%"></div></div><span class="safety-label ${cls}">${safetyLabel(sc)} ${sc}</span></div>`;
   }
-  return `<div class="sel-card ${rm?"removed-card":""} ${changed?"changed-card":""}"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="sel-meta">${meta}</div></div><span class="sel-odds">${Number(s.odds || 0).toFixed(2)}</span><span class="sel-kickoff">${fmtKickoff(s.kickoff)}</span>${btns}${safetyHtml}</div>`;
+  return `<div class="sel-card ${rm?"removed-card":""} ${changed?"changed-card":""} ${isExcluded?"removed-card":""}"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="sel-meta">${meta}</div></div><span class="sel-odds">${Number(s.odds || 0).toFixed(2)}</span><span class="sel-kickoff">${fmtKickoff(s.kickoff)}</span>${btns}${safetyHtml}</div>`;
 }
 function renderCards(sels, opts) { return sels.map(s => cardHtml(s, opts)).join(""); }
 function genPayload(sels) { return sels.map(s => ({eventId:s.eventId,marketId:s.marketId,outcomeId:s.outcomeId,specifier:s.specifier,productId:s.productId,sportId:s.sportId})); }
@@ -226,13 +302,6 @@ document.querySelectorAll(".stance-card").forEach(c => {
   c.addEventListener("click", () => {
     document.querySelectorAll(".stance-card").forEach(x => x.classList.remove("active"));
     c.classList.add("active");
-    const stance = c.dataset.stance;
-    resetFilters();
-    if (stance === "safe") { const b = document.querySelector('.preset[data-action="top-10"]'); if (b) { b.classList.add("active"); applyFilters(); } }
-    else if (stance === "balanced") { $("minOdds").value = "1.15"; $("maxOdds").value = "2.50"; applyFilters(); }
-    else if (stance === "value") { $("minOdds").value = "1.50"; applyFilters(); }
-    else if (stance === "fixedcount") { const n = $("stanceFixedN").value; if (n) { $("topN").value = n; applyFilters(); } }
-    else if (stance === "oddstarget") { applyOddsTarget(); }
   });
 });
 
@@ -241,7 +310,8 @@ function applyOddsTarget() {
   if (!target || target < 1 || !allSelections.length) return;
   const sorted = [...allSelections].sort((a,b) => a.odds - b.odds);
   let best = sorted, bestDiff = Infinity;
-  for (let n = 1; n <= sorted.length; n++) {
+  const MIN_KEEP = Math.max(3, Math.ceil(allSelections.length * 0.3));
+  for (let n = MIN_KEEP; n <= sorted.length; n++) {
     const sub = sorted.slice(0, n);
     const odds = sub.reduce((a,s) => a*s.odds, 1);
     const diff = Math.abs(odds - target);
@@ -265,6 +335,7 @@ async function loadSlip() {
   if (!code) return showErr("errorMsg", "Enter a booking code");
   showErr("errorMsg", "");
   $("fetchBtn").disabled = true; $("fetchBtn").textContent = "Loading...";
+  showSkeleton("originalTable");
   try {
     const res = await fetch(`/api/booking/${encodeURIComponent(code)}`);
     const json = await res.json();
@@ -451,6 +522,54 @@ function applyFilters() {
   if (topN !== null && topN > 0) doTopN(topN);
   [5,10,15,20].forEach(n => { if (presets.has(`top-${n}`)) doTopN(n); });
 
+  // Stance-based behavior
+  const activeStance = document.querySelector(".stance-card.active")?.dataset?.stance || "manual";
+  if (activeStance === "value") {
+    // Aggressive: keep ALL games, no removals, sort by highest odds
+    filtered = filtered.map(s => ({...s, removed: false}));
+    filtered.sort((a,b) => b.odds - a.odds);
+  } else if (activeStance === "safe") {
+    // Safe: after conversion (async), also remove games with odds > 1.60
+    filtered = filtered.map(s => {
+      if (bankers.has(s.eventId)) return s;
+      if (!s.removed && s.odds > 1.60) return {...s, removed: true};
+      return s;
+    });
+  } else if (activeStance === "balanced") {
+    // Balanced: keep games with odds 1.20-2.50, keep at least 60%
+    filtered = filtered.map(s => {
+      if (bankers.has(s.eventId)) return s;
+      if (!s.removed && (s.odds < 1.20 || s.odds > 2.50)) return {...s, removed: true};
+      return s;
+    });
+    const minKeep = Math.max(3, Math.ceil(allSelections.length * 0.6));
+    const keptCount = filtered.filter(s => !s.removed).length;
+    if (keptCount < minKeep) {
+      const removedSorted = filtered.filter(s => s.removed && !bankers.has(s.eventId)).sort((a,b) => a.odds - b.odds);
+      let toRestore = minKeep - keptCount;
+      for (const s of removedSorted) {
+        if (toRestore <= 0) break;
+        const idx = filtered.findIndex(f => f.eventId === s.eventId);
+        if (idx !== -1) { filtered[idx] = {...filtered[idx], removed: false}; toRestore--; }
+      }
+    }
+  }
+
+  // NEVER show 0 games — always keep at least 3
+  const MIN_GAMES = 3;
+  let keptNow = filtered.filter(s => !s.removed);
+  if (keptNow.length < MIN_GAMES && allSelections.length >= MIN_GAMES) {
+    const allSorted = [...allSelections].sort((a,b) => a.odds - b.odds);
+    const forceKeep = new Set(allSorted.slice(0, MIN_GAMES).map(s => s.eventId));
+    filtered = filtered.map(s => forceKeep.has(s.eventId) ? {...s, removed: false} : s);
+    const noticeEl = $("optNotice");
+    if (noticeEl) { noticeEl.textContent = "Some filters were relaxed to keep enough games for a valid slip"; noticeEl.classList.remove("hidden"); }
+  } else if (keptNow.length === 0 && allSelections.length > 0) {
+    filtered = filtered.map(s => ({...s, removed: false}));
+    const noticeEl = $("optNotice");
+    if (noticeEl) { noticeEl.textContent = "Filters would remove all games. Showing full slip instead."; noticeEl.classList.remove("hidden"); }
+  }
+
   // Intelligence filters — async, uses safety scores
   const hasIntel = ["intel-strong","intel-no-risky","intel-top10","intel-confidence"].some(a => presets.has(a));
   if (hasIntel) {
@@ -461,6 +580,9 @@ function applyFilters() {
   const kept = filtered.filter(s=>!s.removed), removed = filtered.filter(s=>s.removed);
   renderOpt(kept, removed);
   renderActiveChips(presets, afterTime, beforeTime, rmM, rmL, maxO, minO, topN);
+
+  // Safe stance: async convert risky picks
+  if (activeStance === "safe" && kept.length > 0) applyStanceConversions(kept);
 }
 
 async function applyIntelFilter(presets, afterTime, beforeTime, rmM, rmL, maxO, minO, topN) {
@@ -502,6 +624,58 @@ async function applyIntelFilter(presets, afterTime, beforeTime, rmM, rmL, maxO, 
   renderActiveChips(presets, afterTime, beforeTime, rmM, rmL, maxO, minO, topN);
 }
 
+async function applyStanceConversions(kept) {
+  let converted = 0;
+  for (const s of kept) {
+    if (bankers.has(s.eventId)) continue;
+    const out = (s.outcome || "").toLowerCase();
+    const mkt = (s.market || "").toLowerCase();
+    let sug = null;
+    try {
+      const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+      if (!j.markets?.length) continue;
+      const overMatch = out.match(/^over (\d+\.?\d*)$/i);
+      // Over 3.5+ → Over 2.5
+      if (overMatch && parseFloat(overMatch[1]) >= 3) {
+        sug = j.markets.find(m => m.outcomeName === "Over 2.5" && m.marketName.toLowerCase().includes("over/under"));
+      }
+      // Over 2.5 → Over 1.5
+      if (!sug && overMatch && parseFloat(overMatch[1]) >= 2 && parseFloat(overMatch[1]) < 3) {
+        sug = j.markets.find(m => m.outcomeName === "Over 1.5" && m.marketName.toLowerCase().includes("over/under"));
+      }
+      // Home Win → Double Chance 1X
+      if (!sug && mkt === "1x2" && out === "home") {
+        sug = j.markets.find(m => m.marketName === "Double Chance" && m.outcomeName === "Home or Draw");
+      }
+      // Away Win → Double Chance X2
+      if (!sug && mkt === "1x2" && out === "away") {
+        sug = j.markets.find(m => m.marketName === "Double Chance" && m.outcomeName === "Draw or Away");
+      }
+      // BTTS Yes → Over 1.5
+      if (!sug && mkt.includes("gg") && out === "yes") {
+        sug = j.markets.find(m => m.marketName === "Over/Under" && m.outcomeName === "Over 1.5");
+      }
+      // Correct Score → Over 1.5
+      if (!sug && mkt.includes("correct score")) {
+        sug = j.markets.find(m => m.marketName === "Over/Under" && m.outcomeName === "Over 1.5");
+      }
+      if (sug) {
+        const upd = {market:sug.marketName,outcome:sug.outcomeName,odds:sug.odds,marketId:sug.marketId,outcomeId:sug.outcomeId,specifier:sug.specifier||""};
+        const fi = filtered.findIndex(f => f.eventId === s.eventId);
+        if (fi !== -1) filtered[fi] = {...filtered[fi], ...upd};
+        const ai = allSelections.findIndex(a => a.eventId === s.eventId);
+        if (ai !== -1) allSelections[ai] = {...allSelections[ai], ...upd};
+        changedEventIds.add(s.eventId);
+        converted++;
+      }
+    } catch {}
+  }
+  if (converted > 0) {
+    renderOpt(filtered.filter(s=>!s.removed), filtered.filter(s=>s.removed));
+    showToast(`Safe mode: ${converted} picks converted`, "success");
+  }
+}
+
 function resetFilters() {
   ["removeAfterTime","removeBeforeTime","maxOdds","minOdds","topN"].forEach(id => $(id).value = "");
   [$("removeMarket"),$("removeLeague")].forEach(sel => Array.from(sel.options).forEach(o => o.selected = false));
@@ -522,7 +696,7 @@ function renderOpt(kept, removed) {
   $("optimizedTable").innerHTML = kept.length ? renderCards(kept) : '<div class="empty-state">All removed</div>';
   if (removed.length) { $("removedSection").classList.remove("hidden"); $("removedTable").innerHTML = renderCards(removed, {removed:true}); }
   else $("removedSection").classList.add("hidden");
-  $("generateBtn").disabled = !(kept.length > 0 && (removed.length > 0 || changedEventIds.size > 0));
+  $("generateBtn").disabled = !(kept.length > 0);
   $("generateResult").classList.add("hidden");
   $("codeCard").classList.add("hidden");
   // Step 3 result stats
@@ -556,17 +730,16 @@ window.removeFilter = function(action) {
   applyFilters();
 };
 
-// ── Generate (triple codes: Safe / Balanced / Value) ──
+// ── Generate (5 codes: Ultra Safe / Safe / Balanced / Value / Aggressive) ──
 let tripleCodeResults = {};
 
-function buildVariant(sels, mode, fixedN) {
+function buildVariant(sels, mode) {
   const sorted = [...sels].sort((a,b) => a.odds - b.odds);
-  const n = fixedN || sels.length;
-  if (mode === "safe") return sorted.slice(0, Math.max(1, Math.round(n * 0.4)));
-  if (mode === "value") { const desc = [...sels].sort((a,b) => b.odds - a.odds); return desc.slice(0, Math.max(1, Math.round(n * 0.5))); }
-  // balanced: remove top 20% highest and bottom 10% lowest
-  const lo = Math.round(sorted.length * 0.1), hi = Math.round(sorted.length * 0.8);
-  return sorted.slice(lo, Math.max(lo + 1, hi));
+  if (mode === "ultrasafe") return sorted.slice(0, Math.min(5, sorted.length));
+  if (mode === "safe") return sorted.slice(0, Math.min(10, sorted.length));
+  if (mode === "value") { return [...sels].sort((a,b) => b.odds - a.odds).slice(0, Math.max(1, Math.round(sels.length * 0.5))); }
+  if (mode === "aggressive") return [...sels].sort((a,b) => b.odds - a.odds);
+  return sels; // balanced = full set
 }
 
 async function genOneCode(sels) {
@@ -575,38 +748,42 @@ async function genOneCode(sels) {
 }
 
 $("generateBtn").addEventListener("click", async () => {
-  const kept = filtered.filter(s=>!s.removed); if (!kept.length) return;
-  $("generateBtn").disabled = true; $("generateBtn").textContent = "Generating 3 codes...";
+  const kept = filtered.filter(s=>!s.removed && !excluded.has(s.eventId)); if (!kept.length) return;
+  $("generateBtn").disabled = true; $("generateBtn").textContent = "Generating 5 codes...";
   $("generateResult").classList.add("hidden"); $("codeCard").classList.add("hidden"); $("tripleCards").classList.add("hidden");
 
-  const fixedN = document.querySelector('[data-legs="fixed"].active') ? parseInt($("topN").value) : 0;
-  const variants = { safe: buildVariant(kept, "safe", fixedN), balanced: kept, value: buildVariant(kept, "value", fixedN) };
+  const variants = {
+    ultrasafe: buildVariant(kept, "ultrasafe"),
+    safe: buildVariant(kept, "safe"),
+    balanced: buildVariant(kept, "balanced"),
+    value: buildVariant(kept, "value"),
+    aggressive: buildVariant(kept, "aggressive"),
+  };
 
   try {
-    const [safeR, balR, valR] = await Promise.all([genOneCode(variants.safe), genOneCode(variants.balanced), genOneCode(variants.value)]);
-    tripleCodeResults = { safe: safeR, balanced: balR, value: valR };
+    const results = await Promise.all(Object.values(variants).map(v => genOneCode(v)));
+    const keys = Object.keys(variants);
+    keys.forEach((k,i) => { tripleCodeResults[k] = results[i]; });
 
-    const card = (label, cls, res, sels) => {
-      if (!res.success) return `<div class="triple-card"><div class="triple-card-label ${cls}">${label}</div><div style="color:var(--red);font-size:12px">Failed</div></div>`;
+    const labels = { ultrasafe: "Ultra Safe", safe: "Safe", balanced: "Balanced", value: "Value", aggressive: "Aggressive" };
+    const classes = { ultrasafe: "safe", safe: "safe", balanced: "balanced", value: "value", aggressive: "value" };
+
+    const card = (key, res, sels) => {
+      if (!res.success) return `<div class="triple-card"><div class="triple-card-label ${classes[key]}">${labels[key]}</div><div style="color:var(--red);font-size:12px">Failed</div></div>`;
       const odds = sels.reduce((a,s) => a*s.odds, 1);
-      return `<div class="triple-card"><div class="triple-card-label ${cls}">${label}</div><div class="triple-card-code mono">${esc(res.shareCode)}</div><div class="triple-card-meta"><strong>${sels.length}</strong> games &middot; <strong>${odds.toFixed(1)}x</strong></div><button class="btn btn-green" onclick="copyToClipboard(${jsArg(res.shareCode)},this)">Copy</button></div>`;
+      return `<div class="triple-card"><div class="triple-card-label ${classes[key]}">${labels[key]}</div><div class="triple-card-code mono">${esc(res.shareCode)}</div><div class="triple-card-meta"><strong>${sels.length}</strong> games &middot; <strong>${odds.toFixed(1)}x</strong></div><button class="btn btn-green" onclick="copyToClipboard(${jsArg(res.shareCode)},this)">Copy</button></div>`;
     };
 
-    $("tripleCards").innerHTML = card("Safe","safe",safeR,variants.safe) + card("Balanced","balanced",balR,variants.balanced) + card("Value","value",valR,variants.value);
+    $("tripleCards").innerHTML = keys.map(k => card(k, tripleCodeResults[k], variants[k])).join("");
     $("tripleCards").classList.remove("hidden");
-    $("copyAllCodes").style.display = "";
+    $("notSatisfiedHint").classList.remove("hidden");
     $("generateBtn").classList.add("hidden");
-    showToast("3 codes generated", "success");
+    showToast("5 codes generated", "success");
   } catch(e) {
     $("generateResult").classList.remove("hidden");
     $("generateResult").innerHTML = `<div class="gen-error"><div class="gen-error-msg">${esc(e.message)}</div></div>`;
   } finally { $("generateBtn").disabled = false; $("generateBtn").textContent = "Generate Codes"; }
 });
-
-function copyAllTripleCodes() {
-  const codes = ["safe","balanced","value"].map(k => tripleCodeResults[k]?.shareCode).filter(Boolean);
-  if (codes.length) copyToClipboard(codes.join("\n"));
-}
 
 // ── Per-pick Optimize ──
 const OPT_RULES = [
@@ -884,7 +1061,7 @@ window.copyAllSplitCodes = function() {
 // Splitter mode toggles
 window.setSplitMode = function(mode) {
   const em = $("extractMode"), sm = $("splitMode");
-  document.querySelectorAll("#splitterConfig > .pill-row .pill").forEach((b,i) => b.classList.toggle("active", (mode==="extract"?0:1)===i));
+  document.querySelectorAll("#splitterConfig > .pill-row .pill").forEach((b,i) => b.classList.toggle("active", (mode==="split"?0:1)===i));
   if (em) em.classList.toggle("hidden", mode !== "extract");
   if (sm) sm.classList.toggle("hidden", mode !== "split");
 };
@@ -1245,6 +1422,7 @@ async function runConvert(mode) {
     // Deep Scan: fetch H2H data and override decisions
     if (deepScanEnabled && (mode === "safer" || mode === "goals" || mode === "advanced")) {
       if (prog) { prog.classList.remove("hidden"); prog.textContent = `Analyzing ${i+1}/${convertResult.length}...`; }
+      console.log(`[Deep Scan] Fetching H2H for ${s.homeTeam} vs ${s.awayTeam}`);
       const data = await getDeepScanData(s);
       if (data?.found && data.keyStats) {
         const ks = data.keyStats;
@@ -1261,9 +1439,10 @@ async function runConvert(mode) {
         if (ks.homeWinRate < 20 && out === "home") pickScore -= 20;
         pickScore = Math.max(0, Math.min(100, pickScore));
         s._safetyScore = pickScore;
+        console.log(`[Deep Scan] Safety score ${pickScore} for ${s.homeTeam} vs ${s.awayTeam}`);
 
         // Flag uncertain games (score < 35)
-        if (pickScore < 35) { s._uncertain = true; s._scanNote = `Safety ${pickScore}/100. Stats suggest this pick is risky.`; }
+        if (pickScore < 35) { s._uncertain = true; s._scanNote = `Safety ${pickScore}/100. Stats suggest this pick is risky.`; console.log(`[Deep Scan] Removing ${s.homeTeam} vs ${s.awayTeam} (score below 35)`); }
 
         // Data says keep the pick
         if (ks.avgGoals > 2.5 && out.includes("over 2.5")) { s._scanNote = `Avg ${ks.avgGoals} goals. Keeping Over 2.5.`; continue; }
@@ -1492,18 +1671,44 @@ window.generateConvertCode = async function() {
   finally { $("convertGenBtn").disabled = false; $("convertGenBtn").textContent = "Generate New Code"; }
 };
 
-// ── PWA Install Banner ──
+// ── PWA Install Sheet ──
 let deferredPrompt = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; });
-setTimeout(() => {
-  if (deferredPrompt && !window.matchMedia("(display-mode: standalone)").matches) {
-    $("installBanner").classList.remove("hidden");
-    $("installBtn").addEventListener("click", () => {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(() => { $("installBanner").classList.add("hidden"); deferredPrompt = null; });
-    });
+
+window.showInstallSheet = function() {
+  const sheet = $("installSheet");
+  if (!sheet) return;
+  if (isIOS) { $("installAndroid").classList.add("hidden"); $("installIOS").classList.remove("hidden"); }
+  else { $("installAndroid").classList.remove("hidden"); $("installIOS").classList.add("hidden"); }
+  sheet.classList.remove("hidden");
+};
+
+window.dismissInstall = function() {
+  $("installSheet").classList.add("hidden");
+  localStorage.setItem("installPromptShown", "1");
+};
+
+$("installBtn").addEventListener("click", () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { $("installSheet").classList.add("hidden"); deferredPrompt = null; });
   }
-}, 20000);
+});
+
+setTimeout(() => {
+  if (!isStandalone && !localStorage.getItem("installPromptShown")) {
+    if (deferredPrompt || isIOS) showInstallSheet();
+  }
+}, 10000);
+
+// Feature gate for non-installed users
+if (!isStandalone) {
+  const gate = $("pwaGateBanner");
+  if (gate) gate.classList.remove("hidden");
+}
 
 // Footer links
 document.querySelectorAll(".footer-links a").forEach(a => a.addEventListener("click", () => activateTab(a.dataset.goto)));
@@ -1533,3 +1738,164 @@ window.submitSupport = async function() {
 
 // Admin support page
 if (location.pathname.startsWith("/admin/support")) activateTab("leaderboard");
+
+// ── Convert Manual Mode ──
+let manualConvertEdits = {};
+
+window.setConvertMode = function(mode) {
+  const pills = document.querySelectorAll("#convertResults > .pill-row .pill");
+  pills.forEach((p, i) => p.classList.toggle("active", (mode === "auto" ? 0 : 1) === i));
+  $("convertAutoMode").classList.toggle("hidden", mode !== "auto");
+  $("convertManualMode").classList.toggle("hidden", mode !== "manual");
+  if (mode === "manual") renderManualConvert();
+};
+
+function renderManualConvert() {
+  if (!convertOriginal.length) return;
+  const list = $("manualConvertList");
+  list.innerHTML = convertOriginal.map(s => {
+    const edit = manualConvertEdits[s.eventId];
+    const pickHtml = edit
+      ? `<span class="pick-old">${esc(s.market)} - ${esc(s.outcome)}</span><span class="pick-new">${esc(edit.market)} - ${esc(edit.outcome)} @ ${edit.odds.toFixed(2)}</span>`
+      : `<span style="font-size:12px;color:var(--text2)">${esc(s.market)} - ${esc(s.outcome)}</span>`;
+    return `<div class="manual-convert-item"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="pick-display">${pickHtml}</div></div><span class="sel-odds">${(edit ? edit.odds : s.odds).toFixed(2)}</span><button class="btn-edit-pick" onclick="openManualMarkets(${jsArg(s.eventId)})">Edit Pick</button></div>`;
+  }).join("");
+
+  const oldOdds = convertOriginal.reduce((a,s) => a*s.odds, 1);
+  const newOdds = convertOriginal.reduce((a,s) => a * (manualConvertEdits[s.eventId]?.odds || s.odds), 1);
+  const changedCount = Object.keys(manualConvertEdits).length;
+  $("manualOldOdds").textContent = oldOdds.toFixed(2);
+  $("manualNewOdds").textContent = newOdds.toFixed(2);
+  $("manualChanged").textContent = changedCount;
+}
+
+window.openManualMarkets = async function(eventId) {
+  currentMktEvt = eventId;
+  marketModal.classList.remove("hidden");
+  $("modalTitle").textContent = "Loading..."; $("modalSub").textContent = "Choose new pick"; $("modalStats").innerHTML = "";
+  $("modalBody").innerHTML = '<div class="modal-loading">Fetching markets...</div>';
+
+  try {
+    let data;
+    if (marketsCache[eventId]) { data = marketsCache[eventId]; }
+    else { const r = await fetch(`/api/markets/${encodeURIComponent(eventId)}`); data = await r.json(); if (!r.ok) throw new Error(data.error); marketsCache[eventId] = data; }
+    renderManualMarketModal(data, eventId);
+  } catch(e) { $("modalBody").innerHTML = `<div class="modal-loading" style="color:var(--red)">${esc(e.message)}</div>`; }
+};
+
+function renderManualMarketModal(d, eventId) {
+  $("modalTitle").textContent = `${d.homeTeam} vs ${d.awayTeam}`;
+  $("modalSub").textContent = "Select a new pick for this game";
+  $("modalStats").innerHTML = `<span>Markets: <span class="ms-val">${d.marketCount}</span></span><span>Outcomes: <span class="ms-val">${d.outcomeCount}</span></span>`;
+
+  const groups = []; const seen = new Map();
+  d.markets.forEach(m => { const k = `${m.marketId}|${m.specifier}`; if (!seen.has(k)) { seen.set(k, {marketName:m.marketName, specifier:m.specifier, outcomes:[]}); groups.push(seen.get(k)); } seen.get(k).outcomes.push(m); });
+
+  // Group categories
+  const cats = { "Goals": [], "Result": [], "Half Time": [], "Corners & Cards": [], "Other": [] };
+  groups.forEach(g => {
+    const n = g.marketName.toLowerCase();
+    if (n.includes("over/under") || n.includes("goal") || n.includes("gg") || n.includes("btts") || n.includes("score")) cats["Goals"].push(g);
+    else if (n.includes("1x2") || n.includes("result") || n.includes("double chance") || n.includes("draw no bet") || n.includes("handicap")) cats["Result"].push(g);
+    else if (n.includes("half")) cats["Half Time"].push(g);
+    else if (n.includes("corner") || n.includes("card") || n.includes("throw") || n.includes("foul")) cats["Corners & Cards"].push(g);
+    else cats["Other"].push(g);
+  });
+
+  let html = '<div class="mkt-th"><span>Outcome</span><span>Odds</span><span></span></div>';
+  Object.entries(cats).forEach(([catName, catGroups]) => {
+    if (!catGroups.length) return;
+    html += `<div style="padding:6px 20px;font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.5px;background:var(--bg);border-bottom:1px solid var(--border)">${catName}</div>`;
+    catGroups.forEach((g, i) => {
+      html += `<div class="mkt-group ${i < 2 ? 'open' : ''}" onclick="this.classList.toggle('open')"><div class="mkt-group-header"><span class="mkt-group-chevron">&#9654;</span><span class="mkt-group-name">${esc(g.marketName)}${g.specifier ? " ("+esc(g.specifier)+")" : ""}</span><span class="mkt-group-count">${g.outcomes.length}</span></div><div class="mkt-outcomes">${g.outcomes.map(o =>
+        `<div class="mkt-outcome-row"><span class="mkt-outcome-name">${esc(o.outcomeName)}</span><span class="mkt-outcome-odds">${o.odds.toFixed(2)}</span><button class="btn-sm btn-use" onclick="useManualPick(${jsArg(eventId)},${jsArg(o.marketName)},${jsArg(o.outcomeName)},${o.odds},${jsArg(o.marketId)},${jsArg(o.outcomeId)},${jsArg(o.specifier||'')})">Use</button></div>`
+      ).join("")}</div></div>`;
+    });
+  });
+  $("modalBody").innerHTML = html;
+}
+
+window.useManualPick = function(eventId, market, outcome, odds, marketId, outcomeId, specifier) {
+  manualConvertEdits[eventId] = { market, outcome, odds, marketId, outcomeId, specifier };
+  marketModal.classList.add("hidden");
+  renderManualConvert();
+  showToast(`${outcome} @ ${odds.toFixed(2)}`, "success");
+};
+
+window.generateManualConvertCode = async function() {
+  const sels = convertOriginal.map(s => {
+    const edit = manualConvertEdits[s.eventId];
+    return edit ? {...s, ...edit} : s;
+  });
+  if (!sels.length) return;
+  const btn = $("convertManualMode").querySelector(".wiz-cta");
+  btn.disabled = true; btn.textContent = "Generating...";
+  try {
+    const r = await fetch("/api/generate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({selections:genPayload(sels)})});
+    renderGenResult("manualConvertGenResult", await r.json(), sels);
+  } catch(e) { showToast(e.message, "error"); }
+  finally { btn.disabled = false; btn.textContent = "Generate New Code"; }
+};
+
+// ── Permutation Generator ──
+window.runPermutations = async function() {
+  const poolCode = $("permPoolCode").value.trim().toUpperCase();
+  const count = parseInt($("permCount").value) || 10;
+  const extraLegs = parseInt($("permExtra").value) || 3;
+
+  if (!splitterSels.length) return showErr("permError", "Load a slip first (those are your banker games)");
+  if (!poolCode) return showErr("permError", "Enter a pool code (source for extra games)");
+  showErr("permError", "");
+
+  const btn = $("permResults").previousElementSibling;
+  btn.disabled = true; btn.textContent = "Generating...";
+
+  try {
+    // Fetch pool games
+    const poolRes = await fetch(`/api/booking/${encodeURIComponent(poolCode)}`);
+    const poolJson = await poolRes.json();
+    if (!poolRes.ok) throw new Error(poolJson.error || "Failed to load pool code");
+    if (!poolJson.selections?.length) throw new Error("Pool code has no selections");
+
+    // Pool = all games from pool code that aren't already in bankers
+    const bankerIds = new Set(splitterSels.map(s => s.eventId));
+    const pool = poolJson.selections.filter(s => !bankerIds.has(s.eventId));
+    if (pool.length < 1) throw new Error("Pool code has no unique games to add");
+
+    // Sort pool by odds (safest first)
+    pool.sort((a,b) => a.odds - b.odds);
+
+    // Generate N codes, each with bankers + random extra picks from pool
+    const results = [];
+    const genCount = Math.min(count, 50);
+
+    for (let i = 0; i < genCount; i++) {
+      // Pick random extras from pool (weighted toward safer)
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      const extras = shuffled.slice(0, Math.min(extraLegs, pool.length));
+      const sels = [...splitterSels, ...extras];
+
+      try {
+        const r = await fetch("/api/generate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({selections:genPayload(sels)})});
+        const j = await r.json();
+        if (j.success && j.shareCode) {
+          const odds = sels.reduce((a,s) => a*s.odds, 1);
+          results.push({ code: j.shareCode, games: sels.length, odds, extras: extras.length });
+        }
+      } catch {}
+    }
+
+    if (!results.length) throw new Error("All code generations failed");
+
+    $("permResults").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border)"><span style="font-size:12px;font-weight:700;color:#fff">${results.length} codes generated</span><button class="btn btn-ghost" onclick="copyAllPermCodes()" style="padding:4px 12px;font-size:11px">Copy All</button></div>` +
+      results.map((r, i) => `<div class="perm-code-row"><span class="perm-code">${esc(r.code)}</span><span class="perm-meta">${r.games} games · ${r.odds.toFixed(1)}x</span><button class="btn-sm btn-use" onclick="copyToClipboard(${jsArg(r.code)},this)">Copy</button></div>`).join("");
+    $("permResults").classList.remove("hidden");
+    showToast(`${results.length} permutations generated`, "success");
+  } catch(e) { showErr("permError", e.message); }
+  finally { btn.disabled = false; btn.textContent = "Generate Permutations"; }
+};
+
+window.copyAllPermCodes = function() {
+  const codes = Array.from(document.querySelectorAll(".perm-code")).map(el => el.textContent).filter(Boolean);
+  if (codes.length) copyToClipboard(codes.join("\n"));
+};
