@@ -20,3 +20,4 @@ function renderCards(sels) {
   $("selectionsTable").innerHTML = sels.map(s => '<div class="sel-card"><div class="sel-info"><div class="sel-teams">'+esc(s.homeTeam)+' vs '+esc(s.awayTeam)+'</div><div class="sel-meta">'+esc(s.market)+' - '+esc(s.outcome)+(s.league?' · '+esc(s.league):'')+'</div></div><div class="sel-odds">'+s.odds.toFixed(2)+'</div></div>').join("");
 }
 function esc(str) { const el = document.createElement("span"); el.textContent = str||""; return el.innerHTML; }
+// filter engine implementation
