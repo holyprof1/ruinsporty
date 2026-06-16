@@ -20,11 +20,11 @@ for (const [file, content] of Object.entries(defaults)) {
 
 // Create zip excluding node_modules, .git, .env
 const zipName = "slippilot-deploy.zip";
-const zipPath = path.join(__dirname, "..", zipName);
+const zipPath = path.join(__dirname, zipName);
 
 try {
   execSync(
-    `powershell -Command "Get-ChildItem -Path '${__dirname}' -Exclude 'node_modules','.git','.env','slippilot-deploy.zip' | Compress-Archive -DestinationPath '${zipPath}' -Force"`,
+    `powershell -Command "Get-ChildItem -Path '${__dirname}' -Exclude 'node_modules','.git','.env','slippilot-deploy.zip','debug' | Compress-Archive -DestinationPath '${zipPath}' -Force"`,
     { stdio: "inherit" }
   );
   const size = (fs.statSync(zipPath).size / 1024).toFixed(0);
