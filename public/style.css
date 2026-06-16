@@ -455,14 +455,9 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
 .tab-page.fading{opacity:0}
 
 /* Install bottom sheet */
-.install-sheet{position:fixed;inset:0;z-index:2000;display:flex;align-items:flex-end;justify-content:center}
-.install-sheet::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
-.install-sheet-inner{position:relative;width:100%;max-width:420px;background:var(--card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:32px 24px 40px;text-align:center;animation:sheetUp .3s ease}
+.install-sheet{position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#161b22;border-top:1px solid #30363d;border-radius:16px 16px 0 0;padding:20px;animation:sheetUp .3s ease}
+.install-sheet-inner{max-width:420px;margin:0 auto}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.install-sheet-close{position:absolute;top:12px;right:16px;background:0;border:none;color:var(--text3);font-size:22px;cursor:pointer}
-.install-sheet-icon{margin-bottom:12px}
-.install-sheet-inner h3{font-size:18px;font-weight:800;color:#fff;margin-bottom:6px}
-.install-sheet-inner p{font-size:13px;color:var(--text2);margin-bottom:20px}
 
 /* PWA feature gate */
 .pwa-gate{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;margin-bottom:12px;background:rgba(0,200,83,.06);border:1px solid rgba(0,200,83,.2);border-radius:var(--radius-lg);font-size:12px;font-weight:600;color:var(--green)}

@@ -10,28 +10,79 @@ body{font-family:'Inter',system-ui,sans-serif;background:#0a0f0a;color:#fff;min-
 h1{font-size:24px;margin-bottom:4px;color:#00c853}
 .sub{font-size:13px;color:#8a9e8a;margin-bottom:24px}
 h2{font-size:16px;margin-bottom:12px;color:#fff}
-.stat-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px}
-.stat{background:#0a0f0a;border:1px solid #1e2e1e;border-radius:8px;padding:16px;min-width:120px;text-align:center}
-.stat-val{font-size:28px;font-weight:900;color:#00c853}
-.stat-lbl{font-size:10px;color:#8a9e8a;text-transform:uppercase;margin-top:4px}
-input,button{font-family:inherit}
-input[type=password]{width:100%;max-width:300px;padding:12px 16px;border-radius:100px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:15px;outline:none;margin-bottom:12px}
+h3{font-size:13px;color:#8a9e8a;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+.qs-bar{display:flex;gap:24px;flex-wrap:wrap;padding:14px 20px;align-items:center}
+.qs-item{text-align:center}
+.qs-val{font-size:22px;font-weight:900;color:#00c853}
+.qs-lbl{font-size:10px;color:#8a9e8a;text-transform:uppercase}
+input,button,select{font-family:inherit}
+input[type=password],input[type=text],input[type=date]{padding:10px 14px;border-radius:8px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:13px;outline:none}
 input:focus{border-color:#00c853}
+select{padding:8px 12px;border-radius:8px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:12px}
 .btn{padding:10px 24px;border-radius:100px;border:none;background:#00c853;color:#fff;font-weight:600;cursor:pointer;font-size:14px}
-.btn:hover{background:#1ed760}
-.btn-sm{padding:4px 12px;font-size:11px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#8a9e8a;cursor:pointer}
+.btn:hover{background:#1ed760}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:5px 12px;font-size:11px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#8a9e8a;cursor:pointer;transition:.15s}
 .btn-sm:hover{border-color:#00c853;color:#00c853}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;padding:8px;color:#8a9e8a;font-size:10px;text-transform:uppercase;border-bottom:1px solid #1e2e1e}
-td{padding:8px;border-bottom:1px solid rgba(255,255,255,.04)}
-.badge{padding:2px 8px;border-radius:100px;font-size:10px;font-weight:700}
-.badge-new{background:rgba(0,200,83,.1);color:#00c853}
-.badge-read{background:rgba(255,179,0,.1);color:#ffb300}
-.badge-done{background:rgba(139,148,158,.1);color:#8a9e8a}
+.btn-sm.active{background:#00c853;color:#fff;border-color:#00c853}
+.pill-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.pill{padding:6px 14px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#8a9e8a;font-size:11px;font-weight:600;cursor:pointer}
+.pill:hover{border-color:#00c853;color:#fff}
+.pill.active{background:#00c853;color:#fff;border-color:#00c853}
+.tab-row{display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid #1e2e1e;padding-bottom:8px}
+.tab-btn{padding:6px 16px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#8a9e8a;font-size:12px;font-weight:600;cursor:pointer}
+.tab-btn.active{background:#00c853;color:#fff;border-color:#00c853}
+.tab-content{display:none}.tab-content.active{display:block}
+.trust-high{color:#00c853}.trust-mid{color:#ffb300}.trust-low{color:#e53935}
+/* Punter card */
+.punter-card{background:#111811;border:1px solid #1e2e1e;border-radius:12px;margin-bottom:12px;overflow:hidden}
+.punter-header{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer}
+.punter-header:hover{background:rgba(0,200,83,.02)}
+.rank-badge{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;flex-shrink:0}
+.rank-1{background:rgba(255,179,0,.15);color:#ffb300;border:2px solid #ffb300}
+.rank-2{background:rgba(192,192,192,.1);color:#c0c0c0;border:2px solid #c0c0c0}
+.rank-3{background:rgba(205,127,50,.1);color:#cd7f32;border:2px solid #cd7f32}
+.rank-n{background:rgba(138,158,138,.1);color:#8a9e8a;border:2px solid #1e2e1e}
+.punter-name{font-weight:800;font-size:15px;color:#fff}
+.punter-handle{font-size:12px;color:#8a9e8a}
+.trust-ring{margin-left:auto;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;flex-shrink:0}
+.punter-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:0;padding:0 20px 12px;text-align:center}
+.ps-val{font-size:18px;font-weight:800;color:#fff}
+.ps-lbl{font-size:9px;color:#8a9e8a;text-transform:uppercase}
+.ps-val.green{color:#00c853}.ps-val.red{color:#e53935}
+/* Code grid */
+.code-section{border-top:1px solid #1e2e1e;padding:12px 20px}
+.code-grid{display:grid;grid-template-columns:100px 80px 55px 45px 45px 45px 55px 80px;gap:0 12px;align-items:center;font-size:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.code-grid:last-child{border-bottom:none}
+.code-grid.header{color:#8a9e8a;font-size:10px;font-weight:700;text-transform:uppercase;border-bottom:1px solid #1e2e1e;padding-bottom:8px}
+.code-val{font-family:'JetBrains Mono',monospace;font-weight:800;color:#00c853;letter-spacing:1px}
+.code-date{color:#8a9e8a}
+.code-rate{font-weight:700}
+/* Add code form */
+.add-form{display:flex;gap:8px;align-items:center;padding:12px 20px;border-top:1px solid #1e2e1e;flex-wrap:wrap}
+.add-form input{max-width:140px}
+/* Generated codes */
+.gen-grid{display:grid;grid-template-columns:80px 90px 60px 100px 1fr;gap:0 12px;align-items:center;font-size:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.gen-grid.header{color:#8a9e8a;font-size:10px;font-weight:700;text-transform:uppercase;border-bottom:1px solid #1e2e1e}
+.gen-code{font-family:'JetBrains Mono',monospace;font-weight:800;color:#00c853;letter-spacing:1px}
+.gen-odds{color:#ffb300;font-weight:700}
+.gen-actions{display:flex;gap:6px}
+.gen-actions a{color:#8a9e8a;text-decoration:none;font-size:11px;padding:3px 8px;border:1px solid #1e2e1e;border-radius:6px}
+.gen-actions a:hover{color:#00c853;border-color:#00c853}
+.consensus-item{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px}
+.consensus-item:last-child{border-bottom:none}
+.consensus-strong{border-left:3px solid #ffb300;padding-left:12px}
+.progress{font-size:13px;color:#ffb300;padding:8px 0}
 .dev{font-size:13px;color:#8a9e8a;line-height:1.6}
 .dev a{color:#00c853;text-decoration:none}
 #login{max-width:400px;margin:80px auto;text-align:center}
+#login input{width:100%;max-width:300px;margin-bottom:12px}
 #dashboard{display:none}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
+.toggle-row label{font-size:13px;color:#fff}
+.tgl{width:40px;height:22px;background:#1e2e1e;border-radius:11px;position:relative;cursor:pointer;transition:.2s}
+.tgl.on{background:#00c853}
+.tgl::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s}
+.tgl.on::after{left:21px}
 </style>
 </head>
 <body>
@@ -45,66 +96,275 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.04)}
 
 <div id="dashboard">
   <h1>SlipPilot Admin</h1>
-  <p class="sub">Dashboard &middot; <a href="/admin/logout" style="color:#00c853">Logout</a></p>
+  <p class="sub"><a href="/" style="color:#00c853">Home</a> &middot; <a href="/admin/logout" style="color:#8a9e8a">Logout</a></p>
 
-  <div class="card">
-    <h2>API Usage Today</h2>
-    <div class="stat-row">
-      <div class="stat"><div class="stat-val" id="apiPublic">0</div><div class="stat-lbl">Public Calls</div></div>
-      <div class="stat"><div class="stat-val" id="apiAdmin">0</div><div class="stat-lbl">Admin Calls</div></div>
-      <div class="stat"><div class="stat-val" id="apiLimit">50</div><div class="stat-lbl">Public Limit</div></div>
+  <div class="card" style="padding:14px 20px">
+    <div class="qs-bar">
+      <div class="qs-item"><div class="qs-val" id="qsPunters">8</div><div class="qs-lbl">Punters</div></div>
+      <div class="qs-item"><div class="qs-val" id="qsCodes">0</div><div class="qs-lbl">Codes Today</div></div>
+      <div class="qs-item"><div class="qs-val" style="color:#ffb300" id="qsConsensus">0</div><div class="qs-lbl">Consensus</div></div>
+      <div class="qs-item"><div class="qs-val" id="qsBest">-</div><div class="qs-lbl">Best Trust</div></div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Lifetime Stats</h2>
-    <div class="stat-row" id="statsRow"></div>
+  <div class="tab-row">
+    <button class="tab-btn active" onclick="showTab('punters')">Leaderboard</button>
+    <button class="tab-btn" onclick="showTab('generator')">Daily Generator</button>
+    <button class="tab-btn" onclick="showTab('codes')">Generated Codes</button>
+    <button class="tab-btn" onclick="showTab('tickets')">Tickets</button>
   </div>
 
-  <div class="card">
-    <h2>Support Tickets</h2>
-    <table><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Type</th><th>Message</th><th>Status</th><th></th></tr></thead><tbody id="ticketsBody"></tbody></table>
+  <!-- LEADERBOARD TAB -->
+  <div class="tab-content active" id="tab-punters">
+    <div class="pill-row" id="sortPills">
+      <button class="pill active" onclick="sortBy('consistency')">Consistency</button>
+      <button class="pill" onclick="sortBy('trust')">Trust Score</button>
+      <button class="pill" onclick="sortBy('hitrate')">Hit Rate</button>
+      <button class="pill" onclick="sortBy('games')">Games</button>
+      <button class="pill" onclick="sortBy('cuts')">Lowest Cuts</button>
+      <button class="pill" onclick="sortBy('value')">Best Value</button>
+      <button class="pill" onclick="sortBy('recent')">Recent Form</button>
+    </div>
+    <div id="punterCards"></div>
   </div>
 
-  <div class="card">
-    <h2>About the Developer</h2>
-    <p class="dev">SlipPilot is built and maintained by <strong>Tobi Arowosegbe</strong> — a Lagos-based full-stack developer with 8+ years experience in PHP, Laravel, WordPress, React and Node.js. Available for freelance projects, partnerships and custom betting tool development.<br><br>
-    Email: <a href="mailto:arowosegbetobi13@gmail.com">arowosegbetobi13@gmail.com</a><br>
-    GitHub: <a href="https://github.com/holyprof1" target="_blank">holyprof1</a><br>
-    Twitter: <a href="https://twitter.com/phpdevng" target="_blank">@phpdevng</a></p>
+  <!-- DAILY GENERATOR TAB -->
+  <div class="tab-content" id="tab-generator">
+    <div class="card">
+      <h2>Today's Punter Codes</h2>
+      <div id="todayCodes"></div>
+      <button class="btn" onclick="fetchAllToday()" style="margin-top:12px">Fetch All & Filter Live</button>
+      <span id="fetchProgress" class="progress"></span>
+    </div>
+    <div class="card">
+      <h2>Generation Settings</h2>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+        <div><label style="font-size:11px;color:#8a9e8a">Codes to generate</label><br><input type="number" id="genCount" value="50" min="10" max="100" style="width:80px;margin-top:4px" /></div>
+        <div><label style="font-size:11px;color:#8a9e8a">Min odds per code</label><br><select id="genMinOdds" style="margin-top:4px"><option value="1000">1,000x</option><option value="10000">10,000x</option><option value="100000" selected>100,000x</option><option value="1000000">1,000,000x</option></select></div>
+      </div>
+      <div class="toggle-row"><label>Apply smart conversions</label><div class="tgl on" id="tglConvert" onclick="this.classList.toggle('on')"></div></div>
+      <div class="toggle-row"><label>Run H2H analysis (uses API calls)</label><div class="tgl" id="tglH2H" onclick="this.classList.toggle('on')"></div></div>
+      <button class="btn" onclick="runGenerator()" id="genBtn" style="margin-top:16px">Generate Best Picks</button>
+      <div id="genProgress" class="progress"></div>
+    </div>
+    <div class="card" id="consensusSection" style="display:none">
+      <h2>Consensus Picks</h2>
+      <div id="consensusList"></div>
+    </div>
+  </div>
+
+  <!-- GENERATED CODES TAB -->
+  <div class="tab-content" id="tab-codes">
+    <div class="card">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <h2 style="margin:0">Generated Codes</h2>
+        <button class="btn-sm" onclick="copyAllCodes()">Copy All</button>
+        <button class="btn-sm" onclick="exportCodes()">Export .txt</button>
+      </div>
+      <div class="pill-row">
+        <button class="pill active" onclick="filterGroup('all')">All</button>
+        <button class="pill" onclick="filterGroup('A')">Safe</button>
+        <button class="pill" onclick="filterGroup('B')">Balanced</button>
+        <button class="pill" onclick="filterGroup('C')">Value</button>
+        <button class="pill" onclick="filterGroup('D')">Consensus</button>
+        <button class="pill" onclick="filterGroup('E')">Moonshot</button>
+        <button class="pill" onclick="filterGroup('F')">Permutation</button>
+      </div>
+      <div id="codesTable"></div>
+    </div>
+  </div>
+
+  <!-- TICKETS TAB -->
+  <div class="tab-content" id="tab-tickets">
+    <div class="card">
+      <h2>Support Tickets</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:left;padding:8px;color:#8a9e8a;font-size:10px;border-bottom:1px solid #1e2e1e">Date</th><th style="text-align:left;padding:8px;color:#8a9e8a;font-size:10px;border-bottom:1px solid #1e2e1e">Name</th><th style="text-align:left;padding:8px;color:#8a9e8a;font-size:10px;border-bottom:1px solid #1e2e1e">Type</th><th style="text-align:left;padding:8px;color:#8a9e8a;font-size:10px;border-bottom:1px solid #1e2e1e">Message</th><th style="padding:8px;color:#8a9e8a;font-size:10px;border-bottom:1px solid #1e2e1e"></th></tr></thead><tbody id="ticketsBody"></tbody></table>
+    </div>
   </div>
 </div>
 
 <script>
-let adminPw = '';
-async function doLogin() {
-  const pw = document.getElementById('pw').value;
-  const r = await fetch('/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
-  if (r.ok) { adminPw = pw; document.getElementById('login').style.display = 'none'; document.getElementById('dashboard').style.display = 'block'; loadDashboard(); }
-  else document.getElementById('loginErr').textContent = 'Wrong password';
+let adminPw='', profiles={}, generatedCodes={}, currentSort='consistency', currentGroup='all';
+
+function showTab(id){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase().includes(id.slice(0,4))));document.querySelectorAll('.tab-content').forEach(t=>t.classList.toggle('active',t.id==='tab-'+id));}
+
+async function doLogin(){
+  const pw=document.getElementById('pw').value;
+  const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+  if(r.ok){adminPw=pw;document.getElementById('login').style.display='none';document.getElementById('dashboard').style.display='block';loadAll();}
+  else document.getElementById('loginErr').textContent='Wrong password';
 }
 
-async function loadDashboard() {
-  const h = { 'x-admin-password': adminPw };
-  const dash = await (await fetch('/api/admin/dashboard', { headers: h })).json();
-  document.getElementById('apiPublic').textContent = dash.api.publicCalls;
-  document.getElementById('apiAdmin').textContent = dash.api.adminCalls;
-  document.getElementById('apiLimit').textContent = dash.api.limit;
+async function loadAll(){
+  const h={'x-admin-password':adminPw};
+  try{const r=await fetch('/api/punter-profiles',{headers:h});if(r.ok)profiles=await r.json();}catch{}
+  try{const r=await fetch('/api/generated-codes',{headers:h});if(r.ok)generatedCodes=await r.json();}catch{}
+  updateQuickStats();
+  renderPunters();
+  renderCodes();
+  renderTodayCodes();
+  loadTickets();
+}
 
-  const sr = document.getElementById('statsRow');
-  sr.innerHTML = Object.entries(dash.stats).map(([k,v]) => `<div class="stat"><div class="stat-val">${v.toLocaleString()}</div><div class="stat-lbl">${k.replace(/([A-Z])/g,' $1')}</div></div>`).join('');
+function updateQuickStats(){
+  const pList=Object.values(profiles);
+  document.getElementById('qsPunters').textContent=pList.length;
+  const totalCodes=Object.values(generatedCodes).flat().filter(c=>c.code).length;
+  document.getElementById('qsCodes').textContent=totalCodes;
+  const best=pList.sort((a,b)=>b.trustScore-a.trustScore)[0];
+  if(best)document.getElementById('qsBest').textContent=best.name+' '+best.trustScore;
+}
 
-  const tickets = await (await fetch('/api/support', { headers: h })).json();
-  const tb = document.getElementById('ticketsBody');
-  tb.innerHTML = (tickets.tickets || []).reverse().map(t => {
-    const bc = t.status === 'New' ? 'badge-new' : t.status === 'Read' ? 'badge-read' : 'badge-done';
-    return `<tr><td>${new Date(t.date).toLocaleDateString('en-GB')}</td><td>${t.name}</td><td><a href="mailto:${t.email}" style="color:#00c853">${t.email}</a></td><td>${t.type}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${t.message}</td><td><span class="badge ${bc}">${t.status}</span></td><td><button class="btn-sm" onclick="markTicket(${t.id},'Read')">Read</button> <button class="btn-sm" onclick="markTicket(${t.id},'Done')">Done</button></td></tr>`;
+function sortBy(method){
+  currentSort=method;
+  document.querySelectorAll('#sortPills .pill').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  renderPunters();
+}
+
+function getSorted(){
+  let list=Object.values(profiles);
+  switch(currentSort){
+    case'trust':list.sort((a,b)=>b.trustScore-a.trustScore);break;
+    case'hitrate':list.sort((a,b)=>b.hitRate-a.hitRate);break;
+    case'games':list.sort((a,b)=>b.totalGames-a.totalGames);break;
+    case'consistency':list.sort((a,b)=>b.consistency-a.consistency);break;
+    case'cuts':list.sort((a,b)=>(a.lost/(a.totalGames||1))-(b.lost/(b.totalGames||1)));break;
+    case'value':list.sort((a,b)=>((b.avgOddsPerGame||1.3)-1)*b.hitRate-((a.avgOddsPerGame||1.3)-1)*a.hitRate);break;
+    case'recent':list.sort((a,b)=>{
+      const recentA=(a.codes||[]).slice(0,2).filter(c=>c.hitRate>0);
+      const recentB=(b.codes||[]).slice(0,2).filter(c=>c.hitRate>0);
+      const avgA=recentA.length?recentA.reduce((s,c)=>s+c.hitRate,0)/recentA.length:0;
+      const avgB=recentB.length?recentB.reduce((s,c)=>s+c.hitRate,0)/recentB.length:0;
+      return avgB-avgA;
+    });break;
+  }
+  return list;
+}
+
+function renderPunters(){
+  const sorted=getSorted();
+  document.getElementById('punterCards').innerHTML=sorted.map((p,i)=>{
+    const rc=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n';
+    const tc=p.trustScore>=80?'trust-high':p.trustScore>=60?'trust-mid':'trust-low';
+    const ringBg=p.trustScore>=80?'rgba(0,200,83,.12)':p.trustScore>=60?'rgba(255,179,0,.1)':'rgba(229,57,53,.1)';
+    const ringBorder=p.trustScore>=80?'#00c853':p.trustScore>=60?'#ffb300':'#e53935';
+    const codes=(p.codes||[]).filter(c=>c.games>0);
+    const cutRate=p.totalGames>0?Math.round(p.lost/p.totalGames*100):0;
+    return `<div class="punter-card">
+      <div class="punter-header" onclick="this.parentElement.querySelector('.code-section').classList.toggle('hidden2')">
+        <div class="rank-badge ${rc}">${i+1}</div>
+        <div><div class="punter-name">${p.name}</div><div class="punter-handle">${p.handle||''}</div></div>
+        <div class="trust-ring" style="background:${ringBg};border:2px solid ${ringBorder};color:${ringBorder}">${p.trustScore}</div>
+      </div>
+      <div class="punter-stats">
+        <div><div class="ps-val">${codes.length}</div><div class="ps-lbl">Slips</div></div>
+        <div><div class="ps-val">${p.totalGames}</div><div class="ps-lbl">Games</div></div>
+        <div><div class="ps-val green">${p.won}</div><div class="ps-lbl">Won</div></div>
+        <div><div class="ps-val red">${p.lost}</div><div class="ps-lbl">Lost</div></div>
+        <div><div class="ps-val">${p.void||0}</div><div class="ps-lbl">Void</div></div>
+        <div><div class="ps-val green">${p.hitRate}%</div><div class="ps-lbl">Hit Rate</div></div>
+      </div>
+      <div class="code-section">
+        <div class="code-grid header"><span>CODE</span><span>DATE</span><span>GAMES</span><span>WON</span><span>LOST</span><span>VOID</span><span>RATE</span><span></span></div>
+        ${codes.map(c=>{
+          const d=c.date?new Date(c.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'—';
+          const rateColor=c.hitRate>=75?'#00c853':c.hitRate>=60?'#ffb300':'#e53935';
+          return `<div class="code-grid"><span class="code-val">${c.code}</span><span class="code-date">${d}</span><span>${c.games}</span><span style="color:#00c853">${c.won}</span><span style="color:#e53935">${c.lost}</span><span>${c.void||0}</span><span class="code-rate" style="color:${rateColor}">${c.hitRate}%</span><span><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${c.code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button></span></div>`;
+        }).join('')}
+      </div>
+      <div class="add-form"><input type="text" placeholder="Add code" id="addCode_${p.name.replace(/\s/g,'_')}" /><input type="date" value="${new Date().toISOString().slice(0,10)}" id="addDate_${p.name.replace(/\s/g,'_')}" /><button class="btn-sm" onclick="addCode('${p.name}')">Add</button></div>
+    </div>`;
   }).join('');
 }
 
-async function markTicket(id, status) {
-  await fetch('/api/support/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw }, body: JSON.stringify({ status }) });
-  loadDashboard();
+async function addCode(name){
+  const key=name.replace(/\s/g,'_');
+  const code=document.getElementById('addCode_'+key).value.trim().toUpperCase();
+  const date=document.getElementById('addDate_'+key).value;
+  if(!code)return;
+  try{
+    const r=await fetch('/api/punters/'+encodeURIComponent(name)+'/add-code',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':adminPw},body:JSON.stringify({code,date})});
+    const j=await r.json();
+    if(j.success){alert(name+': '+j.won+'W / '+j.lost+'L / '+j.void+'V ('+j.hitRate+'% hit)');loadAll();}
+    else alert('Error: '+(j.error||'Unknown'));
+  }catch(e){alert(e.message);}
+}
+
+function renderTodayCodes(){
+  const todayCodes={'39 Billion':'HPS13S','9Z':'LU84JS','Big Strategic':'QU303D','Ayo Jordan':'MDTXU3','Bayo Bets':'RE9N9N','OY':'M9J9KV','Princewill':'V3XV6K','Sirtee':'HXQH8Q'};
+  document.getElementById('todayCodes').innerHTML=Object.entries(todayCodes).map(([name,code])=>
+    `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px"><strong style="min-width:100px">${name}</strong><span class="code-val">${code}</span><button class="btn-sm" onclick="navigator.clipboard.writeText('${code}')">Copy</button></div>`
+  ).join('');
+}
+
+async function fetchAllToday(){
+  document.getElementById('fetchProgress').textContent='Fetching and filtering live games...';
+  try{
+    const r=await fetch('/api/admin/regen-merged',{method:'POST',headers:{'x-admin-password':adminPw}});
+    const j=await r.json();
+    document.getElementById('fetchProgress').textContent=j.message||'Done';
+  }catch(e){document.getElementById('fetchProgress').textContent='Error: '+e.message;}
+}
+
+async function runGenerator(){
+  const btn=document.getElementById('genBtn');
+  btn.disabled=true;
+  document.getElementById('genProgress').textContent='Running full analysis (2-3 min)...';
+  try{
+    const r=await fetch('/api/admin/regen-all',{method:'POST',headers:{'x-admin-password':adminPw}});
+    const j=await r.json();
+    document.getElementById('genProgress').textContent=j.message||'Done!';
+    loadAll();
+  }catch(e){document.getElementById('genProgress').textContent='Error: '+e.message;}
+  finally{btn.disabled=false;}
+}
+
+function filterGroup(g){
+  currentGroup=g;
+  document.querySelectorAll('#tab-codes .pill').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  renderCodes();
+}
+
+function renderCodes(){
+  const labels={A:'Safe',B:'Balanced',C:'Value',D:'Consensus',E:'Moonshot',F:'Permutation',G:'Merge',H:'2-Punter'};
+  let html='<div class="gen-grid header"><span>GROUP</span><span>CODE</span><span>GAMES</span><span>ODDS</span><span></span></div>';
+  for(const[key,codes]of Object.entries(generatedCodes)){
+    if(currentGroup!=='all'&&currentGroup!==key)continue;
+    (codes||[]).filter(c=>c.code).forEach(c=>{
+      const oddsStr=c.odds>=1e6?(c.odds/1e6).toFixed(1)+'M':c.odds>=1000?Math.round(c.odds/1000)+'K':Math.round(c.odds);
+      html+=`<div class="gen-grid"><span style="color:#8a9e8a">${labels[key]||key}</span><span class="gen-code">${c.code}</span><span>${c.games}g</span><span class="gen-odds">${oddsStr}x</span><span class="gen-actions"><button class="btn-sm" onclick="navigator.clipboard.writeText('${c.code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button><a href="https://www.sportybet.com/ng/?shareCode=${c.code}" target="_blank">Load ↗</a></span></div>`;
+    });
+  }
+  document.getElementById('codesTable').innerHTML=html;
+}
+
+function copyAllCodes(){
+  const codes=Object.values(generatedCodes).flat().filter(c=>c.code).map(c=>c.code);
+  navigator.clipboard.writeText(codes.join('\n'));
+  alert(codes.length+' codes copied');
+}
+
+function exportCodes(){
+  const text=Object.entries(generatedCodes).map(([k,codes])=>'GROUP '+k+':\n'+codes.filter(c=>c.code).map(c=>c.code+' ('+c.games+'g, '+Math.round(c.odds)+'x)').join('\n')).join('\n\n');
+  const blob=new Blob([text],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='codes-today.txt';a.click();
+}
+
+async function loadTickets(){
+  try{
+    const r=await fetch('/api/support',{headers:{'x-admin-password':adminPw}});
+    const j=await r.json();
+    document.getElementById('ticketsBody').innerHTML=(j.tickets||[]).reverse().slice(0,15).map(t=>
+      `<tr><td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.04)">${new Date(t.date).toLocaleDateString('en-GB')}</td><td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.04)">${t.name}</td><td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.04)">${t.type}</td><td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.04);max-width:200px;overflow:hidden;text-overflow:ellipsis">${t.message}</td><td style="padding:8px;border-bottom:1px solid rgba(255,255,255,.04)"><button class="btn-sm" onclick="markTicket(${t.id},'Done')">Done</button></td></tr>`
+    ).join('');
+  }catch{}
+}
+
+async function markTicket(id,status){
+  await fetch('/api/support/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-admin-password':adminPw},body:JSON.stringify({status})});
+  loadTickets();
 }
 </script>
 </body>

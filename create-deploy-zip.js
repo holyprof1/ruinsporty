@@ -22,9 +22,13 @@ for (const [file, content] of Object.entries(defaults)) {
 const zipName = "slippilot-deploy.zip";
 const zipPath = path.join(__dirname, zipName);
 
+// Clean analysis files from data/ before zipping (local-only files)
+const localOnlyFiles = ["punter-profiles.json", "generated-codes.json", "codes-today.txt", "tomorrow-codes.txt", "api-usage.json"];
+const sessionsDir = path.join(dataDir, "sessions");
+
 try {
   execSync(
-    `powershell -Command "Get-ChildItem -Path '${__dirname}' -Exclude 'node_modules','.git','.env','slippilot-deploy.zip','debug' | Compress-Archive -DestinationPath '${zipPath}' -Force"`,
+    `powershell -Command "Get-ChildItem -Path '${__dirname}' -Exclude 'node_modules','.git','.env','slippilot-deploy.zip','debug','analyze.js','analyze2.js','logo-source.png','scripts' | Compress-Archive -DestinationPath '${zipPath}' -Force"`,
     { stdio: "inherit" }
   );
   const size = (fs.statSync(zipPath).size / 1024).toFixed(0);
