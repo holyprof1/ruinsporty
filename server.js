@@ -957,10 +957,16 @@ app.delete("/api/punters/:name", (req, res) => {
 app.post("/api/admin/verify", (req, res) => {
   const { password } = req.body;
   if (password === process.env.ADMIN_PASSWORD) {
+    req.session.admin = true;
     res.json({ success: true });
   } else {
     res.status(403).json({ success: false, error: "Wrong password" });
   }
+});
+
+app.get("/api/admin/check", (req, res) => {
+  const isAdmin = req.session?.admin || req.headers["x-admin-password"] === process.env.ADMIN_PASSWORD;
+  res.json({ admin: !!isAdmin });
 });
 
 app.get("/punter/:name", (req, res) => {
@@ -1103,6 +1109,182 @@ app.get("/debug/sportybet-h2h/:eventId", async (req, res) => {
   const safeId = eid.replace(/[^a-zA-Z0-9_-]/g, "_");
   fs.writeFileSync(path.join(H2H_DEBUG_DIR, `probe_${safeId}.json`), JSON.stringify(results, null, 2));
   res.json({ eventId: eid, results });
+});
+
+// ── Punter Profiles & Generated Codes (admin only) ──
+
+const PROFILES_FILE = path.join(DATA_DIR, "punter-profiles.json");
+const CODES_FILE = path.join(DATA_DIR, "generated-codes.json");
+
+app.get("/api/punter-profiles", requireAdmin, (req, res) => {
+  try { res.json(JSON.parse(fs.readFileSync(PROFILES_FILE, "utf-8"))); }
+  catch { res.json({}); }
+});
+
+app.get("/api/generated-codes", requireAdmin, (req, res) => {
+  try { res.json(JSON.parse(fs.readFileSync(CODES_FILE, "utf-8"))); }
+  catch { res.json({}); }
+});
+
+app.post("/api/admin/save-codes", requireAdmin, (req, res) => {
+  try { fs.writeFileSync(CODES_FILE, JSON.stringify(req.body, null, 2)); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Scan a punter's today code and update their profile
+app.post("/api/punters/scan-today", requireAdmin, async (req, res) => {
+  const { name, code } = req.body;
+  if (!name || !code) return res.status(400).json({ error: "name and code required" });
+
+  try {
+    const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+    const json = await fetchJSON(url);
+    if (!json || json.bizCode !== 10000 || !json.data) return res.status(404).json({ error: "Code not found" });
+
+    const outcomes = json.data.outcomes || [];
+    const ticketSels = json.data.ticket?.selections || [];
+    const selections = mapOutcomes(outcomes, ticketSels);
+    const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+
+    const won = results.filter(r => r.verdict === "WON").length;
+    const lost = results.filter(r => r.verdict === "LOST").length;
+    const voided = results.filter(r => r.verdict === "VOID").length;
+    const pending = results.filter(r => r.verdict === "PENDING").length;
+    const settled = won + lost;
+    const hitRate = settled > 0 ? Math.round(won / settled * 100) : 0;
+
+    // Update punters.json leaderboard
+    const punters = loadPunters();
+    const existing = punters.find(p => p.name === name);
+    const slip = { code, date: new Date().toISOString(), total: results.length, won, lost, void: voided, hitRate };
+    if (existing) { if (!existing.slips.some(s => s.code === code)) existing.slips.push(slip); }
+    else punters.push({ name, slips: [slip] });
+    savePunters(punters);
+
+    res.json({ success: true, won, lost, void: voided, pending, hitRate, total: results.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Add code to a punter's history
+app.post("/api/punters/:name/add-code", requireAdmin, async (req, res) => {
+  const name = decodeURIComponent(req.params.name);
+  const { code, date } = req.body;
+  if (!code) return res.status(400).json({ error: "code required" });
+
+  try {
+    const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code.trim().toUpperCase())}`;
+    const json = await fetchJSON(url);
+    if (!json || json.bizCode !== 10000 || !json.data) return res.status(404).json({ error: "Code not found on SportyBet" });
+
+    const outcomes = json.data.outcomes || [];
+    const ticketSels = json.data.ticket?.selections || [];
+    const selections = mapOutcomes(outcomes, ticketSels);
+    const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+
+    const won = results.filter(r => r.verdict === "WON").length;
+    const lost = results.filter(r => r.verdict === "LOST").length;
+    const voided = results.filter(r => r.verdict === "VOID").length;
+    const pending = results.filter(r => r.verdict === "PENDING").length;
+    const settled = won + lost;
+    const hitRate = settled > 0 ? Math.round(won / settled * 100) : 0;
+
+    // Update punters.json
+    const punters = loadPunters();
+    const existing = punters.find(p => p.name === name);
+    const slip = { code: code.trim().toUpperCase(), date: (date || new Date().toISOString().slice(0, 10)) + "T00:00:00Z", total: results.length, won, lost, void: voided, hitRate };
+    if (existing) { if (!existing.slips.some(s => s.code === slip.code)) existing.slips.push(slip); }
+    else punters.push({ name, slips: [slip] });
+    savePunters(punters);
+
+    // Update punter-profiles.json
+    try {
+      const profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, "utf-8"));
+      if (profiles[name]) {
+        if (!profiles[name].codes) profiles[name].codes = [];
+        if (!profiles[name].codes.some(c => c.code === slip.code)) {
+          profiles[name].codes.unshift({ code: slip.code, date: date || new Date().toISOString().slice(0, 10), games: results.length, won, lost, void: voided, pending, hitRate });
+        }
+        // Recalculate totals
+        const allCodes = profiles[name].codes.filter(c => (c.won + c.lost) > 0);
+        profiles[name].totalGames = allCodes.reduce((a, c) => a + c.games, 0);
+        profiles[name].won = allCodes.reduce((a, c) => a + c.won, 0);
+        profiles[name].lost = allCodes.reduce((a, c) => a + c.lost, 0);
+        profiles[name].void = allCodes.reduce((a, c) => a + (c.void || 0), 0);
+        const totalSettled = profiles[name].won + profiles[name].lost;
+        profiles[name].hitRate = totalSettled > 0 ? Math.round(profiles[name].won / totalSettled * 100) : 0;
+        // Recalculate trust
+        const rates = allCodes.map(c => c.hitRate);
+        const avg = rates.length ? rates.reduce((a, r) => a + r, 0) / rates.length : 0;
+        const variance = rates.length > 1 ? Math.round(Math.sqrt(rates.reduce((a, r) => a + Math.pow(r - avg, 2), 0) / rates.length)) : 0;
+        profiles[name].consistency = 100 - variance;
+        let trust = profiles[name].hitRate;
+        if (rates.length >= 3 && variance < 15) trust += 10;
+        if (rates.some(r => r >= 80)) trust += 10;
+        if (rates.some(r => r < 40)) trust -= 10;
+        profiles[name].trustScore = Math.max(0, Math.min(100, trust));
+      }
+      fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
+    } catch {}
+
+    res.json({ success: true, won, lost, void: voided, pending, hitRate, total: results.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// H2H debug/test endpoint
+app.get("/api/debug/h2h-test", requireAdmin, async (req, res) => {
+  try {
+    const result = await apiFootballH2H("Riga FC", "FK Liepaja", "Over 2.5");
+    const usage = loadApiUsage();
+    const totalCalls = Object.values(usage.usage || {}).reduce((a, v) => a + v, 0);
+    res.json({ tested: "Riga FC vs FK Liepaja", result: result || { found: false }, apiKeyUsed: process.env.API_FOOTBALL_KEY ? "yes" : "no", callsToday: totalCalls });
+  } catch (err) { res.json({ tested: "Riga FC vs FK Liepaja", result: { found: false, error: err.message }, apiKeyUsed: process.env.API_FOOTBALL_KEY ? "yes" : "no" }); }
+});
+
+// Regenerate merged codes (all punters, live games removed)
+const TODAY_CODES = { "39 Billion": "HPS13S", "9Z": "LU84JS", "Big Strategic": "QU303D", "Ayo Jordan": "MDTXU3", "Bayo Bets": "RE9N9N", "OY": "M9J9KV", "Princewill": "V3XV6K", "Sirtee": "HXQH8Q" };
+
+app.post("/api/admin/regen-merged", requireAdmin, async (req, res) => {
+  try {
+    const allSels = [];
+    const seen = new Set();
+    const now = Date.now();
+
+    for (const [name, code] of Object.entries(TODAY_CODES)) {
+      try {
+        const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+        const json = await fetchJSON(url);
+        if (json?.bizCode === 10000 && json.data?.outcomes) {
+          const ticketSels = json.data.ticket?.selections || [];
+          const selections = mapOutcomes(json.data.outcomes, ticketSels);
+          for (const s of selections) {
+            if (s.kickoff && new Date(s.kickoff).getTime() <= now) continue;
+            if (!seen.has(s.eventId)) { seen.add(s.eventId); allSels.push(s); }
+          }
+        }
+      } catch {}
+    }
+
+    const codes = [];
+    for (let i = 0; i < allSels.length; i += 50) {
+      const batch = allSels.slice(i, i + 50);
+      const payload = batch.map(s => ({ eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId, specifier: s.specifier || "", productId: s.productId || 3, sportId: s.sportId || "" }));
+      try {
+        const r = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+        if (r.bizCode === 10000 && r.data?.shareCode) codes.push({ code: r.data.shareCode, games: batch.length });
+      } catch {}
+    }
+
+    res.json({ success: true, codes, totalGames: allSels.length, message: `${codes.length} codes from ${allSels.length} future games` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Regenerate all codes (runs analyze2.js)
+app.post("/api/admin/regen-all", requireAdmin, (req, res) => {
+  const { execFile } = require("child_process");
+  execFile("node", [path.join(__dirname, "analyze2.js")], { timeout: 600000 }, (err, stdout, stderr) => {
+    if (err) return res.json({ success: false, message: "Analysis failed: " + (err.message || stderr).slice(0, 200) });
+    res.json({ success: true, message: "Analysis complete. Codes regenerated.", output: stdout.slice(-500) });
+  });
 });
 
 // ── Start ──
