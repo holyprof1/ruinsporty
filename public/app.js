@@ -23,3 +23,4 @@ function esc(str) { const el = document.createElement("span"); el.textContent = 
 // filter engine implementation
 // league preset filters: women, friendlies, reserve, youth
 // kickoff presets: after 6pm, 8pm, tomorrow
+// View Markets button on each card
