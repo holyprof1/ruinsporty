@@ -26,3 +26,4 @@ function esc(str) { const el = document.createElement("span"); el.textContent = 
 // View Markets button on each card
 // market modal with grouped outcomes
 // rebooking fields: marketId, outcomeId, productId, sportId
+// postJSON + generate endpoint
