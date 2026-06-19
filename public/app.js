@@ -25,3 +25,4 @@ function esc(str) { const el = document.createElement("span"); el.textContent = 
 // kickoff presets: after 6pm, 8pm, tomorrow
 // View Markets button on each card
 // market modal with grouped outcomes
+// rebooking fields: marketId, outcomeId, productId, sportId
