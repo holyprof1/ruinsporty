@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "SportyBet booking code slip optimizer",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "dev": "node server.js" },
-  "dependencies": { "express": "^4.18.2" }
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
 }

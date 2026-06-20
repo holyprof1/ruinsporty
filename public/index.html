@@ -1,10 +1,204 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sporty Slip Optimizer</title><link rel="stylesheet" href="style.css"/></head>
-<body><div class="container"><header><h1>Sporty Slip Optimizer</h1></header>
-<section class="input-section"><div class="code-input-row">
-<input type="text" id="bookingCode" placeholder="Enter booking code" autocomplete="off"/>
-<button id="fetchBtn">Load Slip</button></div>
-<p id="errorMsg" class="error hidden"></p></section>
-<section id="resultsSection" class="hidden"><div id="selectionsTable"></div></section>
-</div><script src="app.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sporty Slip Optimizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ───── Header ───── -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#238636" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Slip Optimizer</span>
+      </div>
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="optimizer">Optimizer</button>
+        <button class="tab-btn" data-tab="scanner">Scanner</button>
+        <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ═══════════ TAB: OPTIMIZER ═══════════ -->
+  <div id="tab-optimizer" class="tab-page active">
+    <div class="opt-input-bar">
+      <input type="text" id="bookingCode" placeholder="Enter booking code" autocomplete="off" spellcheck="false" />
+      <button id="fetchBtn" class="btn btn-green">Load Slip</button>
+    </div>
+    <p id="errorMsg" class="error hidden"></p>
+
+    <div id="resultsSection" class="app hidden">
+      <aside class="sidebar">
+        <div class="sb-section open" data-section>
+          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
+            <span>By Kickoff</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="sb-body">
+            <div class="chip-row">
+              <button class="preset chip" data-action="after-6pm">After 6 PM</button>
+              <button class="preset chip" data-action="after-8pm">After 8 PM</button>
+              <button class="preset chip" data-action="tomorrow">Tomorrow+</button>
+            </div>
+            <label class="field-label">Remove after</label>
+            <input type="datetime-local" id="removeAfterTime" class="field" />
+            <label class="field-label">Remove before</label>
+            <input type="datetime-local" id="removeBeforeTime" class="field" />
+          </div>
+        </div>
+        <div class="sb-section open" data-section>
+          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
+            <span>By League</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="sb-body">
+            <div id="leaguePresets" class="chip-row"></div>
+            <select id="removeLeague" class="field" multiple></select>
+          </div>
+        </div>
+        <div class="sb-section open" data-section>
+          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
+            <span>By Market</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="sb-body">
+            <div id="marketPresets" class="chip-row"></div>
+            <select id="removeMarket" class="field" multiple></select>
+          </div>
+        </div>
+        <div class="sb-section open" data-section>
+          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
+            <span>By Odds</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="sb-body">
+            <div class="field-pair">
+              <div><label class="field-label">Min odds</label><input type="number" id="minOdds" class="field" step="0.01" min="1" placeholder="1.00" /></div>
+              <div><label class="field-label">Max odds</label><input type="number" id="maxOdds" class="field" step="0.01" min="1" placeholder="10.00" /></div>
+            </div>
+          </div>
+        </div>
+        <div class="sb-section open" data-section>
+          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
+            <span>Keep Safest</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="sb-body">
+            <div class="chip-row">
+              <button class="preset chip" data-action="top-5">Top 5</button>
+              <button class="preset chip" data-action="top-10">Top 10</button>
+              <button class="preset chip" data-action="top-15">Top 15</button>
+            </div>
+            <label class="field-label">Custom</label>
+            <input type="number" id="topN" class="field" min="1" placeholder="e.g. 8" />
+          </div>
+        </div>
+        <div class="sb-actions">
+          <button id="applyFilters" class="btn btn-green">Apply Filters</button>
+          <button id="resetFilters" class="btn btn-ghost">Reset All</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="stat-bar">
+          <div class="stat-block"><span class="stat-num" id="origCount">0</span><span class="stat-lbl">Original</span></div>
+          <svg class="stat-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#238636" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <div class="stat-block accent"><span class="stat-num" id="optCount">0</span><span class="stat-lbl">Optimized</span></div>
+          <div class="stat-sep"></div>
+          <div class="stat-block"><span class="stat-num red" id="removedCount">0</span><span class="stat-lbl">Removed</span></div>
+          <div class="stat-sep"></div>
+          <div class="stat-block"><span class="stat-lbl">Odds</span><span class="stat-odds"><span id="origOdds">0</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#238636" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><span class="accent" id="optOdds">0</span></span></div>
+        </div>
+        <div class="panels">
+          <section class="panel"><div class="panel-head"><h3>Original Slip</h3><span class="badge" id="origBadge">0</span></div><div class="panel-scroll" id="originalTable"></div></section>
+          <section class="panel panel--opt"><div class="panel-head panel-head--green"><h3>Optimized Slip</h3><span class="badge badge--green" id="optBadge">0</span></div><div class="panel-scroll" id="optimizedTable"></div></section>
+        </div>
+        <section id="removedSection" class="removed-wrap hidden">
+          <button class="removed-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span>Removed Selections</span><span class="badge badge--red" id="removedBadge">0</span>
+            <svg class="removed-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="removed-body" id="removedTable"></div>
+        </section>
+        <div class="cta-row"><button id="generateBtn" class="btn btn-green btn-big" disabled>Generate New Booking Code</button></div>
+        <div id="generateResult" class="hidden"></div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════ TAB: SCANNER ═══════════ -->
+  <div id="tab-scanner" class="tab-page">
+    <div class="scanner-wrap">
+      <div class="opt-input-bar">
+        <input type="text" id="scanCode" placeholder="Paste old booking code" autocomplete="off" spellcheck="false" />
+        <button id="scanBtn" class="btn btn-green">Scan Results</button>
+      </div>
+      <p id="scanError" class="error hidden"></p>
+
+      <div id="scanResults" class="hidden">
+        <!-- Summary dashboard -->
+        <div class="scan-dashboard">
+          <div class="scan-stat scan-stat--won"><span class="scan-stat-num" id="scanWon">0</span><span class="scan-stat-lbl">Won</span></div>
+          <div class="scan-stat scan-stat--lost"><span class="scan-stat-num" id="scanLost">0</span><span class="scan-stat-lbl">Lost</span></div>
+          <div class="scan-stat scan-stat--void"><span class="scan-stat-num" id="scanVoid">0</span><span class="scan-stat-lbl">Void</span></div>
+          <div class="scan-stat scan-stat--pending"><span class="scan-stat-num" id="scanPending">0</span><span class="scan-stat-lbl">Pending</span></div>
+          <div class="scan-stat scan-stat--rate"><span class="scan-stat-num" id="scanHitRate">0%</span><span class="scan-stat-lbl">Hit Rate</span></div>
+        </div>
+
+        <!-- Save for leaderboard -->
+        <div class="scan-save-row">
+          <input type="text" id="punterName" class="field" placeholder="Punter name" />
+          <button id="savePunterBtn" class="btn btn-green">Save to Leaderboard</button>
+          <span id="saveMsg" class="save-msg hidden"></span>
+        </div>
+
+        <!-- Killers / Safe picks -->
+        <div class="scan-panels">
+          <section class="panel">
+            <div class="panel-head panel-head--red"><h3>Killers</h3><span class="badge badge--red" id="killersBadge">0</span></div>
+            <div class="panel-scroll" id="killersTable"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head panel-head--green"><h3>Safe Picks</h3><span class="badge badge--green" id="safeBadge">0</span></div>
+            <div class="panel-scroll" id="safeTable"></div>
+          </section>
+        </div>
+
+        <!-- Full results -->
+        <section class="panel scan-full-panel">
+          <div class="panel-head"><h3>All Selections</h3><span class="badge" id="scanTotalBadge">0</span></div>
+          <div class="panel-scroll" id="scanAllTable"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ TAB: LEADERBOARD ═══════════ -->
+  <div id="tab-leaderboard" class="tab-page">
+    <div class="lb-wrap">
+      <h2 class="lb-title">Punter Leaderboard</h2>
+      <p class="lb-sub">Ranked by hit rate across all scanned slips</p>
+      <div id="leaderboardTable" class="lb-table-wrap">
+        <div class="empty-state">No punters saved yet. Scan a slip and save it.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── Market Explorer Modal ───── -->
+  <div id="marketModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <div><h3 id="modalTitle">Markets</h3><p id="modalSub" class="modal-sub"></p></div>
+        <button id="modalClose" class="modal-close-btn">&times;</button>
+      </div>
+      <div id="modalStats" class="modal-stats"></div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
