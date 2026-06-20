@@ -8,14 +8,35 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/style.css?v=99" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#00c853" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SlipPilot" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
 </head>
 <body>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+      for(let registration of registrations) {
+        registration.unregister();
+        console.log('SW unregistered');
+      }
+    });
+  }
+  if ('caches' in window) {
+    caches.keys().then(function(names) {
+      for (let name of names) caches.delete(name);
+    });
+  }
+</script>
 
   <header class="topbar">
     <div class="topbar-inner">
       <div class="logo" id="logoBtn">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00c853" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         <span>SlipPilot</span>
       </div>
       <nav class="tab-nav" id="tabNav">
@@ -29,11 +50,11 @@
     </div>
   </header>
 
-  <!-- HOMEPAGE -->
+  <!-- ═══ HOMEPAGE ═══ -->
   <div id="homepage" class="homepage active">
     <section class="hero">
       <h1 class="hero-title">Your Slip. Perfected.</h1>
-      <p class="hero-sub">Filter, optimize and rebuild any SportyBet slip in seconds. Free.</p>
+      <p class="hero-sub">Paste any SportyBet booking code. Filter dead weight, optimize every pick, and walk away with a sharper slip — in seconds. Free, forever.</p>
       <div class="hero-input">
         <input type="text" id="heroCode" placeholder="Paste any SportyBet booking code" autocomplete="off" spellcheck="false" />
         <button class="btn btn-green" id="heroLoadBtn">Load Slip</button>
@@ -41,26 +62,10 @@
       <p class="hero-hint">Paste any SportyBet booking code to get started</p>
     </section>
     <div class="features-grid">
-      <div class="feature-card" data-goto="optimizer">
-        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-        <h3>Optimizer</h3>
-        <p>Clean and filter your slip</p>
-      </div>
-      <div class="feature-card" data-goto="merger">
-        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
-        <h3>Merger</h3>
-        <p>Combine up to 5 codes into one</p>
-      </div>
-      <div class="feature-card" data-goto="splitter">
-        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
-        <h3>Splitter</h3>
-        <p>Break one big slip into smaller bets</p>
-      </div>
-      <div class="feature-card" data-goto="scanner">
-        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-        <h3>Scanner</h3>
-        <p>See how your old slip performed</p>
-      </div>
+      <div class="feature-card" data-goto="optimizer"><div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><h3>Optimizer</h3><p>Clean and filter your slip</p></div>
+      <div class="feature-card" data-goto="merger"><div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div><h3>Merger</h3><p>Combine up to 5 codes into one</p></div>
+      <div class="feature-card" data-goto="splitter"><div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div><h3>Splitter</h3><p>Break one big slip into smaller bets</p></div>
+      <div class="feature-card" data-goto="scanner"><div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><h3>Scanner</h3><p>See how your old slip performed</p></div>
     </div>
     <div class="live-stats" id="liveStats">
       <div class="live-stat"><span class="live-num mono" id="statLoaded">0</span><span class="live-lbl">slips loaded</span></div>
@@ -68,143 +73,255 @@
       <div class="live-stat"><span class="live-num mono" id="statScanned">0</span><span class="live-lbl">slips scanned</span></div>
       <div class="live-stat"><span class="live-num mono" id="statPunters">0</span><span class="live-lbl">punters tracked</span></div>
     </div>
+    <section class="how-section"><h2 class="section-title center">How SlipPilot works</h2><div class="how-steps"><div class="how-step"><span class="how-num">1</span><strong>Paste your code</strong><p>Enter any SportyBet booking code</p></div><div class="how-step"><span class="how-num">2</span><strong>Optimize your slip</strong><p>Filter, swap picks, remove risky games</p></div><div class="how-step"><span class="how-num">3</span><strong>Get a new code</strong><p>Generate a cleaner code — ready for SportyBet</p></div></div></section>
+    <section class="faq-section"><h2 class="section-title center">FAQ</h2><details class="faq"><summary>Is SlipPilot free?</summary><p>Yes, completely free. No account needed.</p></details><details class="faq"><summary>Does it work with any SportyBet code?</summary><p>Yes. Paste any booking code — active or expired.</p></details><details class="faq"><summary>Will it change my odds?</summary><p>Removing games reduces combined odds. Optimizing a pick may change individual odds depending on the safer market.</p></details><details class="faq"><summary>What is the Scanner?</summary><p>Paste an old code after games have finished. SlipPilot checks each pick and shows what won, lost, and went void.</p></details><details class="faq"><summary>Can I track multiple punters?</summary><p>Yes. Enter a punter name when scanning. SlipPilot tracks hit rates and ranks them on the leaderboard.</p></details></section>
+    <footer class="sp-footer"><div class="footer-inner"><span class="footer-brand">SlipPilot</span><span class="footer-note">Built for SportyBet Nigeria punters</span><div class="footer-links"><a data-goto="optimizer">Optimizer</a> <a data-goto="scanner">Scanner</a> <a data-goto="leaderboard">Leaderboard</a></div><small class="footer-disclaimer">SlipPilot is an independent tool and is not affiliated with SportyBet.</small></div></footer>
   </div>
 
-  <!-- TAB: OPTIMIZER -->
+  <!-- ═══ TAB: OPTIMIZER (3-step wizard) ═══ -->
   <div id="tab-optimizer" class="tab-page">
-    <div class="opt-top-bar">
-      <input type="text" id="bookingCode" placeholder="Booking code" autocomplete="off" spellcheck="false" />
-      <input type="text" id="optPunterName" placeholder="Punter name (optional)" autocomplete="off" />
-      <button id="fetchBtn" class="btn btn-green">Load Slip</button>
-    </div>
-    <p id="errorMsg" class="error hidden"></p>
 
-    <!-- Stance selector -->
-    <div id="stanceSelector" class="stance-selector hidden">
-      <div class="stance-card active" data-stance="manual"><strong>Manual</strong><span>Apply your own filters</span></div>
-      <div class="stance-card" data-stance="safe"><strong>Safe</strong><span>Top 10 lowest odds</span></div>
-      <div class="stance-card" data-stance="balanced"><strong>Balanced</strong><span>Mid-range odds mix</span></div>
-      <div class="stance-card" data-stance="value"><strong>Value Hunter</strong><span>Odds 1.50+ only</span></div>
-      <div class="stance-card" data-stance="fixedcount"><strong>Fixed Count</strong><span>Keep exactly N games</span><input type="number" id="stanceFixedN" class="stance-input" min="1" placeholder="N" onclick="event.stopPropagation()" /></div>
-      <div class="stance-card" data-stance="oddstarget"><strong>Odds Target</strong><span>Hit a target multiplier</span><input type="number" id="stanceTargetOdds" class="stance-input" min="1" step="0.5" placeholder="e.g. 15" onclick="event.stopPropagation()" /></div>
+    <!-- Step indicator -->
+    <div class="wiz-steps-bar" id="optStepsBar">
+      <div class="wiz-dot active" data-n="1">1<span>Load</span></div>
+      <div class="wiz-line"></div>
+      <div class="wiz-dot" data-n="2">2<span>Settings</span></div>
+      <div class="wiz-line"></div>
+      <div class="wiz-dot" data-n="3">3<span>Results</span></div>
     </div>
 
-    <div id="resultsSection" class="results-section hidden">
-      <!-- Horizontal filter bar -->
-      <div class="filter-bar">
-        <div class="filter-pill" id="fpKickoff">
-          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#9201; Kickoff</button>
-          <div class="fp-dropdown"><button class="preset chip" data-action="after-6pm">After 6 PM</button><button class="preset chip" data-action="after-8pm">After 8 PM</button><button class="preset chip" data-action="tomorrow">Tomorrow+</button><label class="field-label">Custom after</label><input type="datetime-local" id="removeAfterTime" class="field" /><label class="field-label">Custom before</label><input type="datetime-local" id="removeBeforeTime" class="field" /></div>
+    <!-- STEP 1: Load -->
+    <div class="wiz-step active" data-wiz="opt-1">
+      <div class="wiz-card">
+        <h2 class="wiz-title">Optimizer</h2>
+        <p class="wiz-sub">Strategy Engine</p>
+        <label class="field-label">PLATFORM</label>
+        <select class="field wiz-field" disabled><option>SportyBet</option></select>
+        <label class="field-label">BOOKING CODE</label>
+        <input type="text" id="bookingCode" class="field wiz-field wiz-code-input" placeholder="Enter booking code" autocomplete="off" spellcheck="false" />
+        <label class="field-label">WHO MADE THIS SLIP?</label>
+        <input type="text" id="optPunterName" class="field wiz-field" placeholder="Punter name (optional)" autocomplete="off" />
+        <button id="fetchBtn" class="btn btn-green btn-big wiz-cta">Load Slip</button>
+        <p id="errorMsg" class="error hidden"></p>
+      </div>
+    </div>
+
+    <!-- STEP 2: Settings -->
+    <div class="wiz-step" data-wiz="opt-2">
+      <button class="wiz-back" onclick="wizGo('opt',1)">&#8592; Back</button>
+      <div class="wiz-total-odds"><span class="wiz-odds-label">TOTAL ODDS</span><span class="wiz-odds-val mono" id="origOdds">0</span></div>
+
+      <div class="wiz-section"><h4>STANCE</h4>
+        <div class="stance-selector" id="stanceSelector">
+          <div class="stance-card" data-stance="safe"><div class="stance-icon">&#128737;</div><strong>Conservative</strong><span>Plays it safe</span></div>
+          <div class="stance-card active" data-stance="manual"><div class="stance-icon">&#9878;</div><strong>Balanced</strong><span>Best of both</span></div>
+          <div class="stance-card" data-stance="value"><div class="stance-icon">&#9889;</div><strong>Aggressive</strong><span>Chases value</span></div>
         </div>
-        <div class="filter-pill" id="fpLeague">
-          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#127942; League</button>
-          <div class="fp-dropdown"><div id="leaguePresets" class="chip-row"></div><select id="removeLeague" class="field" multiple></select></div>
-        </div>
-        <div class="filter-pill" id="fpMarket">
-          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#128202; Market</button>
-          <div class="fp-dropdown"><div id="marketPresets" class="chip-row"></div><select id="removeMarket" class="field" multiple></select></div>
-        </div>
-        <div class="filter-pill" id="fpOdds">
-          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#128200; Odds</button>
-          <div class="fp-dropdown"><div class="field-pair"><div><label class="field-label">Min</label><input type="number" id="minOdds" class="field" step="0.01" min="1" placeholder="1.00" /></div><div><label class="field-label">Max</label><input type="number" id="maxOdds" class="field" step="0.01" min="1" placeholder="10.00" /></div></div></div>
-        </div>
-        <div class="filter-pill" id="fpSafest">
-          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#127919; Safest</button>
-          <div class="fp-dropdown"><button class="preset chip" data-action="top-5">Top 5</button><button class="preset chip" data-action="top-10">Top 10</button><button class="preset chip" data-action="top-15">Top 15</button><button class="preset chip" data-action="top-20">Top 20</button><label class="field-label">Custom</label><input type="number" id="topN" class="field" min="1" placeholder="N" /></div>
-        </div>
-        <button id="applyFilters" class="btn btn-green btn-filter-apply">Apply</button>
-        <button id="resetFilters" class="btn btn-ghost btn-filter-reset">Reset</button>
       </div>
 
-      <div id="activeChips" class="active-chips-row hidden"></div>
-
-      <div class="stat-bar">
-        <div class="stat-block"><span class="stat-num" id="origCount">0</span><span class="stat-lbl">Original</span></div>
-        <svg class="stat-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        <div class="stat-block accent"><span class="stat-num" id="optCount">0</span><span class="stat-lbl">Optimized</span></div>
-        <div class="stat-sep"></div>
-        <div class="stat-block"><span class="stat-num red" id="removedCount">0</span><span class="stat-lbl">Removed</span></div>
-        <div class="stat-sep"></div>
-        <div class="stat-block"><span class="stat-lbl">Odds</span><span class="stat-odds"><span id="origOdds">0</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> <span class="accent" id="optOdds">0</span></span></div>
+      <div class="wiz-section"><h4>ODDS TARGET</h4>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;color:#8a9e8a">Filter by odds range</span>
+          <span id="oddsRangeLabel" style="color:#00c853;font-weight:700;font-size:14px">1x — 1000x</span>
+        </div>
+        <div class="dual-range-wrap">
+          <input type="range" id="minOdds" min="1" max="1000" value="1" step="1" class="dual-range dual-range-min" oninput="updateOddsRange()" />
+          <input type="range" id="maxOdds" min="1" max="1000" value="1000" step="1" class="dual-range dual-range-max" oninput="updateOddsRange()" />
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px">
+          <span>1x</span><span id="oddsTargetMax">1000x</span>
+        </div>
+        <input type="hidden" id="stanceTargetOdds" value="" />
       </div>
 
-      <div class="panels">
-        <section class="panel"><div class="panel-head"><h3>Original Slip</h3><span class="badge" id="origBadge">0</span></div><div class="panel-scroll" id="originalTable"></div></section>
-        <section class="panel"><div class="panel-head panel-head--green"><h3>Optimized Slip</h3><span class="badge badge--green" id="optBadge">0</span></div><div class="panel-scroll" id="optimizedTable"></div></section>
+      <div class="wiz-section"><h4>LEG COUNT</h4>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;color:#8a9e8a">Number of games to keep</span>
+          <span id="legCountDisplay" style="color:#00c853;font-weight:700;font-size:18px">10</span>
+        </div>
+        <input type="range" id="topN" min="1" max="50" value="10" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('legCountDisplay').textContent=this.value" />
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px">
+          <span>1</span><span id="legCountMax">50</span>
+        </div>
+        <input type="hidden" id="stanceFixedN" />
       </div>
 
-      <section id="removedSection" class="removed-wrap hidden">
-        <button class="removed-toggle" onclick="this.parentElement.classList.toggle('collapsed')"><span>Removed Selections</span><span class="badge badge--red" id="removedBadge">0</span><svg class="removed-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-        <div class="removed-body" id="removedTable"></div>
-      </section>
+      <details class="wiz-more">
+        <summary>More Options</summary>
 
-      <div class="cta-row"><button id="generateBtn" class="btn btn-green btn-big" disabled>Generate New Code</button></div>
+        <div class="opt-row"><h4>GOAL</h4>
+          <div class="pill-row"><button class="pill opt-goal active" data-goal="odds">Hit Odds</button><button class="pill opt-goal" data-goal="safe">Stay Safe</button><button class="pill opt-goal" data-goal="value">Best Value</button></div>
+        </div>
+
+        <div class="opt-row"><h4>PICK STYLE</h4>
+          <div class="pill-row"><button class="pill opt-style active" data-pstyle="safest">Safest</button><button class="pill opt-style" data-pstyle="balanced">Balanced</button><button class="pill opt-style" data-pstyle="risky">Risky</button></div>
+        </div>
+
+        <div class="opt-row"><h4>AUTO-ADJUST</h4>
+          <div class="pill-row"><button class="pill opt-adjust active" data-adj="off">Off</button><button class="pill opt-adjust" data-adj="safer">Safer</button><button class="pill opt-adjust" data-adj="boost">Boost</button><button class="pill opt-adjust" data-adj="auto">Auto</button></div>
+          <p style="font-size:11px;color:#8a9e8a;margin-top:4px">Adjust a pick to match your odds before removing a game</p>
+        </div>
+
+        <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')">
+          <div><strong>Make 1X2 safer</strong><span>Change shaky win picks to double chance</span></div>
+          <div class="tgl" id="tglSafer1x2"></div>
+        </div>
+        <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')">
+          <div><strong>Change bet type</strong><span>Keep weak games by switching to a more likely bet type</span></div>
+          <div class="tgl" id="tglChangeBet"></div>
+        </div>
+        <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')">
+          <div><strong>Remove risky games</strong><span>Remove games that look too risky</span></div>
+          <div class="tgl" id="tglRemoveRisky"></div>
+        </div>
+
+        <div class="opt-row"><h4>GAME LIMITS</h4>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <div class="game-limit"><span>Per league</span><button onclick="adjLimit(this,-1)">−</button><span class="gl-val" id="glLeague">Off</span><button onclick="adjLimit(this,1)">+</button></div>
+            <div class="game-limit"><span>Per country</span><button onclick="adjLimit(this,-1)">−</button><span class="gl-val" id="glCountry">Off</span><button onclick="adjLimit(this,1)">+</button></div>
+          </div>
+        </div>
+
+        <!-- Hidden filter elements (needed by JS but not shown in More Options) -->
+        <div style="display:none">
+          <div id="fpKickoff"><input type="datetime-local" id="removeAfterTime" /><input type="datetime-local" id="removeBeforeTime" /></div>
+          <div id="fpLeague"><div id="leaguePresets"></div><select id="removeLeague" multiple></select></div>
+          <div id="fpMarket"><div id="marketPresets"></div><select id="removeMarket" multiple></select></div>
+          <button id="applyFilters">Apply</button><button id="resetFilters">Reset</button>
+          <div id="activeChips"></div>
+        </div>
+      </details>
+
+      <div class="wiz-section"><h4>LOADED GAMES</h4>
+        <div class="panel wiz-games-panel"><div class="panel-scroll" id="originalTable"></div></div>
+      </div>
+
+      <button class="btn btn-green btn-big wiz-cta" id="optimizeBtn" onclick="runOptimize()">Optimize Slip</button>
+    </div>
+
+    <!-- STEP 3: Results -->
+    <div class="wiz-step" data-wiz="opt-3">
+      <button class="wiz-back-btn" onclick="wizGo('opt',2)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Adjust Settings</button>
+
+      <div class="result-card">
+        <div class="wiz-result-hero">
+          <div class="wiz-check">&#10003;</div>
+          <h2>Optimization Complete</h2>
+          <p class="result-sub"><span id="optCount" class="mono">0</span> games selected &middot; Hit odds</p>
+        </div>
+
+        <div class="result-stats">
+          <div class="result-stat">
+            <span class="result-stat-val mono accent" id="optOdds">0</span>
+            <span class="result-stat-lbl">Total Odds</span>
+          </div>
+          <div class="result-divider"></div>
+          <div class="result-stat">
+            <span class="result-stat-val mono" id="resultGames">0</span>
+            <span class="result-stat-lbl">Games</span>
+          </div>
+          <div class="result-divider"></div>
+          <div class="result-stat">
+            <span class="result-stat-val mono red" id="removedCount">0</span>
+            <span class="result-stat-lbl">Removed</span>
+          </div>
+        </div>
+
+        <div id="oddsTargetIndicator" class="target-pill hidden"></div>
+      </div>
+
       <div id="generateResult" class="hidden"></div>
+
+      <div class="code-card hidden" id="codeCard">
+        <div class="code-card-head"><span class="code-card-label">BOOKING CODE</span><span class="code-card-badge">SportyBet</span></div>
+        <div class="code-card-code mono" id="genCodeDisplay"></div>
+        <button class="btn btn-green btn-big" id="copyGenCode">Copy Booking Code</button>
+      </div>
+
+      <button id="generateBtn" class="btn btn-green btn-big wiz-cta" disabled>Generate New Code</button>
+
+      <details class="wiz-more"><summary>Optimized Slip (<span id="optBadge">0</span> games)</summary>
+        <div id="optimizedTable"></div>
+      </details>
+      <section id="removedSection" class="removed-wrap hidden"><button class="removed-toggle" onclick="this.parentElement.classList.toggle('collapsed')"><span>Removed</span><span class="badge badge--red" id="removedBadge">0</span><svg class="removed-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button><div class="removed-body" id="removedTable"></div></section>
+      <span id="origBadge" class="hidden"></span><span id="origCount" class="hidden"></span><span id="removedCount" class="hidden"></span>
     </div>
   </div>
 
-  <!-- TAB: MERGER -->
+  <!-- ═══ TAB: MERGER (3-step) ═══ -->
   <div id="tab-merger" class="tab-page">
-    <div class="page-wrap">
-      <h2 class="section-title">Slip Merger</h2>
-      <p class="section-sub">Combine up to 5 booking codes into one mega-slip</p>
-      <div id="mergerInputs" class="merger-inputs">
-        <div class="merger-code-row"><input type="text" class="field merger-code-field" placeholder="Booking code 1" /><button class="btn-rm-code hidden" onclick="this.parentElement.remove()">&times;</button></div>
-        <div class="merger-code-row"><input type="text" class="field merger-code-field" placeholder="Booking code 2" /><button class="btn-rm-code hidden" onclick="this.parentElement.remove()">&times;</button></div>
+    <div class="wiz-steps-bar"><div class="wiz-dot active" data-n="1">1<span>Codes</span></div><div class="wiz-line"></div><div class="wiz-dot" data-n="2">2<span>Review</span></div><div class="wiz-line"></div><div class="wiz-dot" data-n="3">3<span>Result</span></div></div>
+    <div class="wiz-step active" data-wiz="merger-1">
+      <div class="wiz-card"><h2 class="wiz-title">Slip Merger</h2><p class="wiz-sub">Combine up to 5 codes into one mega-slip</p>
+        <div id="mergerInputs" class="merger-inputs"><div class="merger-code-row"><input type="text" class="field merger-code-field wiz-field" placeholder="Booking code 1" /><button class="btn-rm-code hidden">&times;</button></div><div class="merger-code-row"><input type="text" class="field merger-code-field wiz-field" placeholder="Booking code 2" /><button class="btn-rm-code hidden">&times;</button></div></div>
+        <input type="text" id="mergerPunterName" class="field wiz-field" placeholder="Punter name (optional)" autocomplete="off" />
+        <div class="merger-actions"><button id="addCodeBtn" class="btn btn-ghost">+ Add Code</button></div>
+        <button id="mergerLoadBtn" class="btn btn-green btn-big wiz-cta">Fetch All &amp; Merge</button>
+        <p id="mergerError" class="error hidden"></p>
       </div>
-      <input type="text" id="mergerPunterName" class="field merger-punter-field" placeholder="Punter name (optional)" autocomplete="off" />
-      <div class="merger-actions">
-        <button id="addCodeBtn" class="btn btn-ghost">+ Add Code</button>
-        <button id="mergerLoadBtn" class="btn btn-green">Fetch All</button>
-      </div>
-      <p id="mergerError" class="error hidden"></p>
-      <div id="mergerResults" class="hidden">
-        <div class="stat-bar">
-          <div class="stat-block"><span class="stat-num" id="mergerCodesCount">0</span><span class="stat-lbl">Codes</span></div>
-          <div class="stat-block accent"><span class="stat-num" id="mergerTotal">0</span><span class="stat-lbl">Merged</span></div>
-          <div class="stat-block"><span class="stat-num red" id="mergerDupes">0</span><span class="stat-lbl">Dupes</span></div>
-          <div class="stat-sep"></div>
-          <div class="stat-block"><span class="stat-lbl">Odds</span><span class="stat-num mono" id="mergerOdds">0</span></div>
-        </div>
+    </div>
+    <div class="wiz-step" data-wiz="merger-2">
+      <button class="wiz-back" onclick="wizGo('merger',1)">&#8592; Back</button>
+      <div id="mergerResults">
+        <div class="stat-bar"><div class="stat-block"><span class="stat-num" id="mergerCodesCount">0</span><span class="stat-lbl">Codes</span></div><div class="stat-block accent"><span class="stat-num" id="mergerTotal">0</span><span class="stat-lbl">Merged</span></div><div class="stat-block"><span class="stat-num red" id="mergerDupes">0</span><span class="stat-lbl">Dupes</span></div><div class="stat-sep"></div><div class="stat-block"><span class="stat-lbl">Odds</span><span class="stat-num mono" id="mergerOdds">0</span></div></div>
         <section id="mergerConflictsPanel" class="panel conflict-panel hidden"><div class="panel-head panel-head--red"><h3>Conflicts</h3><span class="badge badge--red" id="mergerConflictsBadge">0</span></div><div class="panel-scroll" id="mergerConflicts"></div></section>
         <section class="panel"><div class="panel-head panel-head--green"><h3>Merged Slip</h3><span class="badge badge--green" id="mergerBadge">0</span></div><div class="panel-scroll" id="mergerTable"></div></section>
-        <div class="cta-row"><button id="mergerGenerateBtn" class="btn btn-green btn-big">Generate Merged Code</button></div>
-        <div id="mergerGenResult" class="hidden"></div>
+        <button id="mergerGenerateBtn" class="btn btn-green btn-big wiz-cta">Generate Merged Code</button>
       </div>
+    </div>
+    <div class="wiz-step" data-wiz="merger-3">
+      <button class="wiz-back" onclick="wizGo('merger',2)">&#8592; Back</button>
+      <div class="wiz-result-hero"><div class="wiz-check">&#10003;</div><h2>Merge Complete</h2></div>
+      <div id="mergerGenResult" class="hidden"></div>
     </div>
   </div>
 
-  <!-- TAB: SPLITTER -->
+  <!-- ═══ TAB: SPLITTER (3-step) ═══ -->
   <div id="tab-splitter" class="tab-page">
-    <div class="page-wrap">
-      <h2 class="section-title">Slip Splitter</h2>
-      <p class="section-sub">Break a large slip into smaller sub-slips</p>
-      <div class="opt-input-bar"><input type="text" id="splitterCode" placeholder="Booking code" autocomplete="off" spellcheck="false" /><button id="splitterLoadBtn" class="btn btn-green">Load Slip</button></div>
-      <p id="splitterError" class="error hidden"></p>
-      <div id="splitterConfig" class="hidden">
+    <div class="wiz-steps-bar"><div class="wiz-dot active" data-n="1">1<span>Load</span></div><div class="wiz-line"></div><div class="wiz-dot" data-n="2">2<span>Configure</span></div><div class="wiz-line"></div><div class="wiz-dot" data-n="3">3<span>Codes</span></div></div>
+    <div class="wiz-step active" data-wiz="split-1">
+      <div class="wiz-card"><h2 class="wiz-title">Slip Splitter</h2><p class="wiz-sub">Break one big slip into smaller bets</p>
+        <label class="field-label">BOOKING CODE</label>
+        <input type="text" id="splitterCode" class="field wiz-field wiz-code-input" placeholder="Enter booking code" autocomplete="off" spellcheck="false" />
+        <button id="splitterLoadBtn" class="btn btn-green btn-big wiz-cta">Load Slip</button>
+        <p id="splitterError" class="error hidden"></p>
+      </div>
+    </div>
+    <div class="wiz-step" data-wiz="split-2">
+      <button class="wiz-back" onclick="wizGo('split',1)">&#8592; Back</button>
+      <div id="splitterConfig">
         <div class="splitter-info"><span id="splitterTotal" class="mono">0</span> selections — <span id="splitterOdds" class="mono">0</span> total odds</div>
-        <div id="splitterSelections" class="panel"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
+        <div class="panel"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
         <div class="splitter-config-row">
           <div><label class="field-label">Split into</label><input type="number" id="splitCount" class="field" min="2" max="10" value="2" /></div>
           <div><label class="field-label">Distribution</label><select id="splitMethod" class="field"><option value="roundRobin">Balanced</option><option value="byOdds">Odds-Weighted</option><option value="sequential">Sequential</option><option value="random">Random</option></select></div>
-          <button id="splitterSplitBtn" class="btn btn-green">Split</button>
         </div>
+        <button id="splitterSplitBtn" class="btn btn-green btn-big wiz-cta">Split Slip</button>
       </div>
+    </div>
+    <div class="wiz-step" data-wiz="split-3">
+      <button class="wiz-back" onclick="wizGo('split',2)">&#8592; Back</button>
+      <div class="wiz-result-hero"><div class="wiz-check">&#10003;</div><h2>Split Complete</h2></div>
       <div id="splitterResults"></div>
       <div id="splitterGenerateAll" class="hidden"><button class="btn btn-green btn-big" onclick="genAllSplitCodes()">Generate All Codes</button></div>
       <div id="splitterCopyAll" class="hidden"><button class="btn btn-ghost btn-big" onclick="copyAllSplitCodes()">Copy All Codes</button></div>
     </div>
   </div>
 
-  <!-- TAB: SCANNER -->
+  <!-- ═══ TAB: SCANNER (simple single page) ═══ -->
   <div id="tab-scanner" class="tab-page">
     <div class="page-wrap">
-      <div class="opt-input-bar scanner-input-bar">
-        <input type="text" id="scanPunterName" placeholder="Punter name" autocomplete="off" />
-        <input type="text" id="scanCode" placeholder="Booking code" autocomplete="off" spellcheck="false" />
-        <button id="scanBtn" class="btn btn-green">Scan</button>
+      <div class="wiz-card" style="margin-top:24px">
+        <h2 class="wiz-title">Scanner</h2>
+        <p class="wiz-sub">See how your slip performed</p>
+        <label class="field-label">BOOKING CODE</label>
+        <input type="text" id="scanCode" class="field wiz-field wiz-code-input" placeholder="Enter old booking code" autocomplete="off" spellcheck="false" />
+        <label class="field-label">PUNTER NAME</label>
+        <input type="text" id="scanPunterName" class="field wiz-field" placeholder="Punter name (optional)" autocomplete="off" />
+        <button id="scanBtn" class="btn btn-green btn-big wiz-cta">Scan Results</button>
+        <p id="scanError" class="error hidden"></p>
       </div>
-      <p id="scanError" class="error hidden"></p>
+
       <div id="scanResults" class="hidden">
         <div class="scan-dashboard">
           <div class="scan-stat scan-stat--won"><span class="scan-stat-num" id="scanWon">0</span><span class="scan-stat-lbl">Won</span></div>
@@ -213,41 +330,36 @@
           <div class="scan-stat scan-stat--pending"><span class="scan-stat-num" id="scanPending">0</span><span class="scan-stat-lbl">Pending</span></div>
           <div class="scan-stat scan-stat--rate"><span class="scan-stat-num" id="scanHitRate">0%</span><span class="scan-stat-lbl">Hit Rate</span></div>
         </div>
+
         <div id="scanAutoSave" class="scan-autosave hidden"><span>Save to leaderboard?</span><button id="autoSaveYes" class="btn btn-green">Save</button><button id="autoSaveNo" class="btn btn-ghost">Skip</button></div>
+
         <div class="scan-panels">
           <section class="panel"><div class="panel-head panel-head--red"><h3>Killers</h3><span class="badge badge--red" id="killersBadge">0</span></div><div class="panel-scroll" id="killersTable"></div></section>
           <section class="panel"><div class="panel-head panel-head--green"><h3>Safe Picks</h3><span class="badge badge--green" id="safeBadge">0</span></div><div class="panel-scroll" id="safeTable"></div></section>
         </div>
+
         <section class="panel scan-full-panel"><div class="panel-head"><h3>All Selections</h3><span class="badge" id="scanTotalBadge">0</span></div><div class="panel-scroll" id="scanAllTable"></div></section>
       </div>
     </div>
   </div>
 
-  <!-- TAB: LEADERBOARD -->
+  <!-- ═══ TAB: LEADERBOARD (no wizard, stays same) ═══ -->
   <div id="tab-leaderboard" class="tab-page">
-    <div class="lb-wrap">
-      <h2 class="lb-title">Punter Leaderboard</h2>
-      <p class="lb-sub">Ranked by hit rate across all scanned slips</p>
-      <div id="leaderboardTable" class="lb-table-wrap"><div class="empty-state">No punters saved yet.</div></div>
-    </div>
+    <div class="lb-wrap"><h2 class="lb-title">Punter Leaderboard</h2><p class="lb-sub">Ranked by hit rate across all scanned slips</p><div id="leaderboardTable" class="lb-table-wrap"><div class="empty-state">No punters tracked yet. Scan a slip and save to the leaderboard.</div></div></div>
   </div>
 
   <!-- Market Modal -->
-  <div id="marketModal" class="modal hidden">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content">
-      <div class="modal-header"><div><h3 id="modalTitle">Markets</h3><p id="modalSub" class="modal-sub"></p></div><button id="modalClose" class="modal-close-btn">&times;</button></div>
-      <div id="modalStats" class="modal-stats"></div>
-      <div id="modalBody" class="modal-body"></div>
-    </div>
-  </div>
+  <div id="marketModal" class="modal hidden"><div class="modal-backdrop"></div><div class="modal-content"><div class="modal-header"><div><h3 id="modalTitle">Markets</h3><p id="modalSub" class="modal-sub"></p></div><button id="modalClose" class="modal-close-btn">&times;</button></div><div id="modalStats" class="modal-stats"></div><div id="modalBody" class="modal-body"></div></div></div>
 
   <!-- H2H Drawer -->
-  <div id="h2hDrawer" class="h2h-drawer hidden">
-    <div class="h2h-header"><h3 id="h2hTitle">Match Stats</h3><button id="h2hClose" class="modal-close-btn">&times;</button></div>
-    <div id="h2hBody" class="h2h-body"></div>
-  </div>
+  <div id="h2hDrawer" class="h2h-drawer hidden"><div class="h2h-header"><h3 id="h2hTitle">Match Stats</h3><button id="h2hClose" class="modal-close-btn">&times;</button></div><div id="h2hBody" class="h2h-body"></div></div>
 
-  <script src="app.js"></script>
+  <!-- Smart Routing Modal -->
+  <div id="smartRouteModal" class="modal hidden"><div class="modal-backdrop" onclick="$('smartRouteModal').classList.add('hidden')"></div><div class="modal-content modal-sm"><div class="modal-header"><h3>Mixed Slip</h3><button class="modal-close-btn" onclick="$('smartRouteModal').classList.add('hidden')">&times;</button></div><div class="smart-route-body"><p>Some games have already played.</p><button class="btn btn-green btn-big" onclick="smartRouteChoice('optimizer')" style="margin-bottom:8px">Optimize future games</button><button class="btn btn-ghost btn-big" onclick="smartRouteChoice('scanner')">Scan all results</button></div></div></div>
+
+  <!-- Install Banner -->
+  <div id="installBanner" class="install-banner hidden"><span>Add SlipPilot to your home screen</span><button class="btn btn-green" id="installBtn">Install</button><button class="btn-rm-code" onclick="$('installBanner').classList.add('hidden')">&times;</button></div>
+
+  <script src="/app.js?v=99"></script>
 </body>
 </html>
