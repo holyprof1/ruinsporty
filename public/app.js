@@ -29,3 +29,4 @@ function esc(str) { const el = document.createElement("span"); el.textContent = 
 // postJSON + generate endpoint
 // generate button + result card
 // scanner API endpoint
+// punter leaderboard save + ranking
