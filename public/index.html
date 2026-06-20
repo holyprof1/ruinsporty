@@ -3,142 +3,209 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sporty Slip Optimizer</title>
+  <title>SlipPilot — SportyBet Slip Optimizer</title>
+  <meta name="description" content="Filter, optimize and rebuild any SportyBet slip in seconds. Free." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- ───── Header ───── -->
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#238636" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        <span>Slip Optimizer</span>
+      <div class="logo" id="logoBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1DB954" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>SlipPilot</span>
       </div>
-      <nav class="tab-nav">
-        <button class="tab-btn active" data-tab="optimizer">Optimizer</button>
+      <nav class="tab-nav" id="tabNav">
+        <button class="tab-btn" data-tab="optimizer">Optimizer</button>
+        <button class="tab-btn" data-tab="merger">Merger</button>
+        <button class="tab-btn" data-tab="splitter">Splitter</button>
         <button class="tab-btn" data-tab="scanner">Scanner</button>
         <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
       </nav>
+      <span id="adminBadge" class="admin-badge hidden">ADMIN</span>
     </div>
   </header>
 
-  <!-- ═══════════ TAB: OPTIMIZER ═══════════ -->
-  <div id="tab-optimizer" class="tab-page active">
-    <div class="opt-input-bar">
-      <input type="text" id="bookingCode" placeholder="Enter booking code" autocomplete="off" spellcheck="false" />
+  <!-- HOMEPAGE -->
+  <div id="homepage" class="homepage active">
+    <section class="hero">
+      <h1 class="hero-title">Your Slip. Perfected.</h1>
+      <p class="hero-sub">Filter, optimize and rebuild any SportyBet slip in seconds. Free.</p>
+      <div class="hero-input">
+        <input type="text" id="heroCode" placeholder="Paste any SportyBet booking code" autocomplete="off" spellcheck="false" />
+        <button class="btn btn-green" id="heroLoadBtn">Load Slip</button>
+      </div>
+      <p class="hero-hint">Paste any SportyBet booking code to get started</p>
+    </section>
+    <div class="features-grid">
+      <div class="feature-card" data-goto="optimizer">
+        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <h3>Optimizer</h3>
+        <p>Clean and filter your slip</p>
+      </div>
+      <div class="feature-card" data-goto="merger">
+        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
+        <h3>Merger</h3>
+        <p>Combine up to 5 codes into one</p>
+      </div>
+      <div class="feature-card" data-goto="splitter">
+        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <h3>Splitter</h3>
+        <p>Break one big slip into smaller bets</p>
+      </div>
+      <div class="feature-card" data-goto="scanner">
+        <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3>Scanner</h3>
+        <p>See how your old slip performed</p>
+      </div>
+    </div>
+    <div class="live-stats" id="liveStats">
+      <div class="live-stat"><span class="live-num mono" id="statLoaded">0</span><span class="live-lbl">slips loaded</span></div>
+      <div class="live-stat"><span class="live-num mono" id="statGenerated">0</span><span class="live-lbl">codes generated</span></div>
+      <div class="live-stat"><span class="live-num mono" id="statScanned">0</span><span class="live-lbl">slips scanned</span></div>
+      <div class="live-stat"><span class="live-num mono" id="statPunters">0</span><span class="live-lbl">punters tracked</span></div>
+    </div>
+  </div>
+
+  <!-- TAB: OPTIMIZER -->
+  <div id="tab-optimizer" class="tab-page">
+    <div class="opt-top-bar">
+      <input type="text" id="bookingCode" placeholder="Booking code" autocomplete="off" spellcheck="false" />
+      <input type="text" id="optPunterName" placeholder="Punter name (optional)" autocomplete="off" />
       <button id="fetchBtn" class="btn btn-green">Load Slip</button>
     </div>
     <p id="errorMsg" class="error hidden"></p>
 
-    <div id="resultsSection" class="app hidden">
-      <aside class="sidebar">
-        <div class="sb-section open" data-section>
-          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
-            <span>By Kickoff</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="sb-body">
-            <div class="chip-row">
-              <button class="preset chip" data-action="after-6pm">After 6 PM</button>
-              <button class="preset chip" data-action="after-8pm">After 8 PM</button>
-              <button class="preset chip" data-action="tomorrow">Tomorrow+</button>
-            </div>
-            <label class="field-label">Remove after</label>
-            <input type="datetime-local" id="removeAfterTime" class="field" />
-            <label class="field-label">Remove before</label>
-            <input type="datetime-local" id="removeBeforeTime" class="field" />
-          </div>
-        </div>
-        <div class="sb-section open" data-section>
-          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
-            <span>By League</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="sb-body">
-            <div id="leaguePresets" class="chip-row"></div>
-            <select id="removeLeague" class="field" multiple></select>
-          </div>
-        </div>
-        <div class="sb-section open" data-section>
-          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
-            <span>By Market</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="sb-body">
-            <div id="marketPresets" class="chip-row"></div>
-            <select id="removeMarket" class="field" multiple></select>
-          </div>
-        </div>
-        <div class="sb-section open" data-section>
-          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
-            <span>By Odds</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="sb-body">
-            <div class="field-pair">
-              <div><label class="field-label">Min odds</label><input type="number" id="minOdds" class="field" step="0.01" min="1" placeholder="1.00" /></div>
-              <div><label class="field-label">Max odds</label><input type="number" id="maxOdds" class="field" step="0.01" min="1" placeholder="10.00" /></div>
-            </div>
-          </div>
-        </div>
-        <div class="sb-section open" data-section>
-          <button class="sb-toggle" onclick="this.parentElement.classList.toggle('open')">
-            <span>Keep Safest</span><svg class="sb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="sb-body">
-            <div class="chip-row">
-              <button class="preset chip" data-action="top-5">Top 5</button>
-              <button class="preset chip" data-action="top-10">Top 10</button>
-              <button class="preset chip" data-action="top-15">Top 15</button>
-            </div>
-            <label class="field-label">Custom</label>
-            <input type="number" id="topN" class="field" min="1" placeholder="e.g. 8" />
-          </div>
-        </div>
-        <div class="sb-actions">
-          <button id="applyFilters" class="btn btn-green">Apply Filters</button>
-          <button id="resetFilters" class="btn btn-ghost">Reset All</button>
-        </div>
-      </aside>
+    <!-- Stance selector -->
+    <div id="stanceSelector" class="stance-selector hidden">
+      <div class="stance-card active" data-stance="manual"><strong>Manual</strong><span>Apply your own filters</span></div>
+      <div class="stance-card" data-stance="safe"><strong>Safe</strong><span>Top 10 lowest odds</span></div>
+      <div class="stance-card" data-stance="balanced"><strong>Balanced</strong><span>Mid-range odds mix</span></div>
+      <div class="stance-card" data-stance="value"><strong>Value Hunter</strong><span>Odds 1.50+ only</span></div>
+      <div class="stance-card" data-stance="fixedcount"><strong>Fixed Count</strong><span>Keep exactly N games</span><input type="number" id="stanceFixedN" class="stance-input" min="1" placeholder="N" onclick="event.stopPropagation()" /></div>
+      <div class="stance-card" data-stance="oddstarget"><strong>Odds Target</strong><span>Hit a target multiplier</span><input type="number" id="stanceTargetOdds" class="stance-input" min="1" step="0.5" placeholder="e.g. 15" onclick="event.stopPropagation()" /></div>
+    </div>
 
-      <main class="main">
-        <div class="stat-bar">
-          <div class="stat-block"><span class="stat-num" id="origCount">0</span><span class="stat-lbl">Original</span></div>
-          <svg class="stat-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#238636" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          <div class="stat-block accent"><span class="stat-num" id="optCount">0</span><span class="stat-lbl">Optimized</span></div>
-          <div class="stat-sep"></div>
-          <div class="stat-block"><span class="stat-num red" id="removedCount">0</span><span class="stat-lbl">Removed</span></div>
-          <div class="stat-sep"></div>
-          <div class="stat-block"><span class="stat-lbl">Odds</span><span class="stat-odds"><span id="origOdds">0</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#238636" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><span class="accent" id="optOdds">0</span></span></div>
+    <div id="resultsSection" class="results-section hidden">
+      <!-- Horizontal filter bar -->
+      <div class="filter-bar">
+        <div class="filter-pill" id="fpKickoff">
+          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#9201; Kickoff</button>
+          <div class="fp-dropdown"><button class="preset chip" data-action="after-6pm">After 6 PM</button><button class="preset chip" data-action="after-8pm">After 8 PM</button><button class="preset chip" data-action="tomorrow">Tomorrow+</button><label class="field-label">Custom after</label><input type="datetime-local" id="removeAfterTime" class="field" /><label class="field-label">Custom before</label><input type="datetime-local" id="removeBeforeTime" class="field" /></div>
         </div>
-        <div class="panels">
-          <section class="panel"><div class="panel-head"><h3>Original Slip</h3><span class="badge" id="origBadge">0</span></div><div class="panel-scroll" id="originalTable"></div></section>
-          <section class="panel panel--opt"><div class="panel-head panel-head--green"><h3>Optimized Slip</h3><span class="badge badge--green" id="optBadge">0</span></div><div class="panel-scroll" id="optimizedTable"></div></section>
+        <div class="filter-pill" id="fpLeague">
+          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#127942; League</button>
+          <div class="fp-dropdown"><div id="leaguePresets" class="chip-row"></div><select id="removeLeague" class="field" multiple></select></div>
         </div>
-        <section id="removedSection" class="removed-wrap hidden">
-          <button class="removed-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
-            <span>Removed Selections</span><span class="badge badge--red" id="removedBadge">0</span>
-            <svg class="removed-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="removed-body" id="removedTable"></div>
-        </section>
-        <div class="cta-row"><button id="generateBtn" class="btn btn-green btn-big" disabled>Generate New Booking Code</button></div>
-        <div id="generateResult" class="hidden"></div>
-      </main>
+        <div class="filter-pill" id="fpMarket">
+          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#128202; Market</button>
+          <div class="fp-dropdown"><div id="marketPresets" class="chip-row"></div><select id="removeMarket" class="field" multiple></select></div>
+        </div>
+        <div class="filter-pill" id="fpOdds">
+          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#128200; Odds</button>
+          <div class="fp-dropdown"><div class="field-pair"><div><label class="field-label">Min</label><input type="number" id="minOdds" class="field" step="0.01" min="1" placeholder="1.00" /></div><div><label class="field-label">Max</label><input type="number" id="maxOdds" class="field" step="0.01" min="1" placeholder="10.00" /></div></div></div>
+        </div>
+        <div class="filter-pill" id="fpSafest">
+          <button class="fp-toggle" onclick="this.parentElement.classList.toggle('open')">&#127919; Safest</button>
+          <div class="fp-dropdown"><button class="preset chip" data-action="top-5">Top 5</button><button class="preset chip" data-action="top-10">Top 10</button><button class="preset chip" data-action="top-15">Top 15</button><button class="preset chip" data-action="top-20">Top 20</button><label class="field-label">Custom</label><input type="number" id="topN" class="field" min="1" placeholder="N" /></div>
+        </div>
+        <button id="applyFilters" class="btn btn-green btn-filter-apply">Apply</button>
+        <button id="resetFilters" class="btn btn-ghost btn-filter-reset">Reset</button>
+      </div>
+
+      <div id="activeChips" class="active-chips-row hidden"></div>
+
+      <div class="stat-bar">
+        <div class="stat-block"><span class="stat-num" id="origCount">0</span><span class="stat-lbl">Original</span></div>
+        <svg class="stat-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <div class="stat-block accent"><span class="stat-num" id="optCount">0</span><span class="stat-lbl">Optimized</span></div>
+        <div class="stat-sep"></div>
+        <div class="stat-block"><span class="stat-num red" id="removedCount">0</span><span class="stat-lbl">Removed</span></div>
+        <div class="stat-sep"></div>
+        <div class="stat-block"><span class="stat-lbl">Odds</span><span class="stat-odds"><span id="origOdds">0</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> <span class="accent" id="optOdds">0</span></span></div>
+      </div>
+
+      <div class="panels">
+        <section class="panel"><div class="panel-head"><h3>Original Slip</h3><span class="badge" id="origBadge">0</span></div><div class="panel-scroll" id="originalTable"></div></section>
+        <section class="panel"><div class="panel-head panel-head--green"><h3>Optimized Slip</h3><span class="badge badge--green" id="optBadge">0</span></div><div class="panel-scroll" id="optimizedTable"></div></section>
+      </div>
+
+      <section id="removedSection" class="removed-wrap hidden">
+        <button class="removed-toggle" onclick="this.parentElement.classList.toggle('collapsed')"><span>Removed Selections</span><span class="badge badge--red" id="removedBadge">0</span><svg class="removed-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <div class="removed-body" id="removedTable"></div>
+      </section>
+
+      <div class="cta-row"><button id="generateBtn" class="btn btn-green btn-big" disabled>Generate New Code</button></div>
+      <div id="generateResult" class="hidden"></div>
     </div>
   </div>
 
-  <!-- ═══════════ TAB: SCANNER ═══════════ -->
+  <!-- TAB: MERGER -->
+  <div id="tab-merger" class="tab-page">
+    <div class="page-wrap">
+      <h2 class="section-title">Slip Merger</h2>
+      <p class="section-sub">Combine up to 5 booking codes into one mega-slip</p>
+      <div id="mergerInputs" class="merger-inputs">
+        <div class="merger-code-row"><input type="text" class="field merger-code-field" placeholder="Booking code 1" /><button class="btn-rm-code hidden" onclick="this.parentElement.remove()">&times;</button></div>
+        <div class="merger-code-row"><input type="text" class="field merger-code-field" placeholder="Booking code 2" /><button class="btn-rm-code hidden" onclick="this.parentElement.remove()">&times;</button></div>
+      </div>
+      <input type="text" id="mergerPunterName" class="field merger-punter-field" placeholder="Punter name (optional)" autocomplete="off" />
+      <div class="merger-actions">
+        <button id="addCodeBtn" class="btn btn-ghost">+ Add Code</button>
+        <button id="mergerLoadBtn" class="btn btn-green">Fetch All</button>
+      </div>
+      <p id="mergerError" class="error hidden"></p>
+      <div id="mergerResults" class="hidden">
+        <div class="stat-bar">
+          <div class="stat-block"><span class="stat-num" id="mergerCodesCount">0</span><span class="stat-lbl">Codes</span></div>
+          <div class="stat-block accent"><span class="stat-num" id="mergerTotal">0</span><span class="stat-lbl">Merged</span></div>
+          <div class="stat-block"><span class="stat-num red" id="mergerDupes">0</span><span class="stat-lbl">Dupes</span></div>
+          <div class="stat-sep"></div>
+          <div class="stat-block"><span class="stat-lbl">Odds</span><span class="stat-num mono" id="mergerOdds">0</span></div>
+        </div>
+        <section id="mergerConflictsPanel" class="panel conflict-panel hidden"><div class="panel-head panel-head--red"><h3>Conflicts</h3><span class="badge badge--red" id="mergerConflictsBadge">0</span></div><div class="panel-scroll" id="mergerConflicts"></div></section>
+        <section class="panel"><div class="panel-head panel-head--green"><h3>Merged Slip</h3><span class="badge badge--green" id="mergerBadge">0</span></div><div class="panel-scroll" id="mergerTable"></div></section>
+        <div class="cta-row"><button id="mergerGenerateBtn" class="btn btn-green btn-big">Generate Merged Code</button></div>
+        <div id="mergerGenResult" class="hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: SPLITTER -->
+  <div id="tab-splitter" class="tab-page">
+    <div class="page-wrap">
+      <h2 class="section-title">Slip Splitter</h2>
+      <p class="section-sub">Break a large slip into smaller sub-slips</p>
+      <div class="opt-input-bar"><input type="text" id="splitterCode" placeholder="Booking code" autocomplete="off" spellcheck="false" /><button id="splitterLoadBtn" class="btn btn-green">Load Slip</button></div>
+      <p id="splitterError" class="error hidden"></p>
+      <div id="splitterConfig" class="hidden">
+        <div class="splitter-info"><span id="splitterTotal" class="mono">0</span> selections — <span id="splitterOdds" class="mono">0</span> total odds</div>
+        <div id="splitterSelections" class="panel"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
+        <div class="splitter-config-row">
+          <div><label class="field-label">Split into</label><input type="number" id="splitCount" class="field" min="2" max="10" value="2" /></div>
+          <div><label class="field-label">Distribution</label><select id="splitMethod" class="field"><option value="roundRobin">Balanced</option><option value="byOdds">Odds-Weighted</option><option value="sequential">Sequential</option><option value="random">Random</option></select></div>
+          <button id="splitterSplitBtn" class="btn btn-green">Split</button>
+        </div>
+      </div>
+      <div id="splitterResults"></div>
+      <div id="splitterGenerateAll" class="hidden"><button class="btn btn-green btn-big" onclick="genAllSplitCodes()">Generate All Codes</button></div>
+      <div id="splitterCopyAll" class="hidden"><button class="btn btn-ghost btn-big" onclick="copyAllSplitCodes()">Copy All Codes</button></div>
+    </div>
+  </div>
+
+  <!-- TAB: SCANNER -->
   <div id="tab-scanner" class="tab-page">
-    <div class="scanner-wrap">
-      <div class="opt-input-bar">
-        <input type="text" id="scanCode" placeholder="Paste old booking code" autocomplete="off" spellcheck="false" />
-        <button id="scanBtn" class="btn btn-green">Scan Results</button>
+    <div class="page-wrap">
+      <div class="opt-input-bar scanner-input-bar">
+        <input type="text" id="scanPunterName" placeholder="Punter name" autocomplete="off" />
+        <input type="text" id="scanCode" placeholder="Booking code" autocomplete="off" spellcheck="false" />
+        <button id="scanBtn" class="btn btn-green">Scan</button>
       </div>
       <p id="scanError" class="error hidden"></p>
-
       <div id="scanResults" class="hidden">
-        <!-- Summary dashboard -->
         <div class="scan-dashboard">
           <div class="scan-stat scan-stat--won"><span class="scan-stat-num" id="scanWon">0</span><span class="scan-stat-lbl">Won</span></div>
           <div class="scan-stat scan-stat--lost"><span class="scan-stat-num" id="scanLost">0</span><span class="scan-stat-lbl">Lost</span></div>
@@ -146,57 +213,39 @@
           <div class="scan-stat scan-stat--pending"><span class="scan-stat-num" id="scanPending">0</span><span class="scan-stat-lbl">Pending</span></div>
           <div class="scan-stat scan-stat--rate"><span class="scan-stat-num" id="scanHitRate">0%</span><span class="scan-stat-lbl">Hit Rate</span></div>
         </div>
-
-        <!-- Save for leaderboard -->
-        <div class="scan-save-row">
-          <input type="text" id="punterName" class="field" placeholder="Punter name" />
-          <button id="savePunterBtn" class="btn btn-green">Save to Leaderboard</button>
-          <span id="saveMsg" class="save-msg hidden"></span>
-        </div>
-
-        <!-- Killers / Safe picks -->
+        <div id="scanAutoSave" class="scan-autosave hidden"><span>Save to leaderboard?</span><button id="autoSaveYes" class="btn btn-green">Save</button><button id="autoSaveNo" class="btn btn-ghost">Skip</button></div>
         <div class="scan-panels">
-          <section class="panel">
-            <div class="panel-head panel-head--red"><h3>Killers</h3><span class="badge badge--red" id="killersBadge">0</span></div>
-            <div class="panel-scroll" id="killersTable"></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head panel-head--green"><h3>Safe Picks</h3><span class="badge badge--green" id="safeBadge">0</span></div>
-            <div class="panel-scroll" id="safeTable"></div>
-          </section>
+          <section class="panel"><div class="panel-head panel-head--red"><h3>Killers</h3><span class="badge badge--red" id="killersBadge">0</span></div><div class="panel-scroll" id="killersTable"></div></section>
+          <section class="panel"><div class="panel-head panel-head--green"><h3>Safe Picks</h3><span class="badge badge--green" id="safeBadge">0</span></div><div class="panel-scroll" id="safeTable"></div></section>
         </div>
-
-        <!-- Full results -->
-        <section class="panel scan-full-panel">
-          <div class="panel-head"><h3>All Selections</h3><span class="badge" id="scanTotalBadge">0</span></div>
-          <div class="panel-scroll" id="scanAllTable"></div>
-        </section>
+        <section class="panel scan-full-panel"><div class="panel-head"><h3>All Selections</h3><span class="badge" id="scanTotalBadge">0</span></div><div class="panel-scroll" id="scanAllTable"></div></section>
       </div>
     </div>
   </div>
 
-  <!-- ═══════════ TAB: LEADERBOARD ═══════════ -->
+  <!-- TAB: LEADERBOARD -->
   <div id="tab-leaderboard" class="tab-page">
     <div class="lb-wrap">
       <h2 class="lb-title">Punter Leaderboard</h2>
       <p class="lb-sub">Ranked by hit rate across all scanned slips</p>
-      <div id="leaderboardTable" class="lb-table-wrap">
-        <div class="empty-state">No punters saved yet. Scan a slip and save it.</div>
-      </div>
+      <div id="leaderboardTable" class="lb-table-wrap"><div class="empty-state">No punters saved yet.</div></div>
     </div>
   </div>
 
-  <!-- ───── Market Explorer Modal ───── -->
+  <!-- Market Modal -->
   <div id="marketModal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-content">
-      <div class="modal-header">
-        <div><h3 id="modalTitle">Markets</h3><p id="modalSub" class="modal-sub"></p></div>
-        <button id="modalClose" class="modal-close-btn">&times;</button>
-      </div>
+      <div class="modal-header"><div><h3 id="modalTitle">Markets</h3><p id="modalSub" class="modal-sub"></p></div><button id="modalClose" class="modal-close-btn">&times;</button></div>
       <div id="modalStats" class="modal-stats"></div>
       <div id="modalBody" class="modal-body"></div>
     </div>
+  </div>
+
+  <!-- H2H Drawer -->
+  <div id="h2hDrawer" class="h2h-drawer hidden">
+    <div class="h2h-header"><h3 id="h2hTitle">Match Stats</h3><button id="h2hClose" class="modal-close-btn">&times;</button></div>
+    <div id="h2hBody" class="h2h-body"></div>
   </div>
 
   <script src="app.js"></script>
