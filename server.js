@@ -14,6 +14,12 @@ fs.mkdirSync(DEBUG_DIR, { recursive: true });
 fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
@@ -166,9 +172,11 @@ function mapOutcomes(outcomes, ticketSelections) {
 }
 
 function evaluateVerdict(sel) {
-  if (sel.matchStatus !== "Ended") return "PENDING";
-  if (sel.isWinning === 1) return "WON";
+  const st = (sel.matchStatus || "").toLowerCase();
+  if (["postponed", "cancelled", "abandoned"].includes(st)) return "VOID";
   if (sel.refundFactor === 1) return "VOID";
+  if (st !== "ended") return "PENDING";
+  if (sel.isWinning === 1) return "WON";
   if (sel.isWinning === 0) return "LOST";
   return "PENDING";
 }
@@ -637,20 +645,122 @@ async function fallbackStats(home, away) {
   };
 }
 
+// API-Football integration
+const h2hCache = new Map();
+const H2H_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function apiFootballFetch(endpoint) {
+  const key = process.env.API_FOOTBALL_KEY;
+  if (!key) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    https.get(`https://v3.football.api-sports.io${endpoint}`, {
+      headers: { "x-apisports-key": key, Accept: "application/json" },
+    }, (res) => {
+      let d = ""; res.on("data", c => d += c);
+      res.on("end", () => { try { resolve(JSON.parse(d)); } catch { resolve(null); } });
+    }).on("error", () => resolve(null));
+  });
+}
+
+async function apiFootballH2H(home, away, pick) {
+  const cacheKey = `${home}|${away}`.toLowerCase();
+  const cached = h2hCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < H2H_CACHE_TTL) return cached.data;
+
+  if (!process.env.API_FOOTBALL_KEY) return null;
+
+  const homeSearch = await apiFootballFetch(`/teams?search=${encodeURIComponent(home)}`);
+  const awaySearch = await apiFootballFetch(`/teams?search=${encodeURIComponent(away)}`);
+  const homeTeam = homeSearch?.response?.[0]?.team;
+  const awayTeam = awaySearch?.response?.[0]?.team;
+  if (!homeTeam?.id || !awayTeam?.id) return null;
+
+  const [h2hRes, homeFormRes, awayFormRes] = await Promise.all([
+    apiFootballFetch(`/fixtures/headtohead?h2h=${homeTeam.id}-${awayTeam.id}&last=5`),
+    apiFootballFetch(`/fixtures?team=${homeTeam.id}&last=5`),
+    apiFootballFetch(`/fixtures?team=${awayTeam.id}&last=5`),
+  ]);
+
+  const parseFixture = (f) => {
+    const h = f.teams?.home?.name || "";
+    const a = f.teams?.away?.name || "";
+    const hs = f.goals?.home ?? 0;
+    const as = f.goals?.away ?? 0;
+    const date = f.fixture?.date?.slice(0, 10) || "";
+    return { date, home: h, away: a, homeScore: hs, awayScore: as };
+  };
+
+  const h2h = (h2hRes?.response || []).map(parseFixture);
+  const homeFixtures = (homeFormRes?.response || []).map(parseFixture);
+  const awayFixtures = (awayFormRes?.response || []).map(parseFixture);
+
+  const formOf = (fixtures, teamName) => fixtures.slice(0, 5).map(f => {
+    const isHome = f.home.toLowerCase().includes(teamName.toLowerCase().slice(0, 5));
+    const gf = isHome ? f.homeScore : f.awayScore;
+    const ga = isHome ? f.awayScore : f.homeScore;
+    return gf > ga ? "W" : gf < ga ? "L" : "D";
+  });
+
+  const stats = keyStats(h2h.length ? h2h : []);
+  const homeWinRate = h2h.length ? Math.round(h2h.filter(m => m.homeScore > m.awayScore).length / h2h.length * 100) : null;
+
+  // Safety score
+  let score = 50;
+  const p = (pick || "").toLowerCase();
+  if (stats.avgGoals !== null) {
+    if (stats.avgGoals < 1.5) { if (p.includes("over 1.5")) score += 20; if (p.includes("over 2.5")) score -= 25; if (p.includes("yes") && p.includes("btts")) score -= 15; }
+    else if (stats.avgGoals <= 2.5) { if (p.includes("over 1.5")) score += 15; if (p.includes("over 2.5")) score -= 5; }
+    else { if (p.includes("over 2.5")) score += 20; if (p.includes("over 3.5")) score += 5; if (p.includes("yes") && stats.bttsPct > 50) score += 10; }
+  }
+  if (stats.bttsPct !== null) { if (stats.bttsPct > 60 && p.includes("yes")) score += 20; if (stats.bttsPct < 40 && p.includes("yes")) score -= 20; if (stats.bttsPct < 40 && p.includes("no")) score += 20; }
+  if (homeWinRate !== null) { if (homeWinRate >= 80 && p.includes("home")) score += 25; if (homeWinRate <= 20 && p.includes("home")) score -= 25; if (homeWinRate <= 20 && p.includes("away")) score += 20; }
+  const hf = formOf(homeFixtures, home); if (hf.filter(r => r === "W").length >= 4 && p.includes("home")) score += 10;
+  const af = formOf(awayFixtures, away); if (af.filter(r => r === "W").length >= 4 && p.includes("away")) score += 10;
+  score = Math.max(0, Math.min(100, score));
+
+  const safetyLabel = score >= 70 ? "Strong" : score >= 40 ? "Neutral" : "Risky";
+  let recommendation = "";
+  if (stats.avgGoals !== null && stats.avgGoals < 1.5 && p.includes("over 2.5")) recommendation = `Avg ${stats.avgGoals} goals in H2H — Over 2.5 is risky. Consider Over 1.5.`;
+  else if (stats.avgGoals !== null && stats.avgGoals > 3 && p.includes("over 2.5")) recommendation = `Avg ${stats.avgGoals} goals in H2H — Over 2.5 looks strong.`;
+  else if (stats.bttsPct !== null && stats.bttsPct < 30 && p.includes("yes")) recommendation = `BTTS rate only ${stats.bttsPct}% — this pick is risky.`;
+  else if (score >= 70) recommendation = "Stats support this pick.";
+  else if (score < 40) recommendation = "Stats go against this pick. Consider changing.";
+
+  const result = {
+    source: "API-Football",
+    found: true,
+    homeTeam: { name: homeTeam.name, form: formOf(homeFixtures, home) },
+    awayTeam: { name: awayTeam.name, form: formOf(awayFixtures, away) },
+    h2h: h2h.map(m => ({ ...m, result: m.homeScore > m.awayScore ? "H" : m.homeScore < m.awayScore ? "A" : "D" })),
+    keyStats: { ...stats, homeWinRate },
+    safetyScore: score,
+    safetyLabel,
+    recommendation,
+    confidence: safetyLabel,
+  };
+
+  h2hCache.set(cacheKey, { ts: Date.now(), data: result });
+  return result;
+}
+
 app.get("/api/h2h", async (req, res) => {
-  const { eventId, home, away } = req.query;
+  const { eventId, home, away, pick } = req.query;
   if (!home) return res.status(400).json({ error: "home team required" });
 
   try {
+    // Try API-Football first
+    const apif = await apiFootballH2H(home, away, pick);
+    if (apif?.found) return res.json(apif);
+
+    // Fallback to SportyBet endpoints
     const sporty = await sportyStats(eventId, home, away);
     if (sporty?.found) return res.json(sporty);
+
+    // Fallback to TheSportsDB
     const fallback = await fallbackStats(home, away);
-    res.json({
-      ...fallback,
-      sportyDebugFile: sporty?.debugFile || null,
-    });
+    res.json({ ...fallback, sportyDebugFile: sporty?.debugFile || null, noApiKey: !process.env.API_FOOTBALL_KEY });
   } catch (err) {
-    res.json({ h2h: [], homeForm: [], awayForm: [], keyStats: {}, found: false, error: err.message });
+    res.json({ h2h: [], homeForm: [], awayForm: [], keyStats: {}, found: false, error: err.message, noApiKey: !process.env.API_FOOTBALL_KEY });
   }
 });
 
@@ -795,8 +905,69 @@ app.get("/punter/:name", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// ── SportyBet H2H proxy (browser can't call SportyBet directly due to CORS) ──
+
+app.get("/api/proxy-h2h/:eventId", async (req, res) => {
+  const eid = req.params.eventId;
+  const numId = eid.replace("sr:match:", "");
+
+  const urls = [
+    `https://www.sportybet.com/api/ng/factsCenter/matchStatistic?matchId=${eid}`,
+    `https://www.sportybet.com/api/ng/factsCenter/h2h?matchId=${eid}`,
+    `https://www.sportybet.com/api/ng/factsCenter/preMatchData?matchId=${eid}`,
+    `https://www.sportybet.com/api/ng/factsCenter/matchStatistic?matchId=${numId}`,
+    `https://www.sportybet.com/api/ng/factsCenter/h2h?matchId=${numId}`,
+    `https://www.sportybet.com/api/ng/factsCenter/preMatchData?matchId=${numId}`,
+  ];
+
+  for (const url of urls) {
+    try {
+      const r = await fetchJSONWithStatus(url);
+      if (r.status === 200 && r.json?.bizCode === 10000 && r.json?.data) {
+        console.log("[H2H Proxy] HIT:", url);
+        const safeId = eid.replace(/[^a-zA-Z0-9_-]/g, "_");
+        fs.writeFileSync(path.join(H2H_DEBUG_DIR, `proxy_${safeId}.json`), JSON.stringify({ url, data: r.json.data }, null, 2));
+        return res.json({ found: true, source: "SportyBet", url, data: r.json.data });
+      }
+    } catch {}
+  }
+
+  res.json({ found: false, source: "SportyBet", triedUrls: urls.length });
+});
+
+// ── Debug: SportyBet H2H probe ──
+
+app.get("/debug/sportybet-h2h/:eventId", async (req, res) => {
+  const eid = req.params.eventId;
+  const numId = eid.replace("sr:match:", "");
+  const endpoints = [
+    `/api/ng/factsCenter/h2h?matchId=${eid}`,
+    `/api/ng/factsCenter/h2h?eventId=${eid}`,
+    `/api/ng/sport/h2h?matchId=${eid}`,
+    `/api/ng/factsCenter/matchStatistic?matchId=${eid}`,
+    `/api/ng/factsCenter/matchSummary?eventId=${eid}`,
+    `/api/ng/factsCenter/preMatch?matchId=${eid}`,
+    `/api/ng/orders/matchDetail?matchId=${eid}`,
+    `/api/ng/factsCenter/h2h?matchId=${numId}`,
+    `/api/ng/factsCenter/h2h?eventId=${numId}`,
+    `/api/ng/factsCenter/matchStatistic?matchId=${numId}`,
+    `/api/ng/factsCenter/preMatch?matchId=${numId}`,
+  ];
+
+  const results = [];
+  for (const ep of endpoints) {
+    const url = `https://www.sportybet.com${ep}`;
+    const r = await fetchJSONWithStatus(url);
+    results.push({ endpoint: ep, status: r.status, bizCode: r.json?.bizCode, hasData: !!(r.json?.data && Object.keys(r.json.data).length > 0), preview: JSON.stringify(r.json || r.raw).slice(0, 500) });
+  }
+
+  const safeId = eid.replace(/[^a-zA-Z0-9_-]/g, "_");
+  fs.writeFileSync(path.join(H2H_DEBUG_DIR, `probe_${safeId}.json`), JSON.stringify(results, null, 2));
+  res.json({ eventId: eid, results });
+});
+
 // ── Start ──
 
 app.listen(PORT, () => {
-  console.log(`SlipPilot running at http://localhost:${PORT}`);
+  console.log("SlipPilot v3 running at http://localhost:" + PORT);
 });
