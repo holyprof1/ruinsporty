@@ -28,3 +28,4 @@ function esc(str) { const el = document.createElement("span"); el.textContent = 
 // rebooking fields: marketId, outcomeId, productId, sportId
 // postJSON + generate endpoint
 // generate button + result card
+// scanner API endpoint
