@@ -492,9 +492,11 @@ function applyFilters() {
   const beforeTime = $("removeBeforeTime").value ? new Date($("removeBeforeTime").value) : null;
   const rmM = Array.from($("removeMarket").selectedOptions).map(o=>o.value);
   const rmL = Array.from($("removeLeague").selectedOptions).map(o=>o.value);
-  const maxO = $("maxOdds").value ? parseFloat($("maxOdds").value) : null;
-  const minO = $("minOdds").value ? parseFloat($("minOdds").value) : null;
-  const topN = $("topN").value ? parseInt($("topN").value,10) : null;
+  const oddsMode = document.querySelector('[data-target].active')?.dataset?.target || "off";
+  const maxO = oddsMode === "range" && $("maxOdds").value ? parseFloat($("maxOdds").value) : null;
+  const minO = oddsMode === "range" && $("minOdds").value ? parseFloat($("minOdds").value) : null;
+  const legMode = document.querySelector('[data-legs].active')?.dataset?.legs || "auto";
+  const topN = legMode === "fixed" && $("topN").value ? parseInt($("topN").value, 10) : null;
   const now = new Date();
   const t6 = new Date(now); t6.setHours(18,0,0,0);
   const t8 = new Date(now); t8.setHours(20,0,0,0);
@@ -523,38 +525,15 @@ function applyFilters() {
   if (topN !== null && topN > 0) doTopN(topN);
   [5,10,15,20].forEach(n => { if (presets.has(`top-${n}`)) doTopN(n); });
 
-  // Stance-based behavior
+  // Stance-based behavior — only applies when user explicitly picks a stance
   const activeStance = document.querySelector(".stance-card.active")?.dataset?.stance || "manual";
   if (activeStance === "value") {
-    // Aggressive: keep ALL games, no removals, sort by highest odds
+    // Aggressive: keep ALL games, undo any removals
     filtered = filtered.map(s => ({...s, removed: false}));
-    filtered.sort((a,b) => b.odds - a.odds);
   } else if (activeStance === "safe") {
-    // Safe: after conversion (async), also remove games with odds > 1.60
-    filtered = filtered.map(s => {
-      if (bankers.has(s.eventId)) return s;
-      if (!s.removed && s.odds > 1.60) return {...s, removed: true};
-      return s;
-    });
-  } else if (activeStance === "balanced") {
-    // Balanced: keep games with odds 1.20-2.50, keep at least 60%
-    filtered = filtered.map(s => {
-      if (bankers.has(s.eventId)) return s;
-      if (!s.removed && (s.odds < 1.20 || s.odds > 2.50)) return {...s, removed: true};
-      return s;
-    });
-    const minKeep = Math.max(3, Math.ceil(allSelections.length * 0.6));
-    const keptCount = filtered.filter(s => !s.removed).length;
-    if (keptCount < minKeep) {
-      const removedSorted = filtered.filter(s => s.removed && !bankers.has(s.eventId)).sort((a,b) => a.odds - b.odds);
-      let toRestore = minKeep - keptCount;
-      for (const s of removedSorted) {
-        if (toRestore <= 0) break;
-        const idx = filtered.findIndex(f => f.eventId === s.eventId);
-        if (idx !== -1) { filtered[idx] = {...filtered[idx], removed: false}; toRestore--; }
-      }
-    }
+    // Safe: convert risky picks (done async after render), no removal here
   }
+  // "manual" (default Balanced): no automatic removal — user controls everything
 
   // NEVER show 0 games — always keep at least 3
   const MIN_GAMES = 3;
