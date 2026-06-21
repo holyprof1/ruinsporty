@@ -67,7 +67,6 @@ function activateTab(tab) {
     if (pg) pg.classList.add("active");
     currentTab = tab;
     if (tab === "leaderboard") showLeaderboardView();
-    if (tab === "convert") checkAdminConvert();
   }, 300);
 }
 function getSharedPunterName() {

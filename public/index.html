@@ -54,9 +54,10 @@
 
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="logo" id="logoBtn" href="/" onclick="event.preventDefault();showHomepage()">
-        <img src="/logo-nav.png" alt="SlipPilot" style="height:34px;width:auto;border-radius:6px;background:#fff;padding:2px 4px" />
-      </a>
+      <div class="logo" id="logoBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00c853" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>SlipPilot</span>
+      </div>
       <nav class="tab-nav" id="tabNav">
         <button class="tab-btn" data-tab="optimizer">Optimizer</button>
         <button class="tab-btn" data-tab="merger">Merger</button>
@@ -101,7 +102,7 @@
       <details class="faq"><summary>How often is SlipPilot updated?</summary><p>Every day. We ship improvements, new filters, and bookmaker support continuously. Submit a request via the support form to suggest a feature and we will email you when it is live.</p></details>
       <details class="faq"><summary>Can I track multiple punters?</summary><p>Yes. Enter a punter name when scanning any code. SlipPilot tracks hit rates across all their slips and ranks them.</p></details>
     </section>
-    <footer class="sp-footer"><div class="footer-inner"><div style="margin-bottom:8px"><img src="/logo-nav.png" alt="SlipPilot" style="height:40px;width:auto;opacity:.85" /><p style="font-size:11px;color:#8a9e8a;margin-top:4px">Analyze. Optimize. Win.</p></div><div class="footer-links"><a data-goto="optimizer">Optimizer</a> <a data-goto="scanner">Scanner</a> <a data-goto="convert">Convert</a></div><small class="footer-disclaimer">SlipPilot is an independent tool and is not affiliated with SportyBet.</small></div></footer>
+    <footer class="sp-footer"><div class="footer-inner"><span class="footer-brand">SlipPilot</span><span class="footer-note">Built for SportyBet Nigeria punters</span><div class="footer-links"><a data-goto="optimizer">Optimizer</a> <a data-goto="scanner">Scanner</a> <a data-goto="convert">Convert</a></div><small class="footer-disclaimer">SlipPilot is an independent tool and is not affiliated with SportyBet.</small></div></footer>
   </div>
 
   <!-- ═══ TAB: OPTIMIZER (3-step wizard) ═══ -->
@@ -458,63 +459,6 @@
   <!-- ═══ TAB: CONVERT ═══ -->
   <div id="tab-convert" class="tab-page">
     <div class="page-wrap">
-
-      <!-- ADMIN SMART GENERATOR (hidden from public) -->
-      <div id="adminGenSection" class="hidden" style="margin-top:24px">
-        <div class="wiz-card" style="text-align:left">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:20px">&#127919;</span><h2 style="margin:0;font-size:18px;font-weight:900">Admin Smart Generator</h2></div>
-          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Generate best plays from today's punter network</p>
-
-          <button class="btn btn-green" onclick="adminFetchPunters()" id="adminFetchBtn">Fetch Today's Punter Codes</button>
-          <div id="adminFetchStatus" style="margin-top:12px;font-size:12px"></div>
-
-          <div id="adminGenSettings" class="hidden" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
-            <label class="field-label">CONVERSION STYLE</label>
-            <div class="pill-row" style="margin-bottom:12px">
-              <button class="pill active" onclick="setAdminOpt(this,'adminConvStyle','safer')">Make Safer</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminConvStyle','original')">Original Markets</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminConvStyle','aggressive')">Aggressive</button>
-            </div>
-
-            <label class="field-label">EDITION</label>
-            <div class="pill-row" style="margin-bottom:12px">
-              <button class="pill active" onclick="setAdminOpt(this,'adminEdition','conservative')">Conservative</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminEdition','balanced')">Balanced</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminEdition','moonshot')">Moonshot</button>
-            </div>
-
-            <label class="field-label">ANALYSIS</label>
-            <div style="margin-bottom:12px">
-              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>H2H Deep Scan</strong><span>Fetch real stats per game (uses API calls)</span></div><div class="tgl" id="adminTglH2H"></div></div>
-              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Consensus Only</strong><span>Only picks where 2+ punters agree</span></div><div class="tgl" id="adminTglConsensus"></div></div>
-              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Uncertain</strong><span>Remove picks with safety score below 35</span></div><div class="tgl on" id="adminTglUncertain"></div></div>
-            </div>
-
-            <label class="field-label">HOW MANY CODES</label>
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-              <input type="range" id="adminCodeCount" min="5" max="100" value="30" style="flex:1;accent-color:#00c853" oninput="$('adminCodeCountVal').textContent=this.value" />
-              <span id="adminCodeCountVal" style="font-weight:800;color:var(--green);min-width:24px">30</span>
-            </div>
-
-            <label class="field-label">MIN ODDS PER CODE</label>
-            <div class="pill-row" style="margin-bottom:16px">
-              <button class="pill active" onclick="setAdminOpt(this,'adminMinOdds','1000')">1K</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminMinOdds','10000')">10K</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminMinOdds','100000')">100K</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminMinOdds','1000000')">1M</button>
-              <button class="pill" onclick="setAdminOpt(this,'adminMinOdds','10000000')">10M</button>
-            </div>
-
-            <button class="btn btn-green btn-big" onclick="adminRunGenerate()" id="adminGenBtn" style="width:100%">&#9889; Generate Smart Picks</button>
-            <div id="adminGenProgress" style="margin-top:8px;font-size:13px;color:var(--amber)"></div>
-          </div>
-
-          <div id="adminGenResults" class="hidden" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px"></div>
-        </div>
-
-        <div style="text-align:center;padding:20px 0;color:var(--text3);font-size:12px">&#9472;&#9472; or convert your own code &#9472;&#9472;</div>
-      </div>
-
       <div class="wiz-card" style="margin-top:24px">
         <h2 class="wiz-title">Convert</h2>
         <p class="wiz-sub">Make any slip safer instantly</p>
