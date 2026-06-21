@@ -25,7 +25,8 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
-app.use(session({ secret: process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { maxAge: 3600000 } }));
+const FileStore = require("session-file-store")(session);
+app.use(session({ store: new FileStore({ path: path.join(__dirname, "data", "sessions"), ttl: 3600, retries: 0 }), secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: process.env.NODE_ENV === "production", maxAge: 3600000 } }));
 
 // ── Helpers ──
 

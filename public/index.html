@@ -29,6 +29,7 @@
   <meta name="apple-mobile-web-app-title" content="SlipPilot" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"SlipPilot","url":"https://slippilot.com.ng","description":"Free SportyBet slip optimizer. Filter, convert and rebuild betting slips instantly.","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"NGN"},"author":{"@type":"Person","name":"Tobi Arowosegbe"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How do I optimize my SportyBet slip?","acceptedAnswer":{"@type":"Answer","text":"Paste your SportyBet booking code into SlipPilot, choose your optimization mode, and generate a new cleaner code instantly. Free at slippilot.com.ng"}},{"@type":"Question","name":"Can I convert Over 3.5 to Over 2.5 on SportyBet?","acceptedAnswer":{"@type":"Answer","text":"Yes. Use SlipPilot's Convert tab. Paste your booking code, click Make Safer, and all Over 3.5 picks automatically convert to Over 2.5 with a new booking code generated."}},{"@type":"Question","name":"Is SlipPilot free?","acceptedAnswer":{"@type":"Answer","text":"Yes, SlipPilot is completely free forever. No account needed. Visit slippilot.com.ng to get started."}},{"@type":"Question","name":"How do I split a large SportyBet slip?","acceptedAnswer":{"@type":"Answer","text":"Use SlipPilot's Splitter tab. Paste your booking code, choose how many sub-slips you want, and generate each one with its own booking code instantly."}}]}</script>
 </head>
 <body>
 <script>
@@ -267,7 +268,7 @@
 
       <div id="generateResult" class="hidden"></div>
       <div id="tripleCards" class="triple-cards hidden"></div>
-      <button class="btn btn-ghost" id="copyAllCodes" style="display:none" onclick="copyAllTripleCodes()">Copy All 3 Codes</button>
+      <span id="copyAllCodes" style="display:none"></span>
       <div class="code-card hidden" id="codeCard">
         <div class="code-card-head"><span class="code-card-label">BOOKING CODE</span><span class="code-card-badge">SportyBet</span></div>
         <div class="code-card-code mono" id="genCodeDisplay"></div>
@@ -328,12 +329,12 @@
         <div class="splitter-info"><span id="splitterTotal" class="mono">0</span> selections &middot; <span id="splitterOdds" class="mono">0</span> total odds</div>
 
         <div class="pill-row" style="margin-bottom:12px">
-          <button class="pill active" onclick="setSplitMode('extract')">Extract</button>
-          <button class="pill" onclick="setSplitMode('split')">Split</button>
+          <button class="pill active" onclick="setSplitMode('split')">Split</button>
+          <button class="pill" onclick="setSplitMode('extract')">Extract</button>
         </div>
 
         <!-- Extract mode -->
-        <div id="extractMode">
+        <div id="extractMode" class="hidden">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:#8a9e8a;font-size:12px">How many games?</span><span id="extractCountVal" style="color:#00c853;font-weight:700">10</span></div>
           <input type="range" id="extractCount" min="1" max="50" value="10" step="1" style="width:100%;accent-color:#00c853;height:6px" oninput="document.getElementById('extractCountVal').textContent=this.value" />
           <div class="triple-cards" style="margin-top:16px">
@@ -341,11 +342,11 @@
             <div class="triple-card"><div class="triple-card-label balanced">Balanced</div><p style="font-size:11px;color:var(--text2)">Mixed selection</p><button class="btn btn-green" onclick="extractAndGen('balanced')" style="width:100%;margin-top:8px">Generate</button><div class="gen-code-inline mono" id="extractBalanced"></div></div>
             <div class="triple-card"><div class="triple-card-label value">Best Odds</div><p style="font-size:11px;color:var(--text2)">Highest odds games</p><button class="btn btn-green" onclick="extractAndGen('value')" style="width:100%;margin-top:8px">Generate</button><div class="gen-code-inline mono" id="extractValue"></div></div>
           </div>
-          <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="extractAllThree()">Generate All 3</button>
+          <button class="btn btn-green" style="width:100%;margin-top:8px" onclick="extractAllThree()">Generate All 3</button>
         </div>
 
         <!-- Split mode -->
-        <div id="splitMode" class="hidden">
+        <div id="splitMode">
           <div class="pill-row" style="margin-bottom:8px"><span style="font-size:12px;color:#8a9e8a;margin-right:8px">Sub-slips:</span>
             <button class="pill split-count-pill active" onclick="setSplitCount(2)">2</button>
             <button class="pill split-count-pill" onclick="setSplitCount(3)">3</button>
@@ -363,6 +364,19 @@
           <button id="splitterSplitBtn" class="btn btn-green btn-big wiz-cta">Split Slip</button>
         </div>
 
+        <details class="wiz-more" style="margin-top:12px">
+          <summary>Smart Edits (convert picks before generating)</summary>
+          <div style="padding-top:8px">
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Home Win to Double Chance 1X</strong></div><div class="tgl" id="spHome1x"></div></div>
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Away Win to Double Chance X2</strong></div><div class="tgl" id="spAwayX2"></div></div>
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Home Win to Draw No Bet</strong></div><div class="tgl" id="spHomeDnb"></div></div>
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 3.5+ to Over 2.5</strong></div><div class="tgl" id="spOver35"></div></div>
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 2.5 to Over 1.5</strong></div><div class="tgl" id="spOver25"></div></div>
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>BTTS Yes to Over 1.5</strong></div><div class="tgl" id="spBtts"></div></div>
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Correct Score to Over 1.5</strong></div><div class="tgl" id="spCS"></div></div>
+            <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Draw picks</strong></div><div class="tgl" id="spDraw"></div></div>
+          </div>
+        </details>
         <div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
       </div>
     </div>
@@ -472,7 +486,7 @@
 
         <!-- TIER 4: Deep Scan -->
         <div class="opt-toggle-row" onclick="toggleDeepScan()" style="margin-bottom:16px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg)">
-          <div><strong>Deep Scan</strong><span>Uses last 5 matches and H2H to guide conversions</span></div>
+          <div><strong>Deep Scan</strong><span>Uses stats, form and H2H to guide conversions</span></div>
           <div class="tgl" id="tglDeepScan"></div>
         </div>
 

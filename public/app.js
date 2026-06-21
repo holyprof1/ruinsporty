@@ -906,6 +906,7 @@ window.extractAndGen = async function(mode) {
   else if (mode === "value") sels = sorted.reverse().slice(0, n);
   else sels = sorted.slice(Math.floor(sorted.length * 0.1), Math.floor(sorted.length * 0.1) + n);
   if (!sels.length) return;
+  sels = await applySmartEdits(sels);
   try {
     const r = await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selections:genPayload(sels)})});
     const j = await r.json();
@@ -917,6 +918,50 @@ window.extractAndGen = async function(mode) {
 window.extractAllThree = async function() {
   await extractAndGen("safe"); await extractAndGen("balanced"); await extractAndGen("value");
 };
+
+// Smart Edits: apply conversions to selections before generating
+async function applySmartEdits(sels) {
+  const on = id => $(id)?.classList?.contains("on");
+  const edits = [];
+  if (on("spHome1x")) edits.push({ mkt: "1x2", out: "home", target: "Double Chance", name: "Home or Draw" });
+  if (on("spAwayX2")) edits.push({ mkt: "1x2", out: "away", target: "Double Chance", name: "Draw or Away" });
+  if (on("spHomeDnb")) edits.push({ mkt: "1x2", out: "home", target: "Draw No Bet", name: "Home" });
+  if (on("spOver35")) edits.push({ type: "over", minVal: 3, toVal: 2.5 });
+  if (on("spOver25")) edits.push({ type: "over", minVal: 2, toVal: 1.5 });
+  if (on("spBtts")) edits.push({ mkt: "gg", out: "yes", target: "Over/Under", name: "Over 1.5" });
+  if (on("spCS")) edits.push({ mkt: "correct score", target: "Over/Under", name: "Over 1.5" });
+  const removeDraw = on("spDraw");
+
+  if (edits.length === 0 && !removeDraw) return sels;
+
+  const result = [];
+  for (const s of sels) {
+    const out = (s.outcome || "").toLowerCase();
+    const mkt = (s.market || "").toLowerCase();
+    if (removeDraw && mkt === "1x2" && out === "draw") continue;
+    let converted = false;
+    for (const e of edits) {
+      if (e.type === "over") {
+        const m = out.match(/^over (\d+\.?\d*)$/i);
+        if (m && parseFloat(m[1]) >= e.minVal) {
+          try {
+            const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+            const t = j.markets?.find(mk => mk.outcomeName === `Over ${e.toVal}` && mk.marketName.toLowerCase().includes("over/under"));
+            if (t) { result.push({...s, market:t.marketName, outcome:t.outcomeName, odds:t.odds, marketId:t.marketId, outcomeId:t.outcomeId, specifier:t.specifier||""}); converted = true; break; }
+          } catch {}
+        }
+      } else if (e.mkt && mkt.includes(e.mkt) && (!e.out || out === e.out)) {
+        try {
+          const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+          const t = j.markets?.find(mk => mk.marketName === e.target && (e.name ? mk.outcomeName.includes(e.name) || mk.outcomeName === e.name : true));
+          if (t) { result.push({...s, market:t.marketName, outcome:t.outcomeName, odds:t.odds, marketId:t.marketId, outcomeId:t.outcomeId, specifier:t.specifier||""}); converted = true; break; }
+        } catch {}
+      }
+    }
+    if (!converted) result.push(s);
+  }
+  return result;
+}
 
 // ── Scanner ──
 let scanData = null, manualOverrides = {};
@@ -1167,7 +1212,7 @@ const deepScanCache = {};
 
 function toggleDeepScan() {
   if (!deepScanEnabled && !localStorage.getItem("deepScanConsented")) {
-    if (!confirm("Deep Scan analyzes last 5 matches and H2H for every game.\nLimited calls per session to keep SlipPilot free.\n\nEnable Deep Scan?")) return;
+    if (!confirm("Deep Scan\n\nBefore converting your slip, Deep Scan analyzes each game using real match data including:\n\n• Last 10 H2H meetings between the teams\n• Current team form and recent results\n• Goals scored and conceded trends\n\nThis gives you data-backed conversions instead of generic rules. It may take up to 60 seconds for large slips.\n\nEnable Deep Scan?")) return;
     localStorage.setItem("deepScanConsented", "true");
   }
   deepScanEnabled = !deepScanEnabled;
@@ -1198,18 +1243,33 @@ async function runConvert(mode) {
     const mkt = (s.market || "").toLowerCase();
 
     // Deep Scan: fetch H2H data and override decisions
-    if (deepScanEnabled && (mode === "safer" || mode === "goals")) {
+    if (deepScanEnabled && (mode === "safer" || mode === "goals" || mode === "advanced")) {
       if (prog) { prog.classList.remove("hidden"); prog.textContent = `Analyzing ${i+1}/${convertResult.length}...`; }
       const data = await getDeepScanData(s);
       if (data?.found && data.keyStats) {
         const ks = data.keyStats;
-        // Data says keep the pick — skip conversion
-        if (ks.avgGoals > 2.5 && out.includes("over 2.5")) { s._scanNote = `Avg ${ks.avgGoals} goals — keeping Over 2.5`; continue; }
-        if (ks.bttsPct > 70 && out.includes("yes") && mkt.includes("gg")) { s._scanNote = `BTTS ${ks.bttsPct}% — keeping BTTS Yes`; continue; }
-        if (ks.homeWinRate > 75 && out === "home" && mkt === "1x2") { s._scanNote = `Home wins ${ks.homeWinRate}% — keeping Home Win`; continue; }
-        // Data says make it safer than default
-        if (ks.avgGoals < 1.5 && out.includes("over")) { s._scanNote = `Avg ${ks.avgGoals} goals — extra safe conversion`; }
-        if (ks.homeWinRate < 25 && out === "home") { s._scanNote = `Home wins only ${ks.homeWinRate}%`; }
+        // Calculate safety score for this pick
+        let pickScore = 50;
+        if (ks.avgGoals !== null && ks.avgGoals !== undefined) {
+          if (ks.avgGoals > 2.5 && out.includes("over 2.5")) pickScore += 20;
+          if (ks.avgGoals < 1.5 && out.includes("over 2.5")) pickScore -= 25;
+          if (ks.avgGoals < 1.5 && out.includes("over 1.5")) pickScore += 10;
+        }
+        if (ks.bttsPct > 60 && out.includes("yes") && mkt.includes("gg")) pickScore += 15;
+        if (ks.bttsPct < 30 && out.includes("yes") && mkt.includes("gg")) pickScore -= 20;
+        if (ks.homeWinRate > 75 && out === "home") pickScore += 20;
+        if (ks.homeWinRate < 20 && out === "home") pickScore -= 20;
+        pickScore = Math.max(0, Math.min(100, pickScore));
+        s._safetyScore = pickScore;
+
+        // Flag uncertain games (score < 35)
+        if (pickScore < 35) { s._uncertain = true; s._scanNote = `Safety ${pickScore}/100. Stats suggest this pick is risky.`; }
+
+        // Data says keep the pick
+        if (ks.avgGoals > 2.5 && out.includes("over 2.5")) { s._scanNote = `Avg ${ks.avgGoals} goals. Keeping Over 2.5.`; continue; }
+        if (ks.bttsPct > 70 && out.includes("yes") && mkt.includes("gg")) { s._scanNote = `BTTS ${ks.bttsPct}%. Keeping BTTS Yes.`; continue; }
+        if (ks.homeWinRate > 75 && out === "home" && mkt === "1x2") { s._scanNote = `Home wins ${ks.homeWinRate}%. Keeping Home Win.`; continue; }
+        if (ks.avgGoals < 1.5 && out.includes("over")) { s._scanNote = `Avg ${ks.avgGoals} goals. Extra safe conversion applied.`; }
       }
     }
 
@@ -1347,6 +1407,14 @@ async function runConvert(mode) {
         const keep = new Set(active.slice(0, topNLimit).map(s => s.eventId));
         convertResult.forEach(s => { if (!s._removed && !keep.has(s.eventId)) s._removed = true; });
       }
+    }
+  }
+
+  // Deep Scan: remove uncertain games if enabled
+  if (deepScanEnabled) {
+    const uncertain = convertResult.filter(s => !s._removed && s._uncertain);
+    if (uncertain.length > 0) {
+      uncertain.forEach(s => { s._removed = true; s._scanNote = (s._scanNote || "") + " Removed: uncertain based on stats."; });
     }
   }
 
