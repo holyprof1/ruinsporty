@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const session = require("express-session");
 const https = require("https");
 const path = require("path");
 const fs = require("fs");
@@ -22,6 +23,7 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
+app.use(session({ secret: process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { maxAge: 3600000 } }));
 
 // ── Helpers ──
 
@@ -115,6 +117,36 @@ function incrementStat(key) {
 
 app.get("/api/stats", (req, res) => {
   res.json(loadStats());
+});
+
+// ── API Rate Limiting (H2H only) ──
+
+const API_USAGE_FILE = path.join(DATA_DIR, "api-usage.json");
+
+function loadApiUsage() {
+  try { return JSON.parse(fs.readFileSync(API_USAGE_FILE, "utf-8")); }
+  catch { return { date: "", usage: {}, adminCalls: 0 }; }
+}
+
+function saveApiUsage(data) { fs.writeFileSync(API_USAGE_FILE, JSON.stringify(data, null, 2)); }
+
+function checkApiLimit(req, res, next) {
+  const u = loadApiUsage();
+  const today = new Date().toISOString().split("T")[0];
+  if (u.date !== today) { u.date = today; u.usage = {}; u.adminCalls = 0; saveApiUsage(u); }
+  if (req.headers["x-admin-key"] === process.env.ADMIN_PASSWORD || req.session?.admin) {
+    u.adminCalls = (u.adminCalls || 0) + 1; saveApiUsage(u); return next();
+  }
+  const ip = req.ip || req.connection?.remoteAddress || "unknown";
+  const calls = u.usage[ip] || 0;
+  if (calls >= 50) return res.json({ found: false, fallback: true, h2h: [], keyStats: {}, message: null });
+  u.usage[ip] = calls + 1; saveApiUsage(u); next();
+}
+
+app.get("/api/usage", (req, res) => {
+  const u = loadApiUsage();
+  const totalPublic = Object.values(u.usage || {}).reduce((a, v) => a + v, 0);
+  res.json({ date: u.date, publicCalls: totalPublic, adminCalls: u.adminCalls || 0, limit: 50 });
 });
 
 // ── Punters ──
@@ -676,9 +708,9 @@ async function apiFootballH2H(home, away, pick) {
   if (!homeTeam?.id || !awayTeam?.id) return null;
 
   const [h2hRes, homeFormRes, awayFormRes] = await Promise.all([
-    apiFootballFetch(`/fixtures/headtohead?h2h=${homeTeam.id}-${awayTeam.id}&last=5`),
-    apiFootballFetch(`/fixtures?team=${homeTeam.id}&last=5`),
-    apiFootballFetch(`/fixtures?team=${awayTeam.id}&last=5`),
+    apiFootballFetch(`/fixtures/headtohead?h2h=${homeTeam.id}-${awayTeam.id}`),
+    apiFootballFetch(`/fixtures?team=${homeTeam.id}&season=2025`),
+    apiFootballFetch(`/fixtures?team=${awayTeam.id}&season=2025`),
   ]);
 
   const parseFixture = (f) => {
@@ -690,9 +722,11 @@ async function apiFootballH2H(home, away, pick) {
     return { date, home: h, away: a, homeScore: hs, awayScore: as };
   };
 
-  const h2h = (h2hRes?.response || []).map(parseFixture);
-  const homeFixtures = (homeFormRes?.response || []).map(parseFixture);
-  const awayFixtures = (awayFormRes?.response || []).map(parseFixture);
+  const finishedOnly = (arr) => (arr || []).filter(f => f.fixture?.status?.short === "FT");
+  const sortDesc = (arr) => arr.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const h2h = sortDesc(finishedOnly(h2hRes?.response).map(parseFixture)).slice(0, 5);
+  const homeFixtures = sortDesc(finishedOnly(homeFormRes?.response).map(parseFixture)).slice(0, 5);
+  const awayFixtures = sortDesc(finishedOnly(awayFormRes?.response).map(parseFixture)).slice(0, 5);
 
   const formOf = (fixtures, teamName) => fixtures.slice(0, 5).map(f => {
     const isHome = f.home.toLowerCase().includes(teamName.toLowerCase().slice(0, 5));
@@ -743,7 +777,7 @@ async function apiFootballH2H(home, away, pick) {
   return result;
 }
 
-app.get("/api/h2h", async (req, res) => {
+app.get("/api/h2h", checkApiLimit, async (req, res) => {
   const { eventId, home, away, pick } = req.query;
   if (!home) return res.status(400).json({ error: "home team required" });
 
@@ -905,12 +939,41 @@ app.get("/punter/:name", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/admin/leaderboard", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// ── Admin Panel ──
+
+app.post("/admin/login", (req, res) => {
+  if (req.body.password === process.env.ADMIN_PASSWORD) {
+    req.session.admin = true;
+    res.json({ success: true });
+  } else {
+    res.status(403).json({ success: false });
+  }
 });
 
-app.get("/admin/support", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+app.get("/admin/logout", (req, res) => { req.session.destroy(); res.redirect("/"); });
+
+function requireAdmin(req, res, next) {
+  if (req.session?.admin) return next();
+  if (req.headers["x-admin-password"] === process.env.ADMIN_PASSWORD) return next();
+  if (req.accepts("html")) return res.redirect("/admin");
+  return res.status(403).json({ error: "Unauthorized" });
+}
+
+app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
+app.get("/admin/leaderboard", requireAdmin, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/admin/support", requireAdmin, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
+app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
+  const stats = loadStats();
+  const usage = loadApiUsage();
+  const tickets = loadSupport();
+  const totalPublic = Object.values(usage.usage || {}).reduce((a, v) => a + v, 0);
+  res.json({
+    stats,
+    api: { date: usage.date, publicCalls: totalPublic, adminCalls: usage.adminCalls || 0, limit: 50 },
+    tickets: tickets.length,
+    ticketsNew: tickets.filter(t => t.status === "New").length,
+  });
 });
 
 // ── Support ──

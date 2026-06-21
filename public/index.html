@@ -384,6 +384,11 @@
         <p id="convertError" class="error hidden"></p>
       </div>
       <div id="convertResults" class="hidden">
+        <div class="opt-toggle-row" onclick="toggleDeepScan()" style="margin-bottom:12px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg)">
+          <div><strong>Deep Scan</strong><span>Analyze last 5 matches per team for data-backed conversions</span></div>
+          <div class="tgl" id="tglDeepScan"></div>
+        </div>
+        <div id="deepScanProgress" class="hidden" style="margin-bottom:12px;font-size:13px;color:var(--green)"></div>
         <div class="convert-presets">
           <button class="btn btn-green" onclick="runConvert('safer')">Make Safer</button>
           <button class="btn btn-ghost" onclick="runConvert('goals')">Safer Goals</button>
@@ -444,7 +449,7 @@
           <option value="Other">Other</option>
         </select>
         <div id="supPartnerHint" class="hidden" style="font-size:11px;color:var(--text2);margin-bottom:8px;padding:8px;background:var(--bg);border-radius:var(--radius)">We are open to integrations, white-labeling, and revenue sharing. Tell us your idea.</div>
-        <div id="supDonateHint" class="hidden" style="font-size:11px;color:var(--text2);margin-bottom:8px;padding:8px;background:var(--bg);border-radius:var(--radius)">SlipPilot is free forever. If it has helped you win, share your PayPal or preferred method and we will reach out.</div>
+        <div id="supDonateHint" class="hidden" style="font-size:11px;color:var(--text2);margin-bottom:8px;padding:8px;background:var(--bg);border-radius:var(--radius)">Thank you for wanting to support SlipPilot! We will reach out to you via email with donation details once we receive your message.</div>
         <textarea id="supMessage" class="field wiz-field" placeholder="Your message" rows="4" style="resize:vertical"></textarea>
         <button class="btn btn-green btn-big" onclick="submitSupport()">Send Message</button>
         <p id="supSuccess" class="hidden" style="color:var(--green);font-size:13px;margin-top:8px;text-align:center"></p>

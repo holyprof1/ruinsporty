@@ -1092,13 +1092,52 @@ async function loadConvert() {
   finally { $("convertLoadBtn").disabled = false; $("convertLoadBtn").textContent = "Load Slip"; }
 }
 
-async function runConvert(mode) {
-  convertResult = convertOriginal.map(s => ({...s, _changed: false, _removed: false, _oldOutcome: s.outcome, _oldMarket: s.market, _oldOdds: s.odds}));
+let deepScanEnabled = false;
+const deepScanCache = {};
 
+function toggleDeepScan() {
+  deepScanEnabled = !deepScanEnabled;
+  const tgl = $("tglDeepScan");
+  if (tgl) tgl.classList.toggle("on", deepScanEnabled);
+  if (deepScanEnabled) showToast("Deep Scan enabled — conversions will use match data", "success");
+}
+
+async function getDeepScanData(s) {
+  const key = `${s.homeTeam}|${s.awayTeam}`;
+  if (deepScanCache[key]) return deepScanCache[key];
+  try {
+    const r = await fetch(`/api/h2h?eventId=${encodeURIComponent(s.eventId)}&home=${encodeURIComponent(s.homeTeam)}&away=${encodeURIComponent(s.awayTeam)}&pick=${encodeURIComponent(s.outcome)}`);
+    const j = await r.json();
+    if (j.fallback) return null;
+    deepScanCache[key] = j;
+    return j;
+  } catch { return null; }
+}
+
+async function runConvert(mode) {
+  convertResult = convertOriginal.map(s => ({...s, _changed: false, _removed: false, _oldOutcome: s.outcome, _oldMarket: s.market, _oldOdds: s.odds, _scanNote: ""}));
+
+  const prog = $("deepScanProgress");
   for (let i = 0; i < convertResult.length; i++) {
     const s = convertResult[i];
     const out = (s.outcome || "").toLowerCase();
     const mkt = (s.market || "").toLowerCase();
+
+    // Deep Scan: fetch H2H data and override decisions
+    if (deepScanEnabled && (mode === "safer" || mode === "goals")) {
+      if (prog) { prog.classList.remove("hidden"); prog.textContent = `Analyzing ${i+1}/${convertResult.length}...`; }
+      const data = await getDeepScanData(s);
+      if (data?.found && data.keyStats) {
+        const ks = data.keyStats;
+        // Data says keep the pick — skip conversion
+        if (ks.avgGoals > 2.5 && out.includes("over 2.5")) { s._scanNote = `Avg ${ks.avgGoals} goals — keeping Over 2.5`; continue; }
+        if (ks.bttsPct > 70 && out.includes("yes") && mkt.includes("gg")) { s._scanNote = `BTTS ${ks.bttsPct}% — keeping BTTS Yes`; continue; }
+        if (ks.homeWinRate > 75 && out === "home" && mkt === "1x2") { s._scanNote = `Home wins ${ks.homeWinRate}% — keeping Home Win`; continue; }
+        // Data says make it safer than default
+        if (ks.avgGoals < 1.5 && out.includes("over")) { s._scanNote = `Avg ${ks.avgGoals} goals — extra safe conversion`; }
+        if (ks.homeWinRate < 25 && out === "home") { s._scanNote = `Home wins only ${ks.homeWinRate}%`; }
+      }
+    }
 
     if (mode === "remove") {
       if (mkt.includes("correct score") || out.match(/over [3-9]\.5/) || (mkt.includes("gg") && out === "no") || mkt.includes("exact goals") || (mkt.includes("handicap") && /[-]1\.5/.test(s.specifier))) {
@@ -1174,6 +1213,7 @@ async function runConvert(mode) {
     }
   }
 
+  if (prog) prog.classList.add("hidden");
   renderConvert();
   showToast("Conversion applied", "success");
 }
@@ -1198,7 +1238,8 @@ function renderConvert() {
 
   $("convertNewTable").innerHTML = active.map(s => {
     const arrow = s._changed ? `<span class="change-arrow">${esc(s._oldOutcome)} -&gt;</span> ` : "";
-    return `<div class="sel-card ${s._changed?'changed-card':''}"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="sel-meta">${arrow}${esc(s.market)} — ${esc(s.outcome)}</div></div><span class="sel-odds">${s.odds.toFixed(2)}</span></div>`;
+    const note = s._scanNote ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${esc(s._scanNote)}</div>` : "";
+    return `<div class="sel-card ${s._changed?'changed-card':''}"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="sel-meta">${arrow}${esc(s.market)} — ${esc(s.outcome)}</div>${note}</div><span class="sel-odds">${s.odds.toFixed(2)}</span></div>`;
   }).join("");
 }
 

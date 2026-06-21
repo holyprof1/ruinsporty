@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SlipPilot Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,sans-serif;background:#0a0f0a;color:#fff;min-height:100vh;padding:20px}
+.card{background:#111811;border:1px solid #1e2e1e;border-radius:12px;padding:24px;margin-bottom:16px}
+h1{font-size:24px;margin-bottom:4px;color:#00c853}
+.sub{font-size:13px;color:#8a9e8a;margin-bottom:24px}
+h2{font-size:16px;margin-bottom:12px;color:#fff}
+.stat-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.stat{background:#0a0f0a;border:1px solid #1e2e1e;border-radius:8px;padding:16px;min-width:120px;text-align:center}
+.stat-val{font-size:28px;font-weight:900;color:#00c853}
+.stat-lbl{font-size:10px;color:#8a9e8a;text-transform:uppercase;margin-top:4px}
+input,button{font-family:inherit}
+input[type=password]{width:100%;max-width:300px;padding:12px 16px;border-radius:100px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:15px;outline:none;margin-bottom:12px}
+input:focus{border-color:#00c853}
+.btn{padding:10px 24px;border-radius:100px;border:none;background:#00c853;color:#fff;font-weight:600;cursor:pointer;font-size:14px}
+.btn:hover{background:#1ed760}
+.btn-sm{padding:4px 12px;font-size:11px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#8a9e8a;cursor:pointer}
+.btn-sm:hover{border-color:#00c853;color:#00c853}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px;color:#8a9e8a;font-size:10px;text-transform:uppercase;border-bottom:1px solid #1e2e1e}
+td{padding:8px;border-bottom:1px solid rgba(255,255,255,.04)}
+.badge{padding:2px 8px;border-radius:100px;font-size:10px;font-weight:700}
+.badge-new{background:rgba(0,200,83,.1);color:#00c853}
+.badge-read{background:rgba(255,179,0,.1);color:#ffb300}
+.badge-done{background:rgba(139,148,158,.1);color:#8a9e8a}
+.dev{font-size:13px;color:#8a9e8a;line-height:1.6}
+.dev a{color:#00c853;text-decoration:none}
+#login{max-width:400px;margin:80px auto;text-align:center}
+#dashboard{display:none}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+  <h1>SlipPilot Admin</h1>
+  <p class="sub">Enter your password to continue</p>
+  <input type="password" id="pw" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()" />
+  <br><button class="btn" onclick="doLogin()">Login</button>
+  <p id="loginErr" style="color:#e53935;margin-top:8px;font-size:13px"></p>
+</div>
+
+<div id="dashboard">
+  <h1>SlipPilot Admin</h1>
+  <p class="sub">Dashboard &middot; <a href="/admin/logout" style="color:#00c853">Logout</a></p>
+
+  <div class="card">
+    <h2>API Usage Today</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-val" id="apiPublic">0</div><div class="stat-lbl">Public Calls</div></div>
+      <div class="stat"><div class="stat-val" id="apiAdmin">0</div><div class="stat-lbl">Admin Calls</div></div>
+      <div class="stat"><div class="stat-val" id="apiLimit">50</div><div class="stat-lbl">Public Limit</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Lifetime Stats</h2>
+    <div class="stat-row" id="statsRow"></div>
+  </div>
+
+  <div class="card">
+    <h2>Support Tickets</h2>
+    <table><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Type</th><th>Message</th><th>Status</th><th></th></tr></thead><tbody id="ticketsBody"></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>About the Developer</h2>
+    <p class="dev">SlipPilot is built and maintained by <strong>Tobi Arowosegbe</strong> — a Lagos-based full-stack developer with 8+ years experience in PHP, Laravel, WordPress, React and Node.js. Available for freelance projects, partnerships and custom betting tool development.<br><br>
+    Email: <a href="mailto:arowosegbetobi13@gmail.com">arowosegbetobi13@gmail.com</a><br>
+    GitHub: <a href="https://github.com/holyprof1" target="_blank">holyprof1</a><br>
+    Twitter: <a href="https://twitter.com/phpdevng" target="_blank">@phpdevng</a></p>
+  </div>
+</div>
+
+<script>
+let adminPw = '';
+async function doLogin() {
+  const pw = document.getElementById('pw').value;
+  const r = await fetch('/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+  if (r.ok) { adminPw = pw; document.getElementById('login').style.display = 'none'; document.getElementById('dashboard').style.display = 'block'; loadDashboard(); }
+  else document.getElementById('loginErr').textContent = 'Wrong password';
+}
+
+async function loadDashboard() {
+  const h = { 'x-admin-password': adminPw };
+  const dash = await (await fetch('/api/admin/dashboard', { headers: h })).json();
+  document.getElementById('apiPublic').textContent = dash.api.publicCalls;
+  document.getElementById('apiAdmin').textContent = dash.api.adminCalls;
+  document.getElementById('apiLimit').textContent = dash.api.limit;
+
+  const sr = document.getElementById('statsRow');
+  sr.innerHTML = Object.entries(dash.stats).map(([k,v]) => `<div class="stat"><div class="stat-val">${v.toLocaleString()}</div><div class="stat-lbl">${k.replace(/([A-Z])/g,' $1')}</div></div>`).join('');
+
+  const tickets = await (await fetch('/api/support', { headers: h })).json();
+  const tb = document.getElementById('ticketsBody');
+  tb.innerHTML = (tickets.tickets || []).reverse().map(t => {
+    const bc = t.status === 'New' ? 'badge-new' : t.status === 'Read' ? 'badge-read' : 'badge-done';
+    return `<tr><td>${new Date(t.date).toLocaleDateString('en-GB')}</td><td>${t.name}</td><td><a href="mailto:${t.email}" style="color:#00c853">${t.email}</a></td><td>${t.type}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${t.message}</td><td><span class="badge ${bc}">${t.status}</span></td><td><button class="btn-sm" onclick="markTicket(${t.id},'Read')">Read</button> <button class="btn-sm" onclick="markTicket(${t.id},'Done')">Done</button></td></tr>`;
+  }).join('');
+}
+
+async function markTicket(id, status) {
+  await fetch('/api/support/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw }, body: JSON.stringify({ status }) });
+  loadDashboard();
+}
+</script>
+</body>
+</html>
