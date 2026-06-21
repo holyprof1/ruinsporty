@@ -1431,6 +1431,12 @@ document.addEventListener("keydown", e => {
 
 if (getSharedPunterName() || location.pathname.startsWith("/admin/leaderboard")) activateTab("leaderboard");
 
+// PWA standalone mode: skip homepage, go straight to optimizer
+const isPWA = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true || new URLSearchParams(location.search).get("mode") === "app";
+if (isPWA && !getSharedPunterName() && !location.pathname.startsWith("/admin") && !location.hash) {
+  activateTab("optimizer");
+}
+
 // ── Convert Tab ──
 let convertOriginal = [], convertResult = [];
 

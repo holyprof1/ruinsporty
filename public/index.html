@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=50" />
+  <link rel="stylesheet" href="/style.css?v=99" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#00c853" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -54,9 +54,9 @@
 
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="logo" id="logoBtn">
-        <img src="/logo.png" alt="SlipPilot" style="height:36px;border-radius:6px" />
-      </div>
+      <a class="logo" id="logoBtn" href="/" onclick="event.preventDefault();showHomepage()">
+        <img src="/logo-nav.png" alt="SlipPilot" style="height:32px;width:auto;border-radius:4px" />
+      </a>
       <nav class="tab-nav" id="tabNav">
         <button class="tab-btn" data-tab="optimizer">Optimizer</button>
         <button class="tab-btn" data-tab="merger">Merger</button>
@@ -101,7 +101,7 @@
       <details class="faq"><summary>How often is SlipPilot updated?</summary><p>Every day. We ship improvements, new filters, and bookmaker support continuously. Submit a request via the support form to suggest a feature and we will email you when it is live.</p></details>
       <details class="faq"><summary>Can I track multiple punters?</summary><p>Yes. Enter a punter name when scanning any code. SlipPilot tracks hit rates across all their slips and ranks them.</p></details>
     </section>
-    <footer class="sp-footer"><div class="footer-inner"><span class="footer-brand">SlipPilot</span><span class="footer-note">Built for SportyBet Nigeria punters</span><div class="footer-links"><a data-goto="optimizer">Optimizer</a> <a data-goto="scanner">Scanner</a> <a data-goto="convert">Convert</a></div><small class="footer-disclaimer">SlipPilot is an independent tool and is not affiliated with SportyBet.</small></div></footer>
+    <footer class="sp-footer"><div class="footer-inner"><div style="margin-bottom:8px"><img src="/logo-nav.png" alt="SlipPilot" style="height:40px;width:auto;opacity:.85" /><p style="font-size:11px;color:#8a9e8a;margin-top:4px">Analyze. Optimize. Win.</p></div><div class="footer-links"><a data-goto="optimizer">Optimizer</a> <a data-goto="scanner">Scanner</a> <a data-goto="convert">Convert</a></div><small class="footer-disclaimer">SlipPilot is an independent tool and is not affiliated with SportyBet.</small></div></footer>
   </div>
 
   <!-- ═══ TAB: OPTIMIZER (3-step wizard) ═══ -->
@@ -705,6 +705,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=50"></script>
+  <script src="/app.js?v=99"></script>
 </body>
 </html>

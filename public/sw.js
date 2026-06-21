@@ -1,4 +1,4 @@
-const CACHE = 'slippilot-v3';
+const CACHE = 'slippilot-v99';
 const SHELL = ['/', '/style.css', '/app.js', '/manifest.json'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))));
 self.addEventListener('fetch', e => {

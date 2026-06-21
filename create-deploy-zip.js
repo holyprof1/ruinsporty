@@ -2,47 +2,55 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-// Ensure data files exist with defaults
+const zipName = "slippilot-deploy.zip";
+const zipPath = path.join(__dirname, zipName);
+
+// Build list of files to include (explicit, no junk)
+const include = [
+  "server.js",
+  "package.json",
+  "package-lock.json",
+  ".htaccess",
+  ".env.production",
+  ".gitignore",
+  "DEPLOY.md",
+  "AGENTS.md",
+  "create-deploy-zip.js",
+];
+
+// Include all public/ files
+const pubDir = path.join(__dirname, "public");
+const pubFiles = fs.readdirSync(pubDir).map(f => path.join("public", f));
+
+// Include only specific data/ files
+const dataInclude = ["stats.json", "support.json", "punters.json", "punter-profiles.json"];
 const dataDir = path.join(__dirname, "data");
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
+// Ensure defaults exist
 const defaults = {
   "stats.json": JSON.stringify({ slipsLoaded: 0, codesGenerated: 0, slipsScanned: 0, puntersTracked: 0, slipsMerged: 0, slipsSplit: 0 }, null, 2),
   "support.json": "[]",
   "punters.json": "[]",
-  "api-usage.json": JSON.stringify({ date: "", usage: {}, adminCalls: 0 }, null, 2),
 };
-
 for (const [file, content] of Object.entries(defaults)) {
   const fp = path.join(dataDir, file);
-  if (!fs.existsSync(fp)) { fs.writeFileSync(fp, content); console.log("Created", fp); }
+  if (!fs.existsSync(fp)) fs.writeFileSync(fp, content);
 }
+const dataFiles = dataInclude.filter(f => fs.existsSync(path.join(dataDir, f))).map(f => path.join("data", f));
 
-// Create zip excluding node_modules, .git, .env
-const zipName = "slippilot-deploy.zip";
-const zipPath = path.join(__dirname, zipName);
-
-// Clean analysis files from data/ before zipping (local-only files)
-const localOnlyFiles = ["punter-profiles.json", "generated-codes.json", "codes-today.txt", "tomorrow-codes.txt", "api-usage.json"];
-const sessionsDir = path.join(dataDir, "sessions");
+const allFiles = [...include.filter(f => fs.existsSync(path.join(__dirname, f))), ...pubFiles, ...dataFiles];
+const fileList = allFiles.map(f => `'${f}'`).join(",");
 
 try {
+  if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
   execSync(
-    `powershell -Command "Get-ChildItem -Path '${__dirname}' -Exclude 'node_modules','.git','.env','slippilot-deploy.zip','debug','analyze.js','analyze2.js','logo-source.png','scripts' | Compress-Archive -DestinationPath '${zipPath}' -Force"`,
-    { stdio: "inherit" }
+    `powershell -Command "Compress-Archive -Path ${fileList} -DestinationPath '${zipPath}' -Force"`,
+    { stdio: "inherit", cwd: __dirname }
   );
   const size = (fs.statSync(zipPath).size / 1024).toFixed(0);
   console.log(`\n${zipName} created (${size} KB)`);
-  console.log(`\nNext steps:`);
-  console.log(`1. Upload ${zipName} to cPanel File Manager`);
-  console.log(`2. Extract it`);
-  console.log(`3. Go to Setup Node.js App in cPanel`);
-  console.log(`4. Set startup file: server.js`);
-  console.log(`5. Add environment variables from .env.production`);
-  console.log(`6. Run NPM Install`);
-  console.log(`7. Start the app`);
-  console.log(`8. Enable SSL via Let's Encrypt`);
-  console.log(`\nSee DEPLOY.md for full details.`);
+  console.log(`Files: ${allFiles.length}`);
+  console.log(`\nReady to upload to slippilot.com.ng`);
 } catch (e) {
   console.error("Zip creation failed:", e.message);
 }
