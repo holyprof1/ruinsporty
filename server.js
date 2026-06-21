@@ -19,7 +19,23 @@ fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 fs.mkdirSync(DEBUG_DIR, { recursive: true });
 fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true });
 
+// Visitor tracking
+const VISITORS_FILE = path.join(DATA_DIR, "visitors.json");
+function trackVisitor(req) {
+  if (req.path.startsWith("/api/") || req.path.includes(".")) return;
+  try {
+    let visitors = [];
+    try { visitors = JSON.parse(fs.readFileSync(VISITORS_FILE, "utf-8")); } catch {}
+    const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+    const today = new Date().toISOString().slice(0, 10);
+    visitors.push({ date: today, time: new Date().toISOString(), ip: ip.slice(-8), path: req.path, ref: req.headers.referer || req.headers.referrer || "direct", ua: (req.headers["user-agent"] || "").slice(0, 80) });
+    if (visitors.length > 500) visitors = visitors.slice(-500);
+    fs.writeFileSync(VISITORS_FILE, JSON.stringify(visitors, null, 2));
+  } catch {}
+}
+
 app.use((req, res, next) => {
+  trackVisitor(req);
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
@@ -1290,6 +1306,39 @@ app.post("/api/admin/regen-all", requireAdmin, (req, res) => {
     if (err) return res.json({ success: false, message: "Analysis failed: " + (err.message || stderr).slice(0, 200) });
     res.json({ success: true, message: "Analysis complete. Codes regenerated.", output: stdout.slice(-500) });
   });
+});
+
+// ── Admin: visitors + header code ──
+
+app.get("/api/admin/visitors", requireAdmin, (req, res) => {
+  try {
+    const visitors = JSON.parse(fs.readFileSync(VISITORS_FILE, "utf-8"));
+    const today = new Date().toISOString().slice(0, 10);
+    const todayCount = visitors.filter(v => v.date === today).length;
+    const uniqueIPs = new Set(visitors.filter(v => v.date === today).map(v => v.ip)).size;
+    const refs = {};
+    visitors.filter(v => v.date === today).forEach(v => { refs[v.ref] = (refs[v.ref] || 0) + 1; });
+    res.json({ today: todayCount, uniqueToday: uniqueIPs, total: visitors.length, topRefs: Object.entries(refs).sort((a, b) => b[1] - a[1]).slice(0, 10), recent: visitors.slice(-20).reverse() });
+  } catch { res.json({ today: 0, uniqueToday: 0, total: 0, topRefs: [], recent: [] }); }
+});
+
+const HEADER_CODE_FILE = path.join(DATA_DIR, "header-code.txt");
+
+app.get("/api/admin/header-code", requireAdmin, (req, res) => {
+  try { res.json({ code: fs.readFileSync(HEADER_CODE_FILE, "utf-8") }); }
+  catch { res.json({ code: "" }); }
+});
+
+app.post("/api/admin/header-code", requireAdmin, (req, res) => {
+  const { code } = req.body;
+  fs.writeFileSync(HEADER_CODE_FILE, code || "");
+  res.json({ success: true });
+});
+
+// Serve header code injection for index.html
+app.get("/api/header-inject", (req, res) => {
+  try { res.type("text/plain").send(fs.readFileSync(HEADER_CODE_FILE, "utf-8")); }
+  catch { res.type("text/plain").send(""); }
 });
 
 // ── Debug: test outbound HTTPS ──

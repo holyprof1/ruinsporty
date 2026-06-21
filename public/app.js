@@ -283,8 +283,13 @@ function cardHtml(s, opts) {
     : `<span class="sel-market">${esc(s.market)}</span> — ${esc(s.outcome)}${s.league?" · "+esc(s.league):""}`;
   const isBanker = bankers.has(s.eventId);
   let btns = "";
-  if (opts?.banker) btns = `<button class="btn-sm ${isBanker?'btn-optimize':'btn-stats'}" onclick="toggleBanker(${jsArg(s.eventId)})" title="Lock as banker">${isBanker?'&#128737; Locked':'&#128737;'}</button><button class="btn-sm ${isExcluded?'btn-optimize':''}" onclick="toggleExclude(${jsArg(s.eventId)})" title="Exclude from codes" style="margin-left:4px;${isExcluded?'color:var(--red);border-color:var(--red)':''}">${isExcluded?'&#10005; Excluded':'&#10005;'}</button>`;
-  if (opts?.actions) btns = `<button class="btn-sm btn-stats" onclick="openH2H(${jsArg(s.eventId)},${jsArg(s.homeTeam)},${jsArg(s.awayTeam)})">Stats</button><button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})">Optimize</button><button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Markets</button>`;
+  if (opts?.banker) {
+    btns = `<button class="btn-sm ${isBanker?'btn-optimize':'btn-stats'}" onclick="toggleBanker(${jsArg(s.eventId)})" title="Lock">${isBanker?'&#128737;':'&#128737;'}</button>`;
+    btns += `<button class="btn-sm${isExcluded?' btn-optimize':''}" onclick="toggleExclude(${jsArg(s.eventId)})" title="Exclude" style="${isExcluded?'color:var(--red);border-color:var(--red)':''}">&#10005;</button>`;
+    btns += `<button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Markets</button>`;
+    btns += `<button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})">Safer</button>`;
+  }
+  if (opts?.actions) btns = `<button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Markets</button><button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})">Safer</button>`;
   if (opts?.removable) btns = `<button class="btn-rm-code" onclick="removeMergerGame(${jsArg(s.eventId)})">&times;</button>`;
   if (opts?.splitterRemovable) btns = `<button class="btn-rm-code" onclick="removeSplitterGame(${jsArg(s.eventId)})">&times;</button>`;
   let safetyHtml = "";
@@ -525,37 +530,47 @@ function applyFilters() {
   if (topN !== null && topN > 0) doTopN(topN);
   [5,10,15,20].forEach(n => { if (presets.has(`top-${n}`)) doTopN(n); });
 
-  // Stance-based behavior
+  // Stance-based risk scoring
   const activeStance = document.querySelector(".stance-card.active")?.dataset?.stance || "manual";
-
-  // Risk scoring: flag risky picks
-  const RISKY_MARKETS = /correct score|exact goals|both halves|asian handicap/i;
-  const RISKY_OUTCOMES = /over [3-9]\.\d|away/i;
-  const WEAK_LEAGUES = /reserve|u1[0-9]|u2[0-1]|youth|junior|women|female|friendly|amateur/i;
 
   function riskScore(s) {
     let risk = 0;
-    if (RISKY_MARKETS.test(s.market)) risk += 3;
-    if (RISKY_OUTCOMES.test(s.outcome)) risk += 2;
-    if (WEAK_LEAGUES.test(s.league) || WEAK_LEAGUES.test(s.category)) risk += 2;
+    const mkt = (s.market || "").toLowerCase();
+    const out = (s.outcome || "").toLowerCase();
+    const league = (s.league || "") + " " + (s.category || "");
+    // High risk markets
+    if (/correct score|exact goals/i.test(mkt)) risk += 4;
+    if (/both halves/i.test(mkt)) risk += 3;
+    if (/asian handicap/i.test(mkt) && /[-]1\.5|[-]2/i.test(s.specifier || "")) risk += 3;
+    // Risky outcomes
+    if (/^over [3-9]/i.test(out)) risk += 3;
+    if (/^over 2\.5/i.test(out)) risk += 1;
+    if (out === "away" && mkt === "1x2") risk += 2;
+    if (out === "draw" && mkt === "1x2") risk += 2;
+    // Weak leagues
+    if (/reserve|u1[0-9]|u2[0-1]|youth|junior|women|female|friendly|amateur/i.test(league)) risk += 2;
+    // High odds = higher risk
     if (s.odds > 3.0) risk += 2;
-    if (s.odds > 2.0) risk += 1;
+    else if (s.odds > 2.0) risk += 1;
     return risk;
   }
 
   if (activeStance === "safe") {
-    // Remove genuinely risky picks (high risk score), convert the rest async
+    // Conservative: remove anything risky (risk 4+), convert the rest async
     filtered = filtered.map(s => {
       if (bankers.has(s.eventId) || s.removed) return s;
-      const risk = riskScore(s);
-      if (risk >= 5) return { ...s, removed: true };
-      return s;
+      return riskScore(s) >= 4 ? { ...s, removed: true } : s;
+    });
+  } else if (activeStance === "manual") {
+    // Balanced: remove only the most dangerous (risk 6+), keep everything moderate
+    filtered = filtered.map(s => {
+      if (bankers.has(s.eventId) || s.removed) return s;
+      return riskScore(s) >= 6 ? { ...s, removed: true } : s;
     });
   } else if (activeStance === "value") {
-    // Aggressive: keep ALL games
+    // Aggressive: keep ALL games, no removals
     filtered = filtered.map(s => ({ ...s, removed: false }));
   }
-  // "manual" (default Balanced): no automatic removal
 
   // NEVER show 0 games — always keep at least 3
   const MIN_GAMES = 3;
@@ -694,8 +709,7 @@ function renderOpt(kept, removed) {
   $("origOdds").textContent = oO.toFixed(2); $("optOdds").textContent = kO.toFixed(2);
   $("origBadge").textContent = allSelections.length; $("optBadge").textContent = kept.length; $("removedBadge").textContent = removed.length;
   $("originalTable").innerHTML = (bankers.size ? `<div style="padding:8px 14px;font-size:12px;color:var(--green)">&#128737; ${bankers.size} banker${bankers.size>1?'s':''} locked <button class="btn-sm" onclick="bankers.clear();renderOpt(filtered.filter(s=>!s.removed),filtered.filter(s=>s.removed))" style="margin-left:8px">Clear</button></div>` : '') + renderCards(allSelections, {banker:true});
-  // Step 3 optimized slip — minimal cards (no action buttons)
-  $("optimizedTable").innerHTML = kept.length ? renderCards(kept) : '<div class="empty-state">All removed</div>';
+  $("optimizedTable").innerHTML = kept.length ? renderCards(kept, {actions:true}) : '<div class="empty-state">All removed</div>';
   if (removed.length) { $("removedSection").classList.remove("hidden"); $("removedTable").innerHTML = renderCards(removed, {removed:true}); }
   else $("removedSection").classList.add("hidden");
   $("generateBtn").disabled = !(kept.length > 0);

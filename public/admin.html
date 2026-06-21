@@ -89,6 +89,7 @@ input:focus{border-color:#00c853}
     <button class="tab-btn active" data-tab="punters" onclick="switchAdminTab('punters')">Leaderboard</button>
     <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">Codes</button>
     <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
+    <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">Settings</button>
   </div>
 
   <!-- LEADERBOARD -->
@@ -132,6 +133,29 @@ input:focus{border-color:#00c853}
     </div>
   </div>
 
+  <!-- SETTINGS -->
+  <div class="tab-content" id="tab-settings">
+    <div class="card">
+      <h2>Visitor Analytics</h2>
+      <div class="qs-bar" style="padding:0;margin-bottom:12px">
+        <div class="qs-item"><div class="qs-val" id="visToday">0</div><div class="qs-lbl">Today</div></div>
+        <div class="qs-item"><div class="qs-val" id="visUnique">0</div><div class="qs-lbl">Unique</div></div>
+        <div class="qs-item"><div class="qs-val" id="visTotal">0</div><div class="qs-lbl">Total</div></div>
+      </div>
+      <h3 style="margin-top:12px">Top Referrers</h3>
+      <div id="visRefs" style="font-size:12px;color:#8a9e8a"></div>
+      <h3 style="margin-top:12px">Recent Visitors</h3>
+      <div id="visRecent" style="font-size:11px;color:#8a9e8a;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div class="card">
+      <h2>Header Code Injection</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:8px">Add Google Analytics, Meta Pixel, or any tracking code. Inserted into &lt;head&gt; of every page.</p>
+      <textarea id="headerCode" style="width:100%;min-height:100px;background:#0a0f0a;color:#00c853;border:1px solid #1e2e1e;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;resize:vertical" placeholder="Paste your tracking code here..."></textarea>
+      <button class="btn" onclick="saveHeaderCode()" style="margin-top:8px">Save Header Code</button>
+      <span id="headerMsg" style="font-size:12px;color:#00c853;margin-left:8px"></span>
+    </div>
+  </div>
+
   <!-- TICKETS -->
   <div class="tab-content" id="tab-tickets">
     <div class="card">
@@ -164,6 +188,8 @@ async function loadAll() {
   renderCodes();
   loadTickets();
   loadPunterCodes();
+  loadVisitors();
+  loadHeaderCode();
   updateQuickStats();
 }
 
@@ -356,6 +382,39 @@ async function savePunterCodes() {
     const j = await r.json();
     if (j.success) { punterCodes = j.codes; document.getElementById('saveCodesMsg').textContent = 'Saved!'; setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 2000); }
   } catch(e) { document.getElementById('saveCodesMsg').textContent = 'Error: ' + e.message; }
+}
+
+// ── VISITORS ──
+
+async function loadVisitors() {
+  try {
+    const r = await fetch('/api/admin/visitors', {headers:{'x-admin-password':adminPw}});
+    const j = await r.json();
+    document.getElementById('visToday').textContent = j.today || 0;
+    document.getElementById('visUnique').textContent = j.uniqueToday || 0;
+    document.getElementById('visTotal').textContent = j.total || 0;
+    document.getElementById('visRefs').innerHTML = (j.topRefs || []).map(([ref, count]) => `<div>${esc(ref.slice(0, 50))} — <strong>${count}</strong></div>`).join('') || '<div>No referrers today</div>';
+    document.getElementById('visRecent').innerHTML = (j.recent || []).map(v => `<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)">${v.time?.slice(11,19)||''} ${v.path} ${v.ref?.slice(0,30)||''}</div>`).join('') || '<div>No visitors yet</div>';
+  } catch {}
+}
+
+// ── HEADER CODE ──
+
+async function loadHeaderCode() {
+  try {
+    const r = await fetch('/api/admin/header-code', {headers:{'x-admin-password':adminPw}});
+    const j = await r.json();
+    document.getElementById('headerCode').value = j.code || '';
+  } catch {}
+}
+
+async function saveHeaderCode() {
+  const code = document.getElementById('headerCode').value;
+  try {
+    await fetch('/api/admin/header-code', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code})});
+    document.getElementById('headerMsg').textContent = 'Saved!';
+    setTimeout(() => document.getElementById('headerMsg').textContent = '', 2000);
+  } catch(e) { document.getElementById('headerMsg').textContent = 'Error: ' + e.message; }
 }
 
 function esc(s) { const e = document.createElement('span'); e.textContent = s || ''; return e.innerHTML; }
