@@ -939,6 +939,13 @@ app.get("/punter/:name", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// SEO routes
+app.get("/optimizer", (req, res) => res.redirect("/#optimizer"));
+app.get("/scanner", (req, res) => res.redirect("/#scanner"));
+app.get("/convert", (req, res) => res.redirect("/#convert"));
+app.get("/merger", (req, res) => res.redirect("/#merger"));
+app.get("/optimize-sportybet-slip", (req, res) => res.sendFile(path.join(__dirname, "public", "optimize-sportybet-slip.html")));
+
 // ── Admin Panel ──
 
 app.post("/admin/login", (req, res) => {

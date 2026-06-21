@@ -46,6 +46,7 @@
     });
   }
 </script>
+<noscript><div style="padding:40px;text-align:center;color:#fff;background:#0a0f0a"><h1>SlipPilot</h1><p>SlipPilot is a free SportyBet slip optimizer. Paste any booking code to filter games, convert risky picks to safer markets, and generate a new optimized code. Features: Optimizer, Converter, Scanner, Merger, Splitter. Works with all sports on SportyBet.</p><p><a href="/optimize-sportybet-slip" style="color:#00c853">Learn more about SlipPilot</a></p></div></noscript>
 
   <header class="topbar">
     <div class="topbar-inner">
@@ -68,7 +69,7 @@
   <div id="homepage" class="homepage active">
     <section class="hero">
       <h1 class="hero-title">Your Slip. Perfected.</h1>
-      <p class="hero-sub">Paste any SportyBet booking code. Filter dead weight, optimize every pick, and walk away with a sharper slip — in seconds. Free, forever.</p>
+      <p class="hero-sub">Paste any SportyBet booking code. Filter dead weight, optimize every pick, and walk away with a sharper slip. Free, forever.</p>
       <div class="hero-input">
         <input type="text" id="heroCode" placeholder="Paste any SportyBet booking code" autocomplete="off" spellcheck="false" />
         <button class="btn btn-green" id="heroLoadBtn">Load Slip</button>
@@ -93,8 +94,8 @@
       <details class="faq"><summary>Can I convert Over 3.5 to Over 2.5 automatically?</summary><p>Yes. Use the Convert tab. Paste your code, click Make Safer, and it converts all risky goal markets down one level and generates a new booking code instantly.</p></details>
       <details class="faq"><summary>Will it change my odds?</summary><p>Removing games reduces combined odds. Converting a pick to a safer market usually lowers the odds for that game but increases your chance of winning.</p></details>
       <details class="faq"><summary>What is the Scanner?</summary><p>Paste an old code after games have finished. SlipPilot checks each pick against the actual result and shows what won, lost, and went void.</p></details>
-      <details class="faq"><summary>What other sports does SlipPilot support?</summary><p>Football, basketball, tennis, ice hockey, handball, table tennis and more. All markets available on SportyBet work — including throw-ins, corners, fouls, cards, and player-specific markets.</p></details>
-      <details class="faq"><summary>How often is SlipPilot updated?</summary><p>Every day. We ship improvements, new filters, and bookmaker support continuously. Submit a request via the support form to suggest a feature — we will email you when it is live.</p></details>
+      <details class="faq"><summary>What other sports does SlipPilot support?</summary><p>Football, basketball, tennis, ice hockey, handball, table tennis and more. All markets available on SportyBet work, including throw-ins, corners, fouls, cards, and player-specific markets.</p></details>
+      <details class="faq"><summary>How often is SlipPilot updated?</summary><p>Every day. We ship improvements, new filters, and bookmaker support continuously. Submit a request via the support form to suggest a feature and we will email you when it is live.</p></details>
       <details class="faq"><summary>Can I track multiple punters?</summary><p>Yes. Enter a punter name when scanning any code. SlipPilot tracks hit rates across all their slips and ranks them.</p></details>
     </section>
     <footer class="sp-footer"><div class="footer-inner"><span class="footer-brand">SlipPilot</span><span class="footer-note">Built for SportyBet Nigeria punters</span><div class="footer-links"><a data-goto="optimizer">Optimizer</a> <a data-goto="scanner">Scanner</a> <a data-goto="convert">Convert</a></div><small class="footer-disclaimer">SlipPilot is an independent tool and is not affiliated with SportyBet.</small></div></footer>
@@ -148,17 +149,18 @@
           <button class="pill" data-target="range" onclick="setOddsMode('range')">Range</button>
         </div>
         <div id="oddsExactPanel" class="wiz-sub-panel hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span>Aim for</span><span id="oddsExactVal" style="color:#00c853;font-weight:700;font-size:18px">50x</span></div>
-          <input type="range" id="stanceTargetOdds" min="1" max="1000" value="50" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('oddsExactVal').textContent=this.value+'x'" />
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1x</span><span id="oddsExactMax">1000x</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:#8a9e8a;font-size:13px">Aim for</span><span id="exactOddsVal" style="color:#00c853;font-weight:700;font-size:16px">500x</span></div>
+          <input type="range" id="stanceTargetOdds" min="1" max="1000" value="500" step="1" style="width:100%;accent-color:#00c853;height:6px;cursor:pointer" oninput="document.getElementById('exactOddsVal').textContent=this.value+'x'" />
+          <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:11px;color:#8a9e8a">1x</span><span id="exactOddsMax" style="font-size:11px;color:#8a9e8a">1000x</span></div>
         </div>
         <div id="oddsRangePanel" class="wiz-sub-panel hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span>Min</span><span id="oddsMinVal" style="color:#00c853;font-weight:700;font-size:16px">1x</span></div>
-          <input type="range" id="minOdds" min="1" max="1000" value="1" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('oddsMinVal').textContent=this.value+'x';clampOddsRange()" />
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1x</span><span id="oddsRangeMax1">1000x</span></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px"><span>Max</span><span id="oddsMaxVal" style="color:#00c853;font-weight:700;font-size:16px">1000x</span></div>
-          <input type="range" id="maxOdds" min="1" max="1000" value="1000" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('oddsMaxVal').textContent=this.value+'x';clampOddsRange()" />
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1x</span><span id="oddsRangeMax2">1000x</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:#8a9e8a;font-size:13px">Odds range</span><span style="color:#00c853;font-weight:700;font-size:16px"><span id="rangeMin">1</span>x &ndash; <span id="rangeMax">1000</span>x</span></div>
+          <div style="position:relative;height:30px;margin:8px 0">
+            <div id="rangeTrack" style="position:absolute;top:12px;left:0;right:0;height:6px;background:#1e2e1e;border-radius:3px"><div id="rangeFill" style="position:absolute;height:100%;background:#00c853;border-radius:3px;left:0;width:100%"></div></div>
+            <input type="range" id="minOdds" min="1" max="1000" value="1" step="1" class="dual-range" style="position:absolute;width:100%;top:6px;background:transparent;pointer-events:none;-webkit-appearance:none;z-index:2" oninput="updateDualRange()" />
+            <input type="range" id="maxOdds" min="1" max="1000" value="1000" step="1" class="dual-range" style="position:absolute;width:100%;top:6px;background:transparent;pointer-events:none;-webkit-appearance:none;z-index:1" oninput="updateDualRange()" />
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:11px;color:#8a9e8a">1x</span><span id="rangeMaxLabel" style="font-size:11px;color:#8a9e8a">1000x</span></div>
         </div>
       </div>
 
@@ -168,9 +170,13 @@
           <button class="pill" data-legs="fixed" onclick="setLegMode('fixed')">Fixed</button>
         </div>
         <div id="legFixedPanel" class="wiz-sub-panel hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span>LEG COUNT</span><span id="legCountDisplay" style="color:#00c853;font-weight:700;font-size:18px">10</span></div>
-          <input type="range" id="topN" min="1" max="50" value="10" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('legCountDisplay').textContent=this.value" />
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1</span><span id="legCountMax">50</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:#8a9e8a;font-size:13px">Games to keep</span><span style="color:#00c853;font-weight:700;font-size:16px"><span id="legMin">1</span> &ndash; <span id="legMax2">50</span></span></div>
+          <div style="position:relative;height:30px;margin:8px 0">
+            <div style="position:absolute;top:12px;left:0;right:0;height:6px;background:#1e2e1e;border-radius:3px"><div id="legFill" style="position:absolute;height:100%;background:#00c853;border-radius:3px;left:0;width:100%"></div></div>
+            <input type="range" id="topN" min="1" max="50" value="1" step="1" class="dual-range" style="position:absolute;width:100%;top:6px;background:transparent;pointer-events:none;-webkit-appearance:none;z-index:2" oninput="updateLegRange()" />
+            <input type="range" id="topNMax" min="1" max="50" value="50" step="1" class="dual-range" style="position:absolute;width:100%;top:6px;background:transparent;pointer-events:none;-webkit-appearance:none;z-index:1" oninput="updateLegRange()" />
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:11px;color:#8a9e8a">1</span><span id="legCountMax" style="font-size:11px;color:#8a9e8a">50</span></div>
         </div>
         <input type="hidden" id="stanceFixedN" />
       </div>
@@ -319,7 +325,7 @@
     <div class="wiz-step" data-wiz="split-2">
       <button class="wiz-back" onclick="wizGo('split',1)">&#8592; Back</button>
       <div id="splitterConfig">
-        <div class="splitter-info"><span id="splitterTotal" class="mono">0</span> selections — <span id="splitterOdds" class="mono">0</span> total odds</div>
+        <div class="splitter-info"><span id="splitterTotal" class="mono">0</span> selections &middot; <span id="splitterOdds" class="mono">0</span> total odds</div>
         <div class="panel"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
         <div class="splitter-config-row">
           <div><label class="field-label">Split into</label><input type="number" id="splitCount" class="field" min="2" max="10" value="2" /></div>
@@ -377,28 +383,69 @@
     <div class="page-wrap">
       <div class="wiz-card" style="margin-top:24px">
         <h2 class="wiz-title">Convert</h2>
-        <p class="wiz-sub">One-click slip transformer — make any slip safer instantly</p>
+        <p class="wiz-sub">Make any slip safer instantly</p>
         <label class="field-label">BOOKING CODE</label>
         <input type="text" id="convertCode" class="field wiz-field wiz-code-input" placeholder="Enter booking code" autocomplete="off" spellcheck="false" />
         <button id="convertLoadBtn" class="btn btn-green btn-big wiz-cta">Load Slip</button>
         <p id="convertError" class="error hidden"></p>
       </div>
       <div id="convertResults" class="hidden">
-        <div class="opt-toggle-row" onclick="toggleDeepScan()" style="margin-bottom:12px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg)">
-          <div><strong>Deep Scan</strong><span>Analyze last 5 matches per team for data-backed conversions</span></div>
+        <!-- TIER 1: Make Safer -->
+        <button class="btn btn-green btn-big" onclick="runConvert('safer')" style="margin-bottom:16px">Make Safer</button>
+        <div id="deepScanProgress" class="hidden" style="margin-bottom:12px;font-size:13px;color:var(--green)"></div>
+
+        <!-- TIER 2: Advanced -->
+        <details class="wiz-more" style="margin-bottom:16px">
+          <summary>Advanced Settings</summary>
+          <div style="padding-top:12px">
+            <div class="opt-row"><h4>GOALS</h4>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 3.5+ to Over 2.5</strong></div><div class="tgl on" id="cvtOver35"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 2.5 to Over 1.5</strong></div><div class="tgl on" id="cvtOver25"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 1.5 to Over 0.5</strong></div><div class="tgl" id="cvtOver15"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>BTTS Yes to Over 1.5</strong></div><div class="tgl on" id="cvtBtts"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>BTTS No: remove</strong></div><div class="tgl" id="cvtBttsNo"></div></div>
+            </div>
+            <div class="opt-row"><h4>RESULTS</h4>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Home Win to Double Chance 1X</strong></div><div class="tgl on" id="cvtHome1x"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Away Win to Double Chance X2</strong></div><div class="tgl on" id="cvtAwayX2"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Home Win to Draw No Bet</strong></div><div class="tgl" id="cvtHomeDnb"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Away Win to Draw No Bet</strong></div><div class="tgl" id="cvtAwayDnb"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Draw: remove</strong></div><div class="tgl on" id="cvtDraw"></div></div>
+            </div>
+            <div class="opt-row"><h4>REMOVE RISKY</h4>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Correct Score</strong></div><div class="tgl on" id="cvtRmCS"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Over 3.5+</strong></div><div class="tgl" id="cvtRmOver35"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove bad Asian Handicap</strong></div><div class="tgl" id="cvtRmAH"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Exact Goals</strong></div><div class="tgl" id="cvtRmExact"></div></div>
+            </div>
+            <div class="opt-row"><h4>GAME LIMITS</h4>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:#8a9e8a;font-size:12px">Remove games above</span><span id="cvtMaxOddsVal" style="color:#00c853;font-weight:700">Off</span></div>
+              <input type="range" id="cvtMaxOdds" min="0" max="100" value="0" step="1" style="width:100%;accent-color:#00c853;height:6px" oninput="document.getElementById('cvtMaxOddsVal').textContent=this.value==='0'?'Off':this.value+'x'" />
+              <div style="display:flex;justify-content:space-between;margin:12px 0 6px"><span style="color:#8a9e8a;font-size:12px">Keep safest N games</span><span id="cvtTopNVal" style="color:#00c853;font-weight:700">Off</span></div>
+              <input type="range" id="cvtTopN" min="0" max="50" value="0" step="1" style="width:100%;accent-color:#00c853;height:6px" oninput="document.getElementById('cvtTopNVal').textContent=this.value==='0'?'Off':this.value" />
+            </div>
+            <button class="btn btn-green btn-big" onclick="runConvert('advanced')" style="margin-top:8px">Apply Advanced Settings</button>
+          </div>
+        </details>
+
+        <!-- TIER 4: Deep Scan -->
+        <div class="opt-toggle-row" onclick="toggleDeepScan()" style="margin-bottom:16px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg)">
+          <div><strong>Deep Scan</strong><span>Uses last 5 matches and H2H to guide conversions</span></div>
           <div class="tgl" id="tglDeepScan"></div>
         </div>
-        <div id="deepScanProgress" class="hidden" style="margin-bottom:12px;font-size:13px;color:var(--green)"></div>
-        <div class="convert-presets">
-          <button class="btn btn-green" onclick="runConvert('safer')">Make Safer</button>
-          <button class="btn btn-ghost" onclick="runConvert('goals')">Safer Goals</button>
-          <button class="btn btn-ghost" onclick="runConvert('results')">Safer Results</button>
-          <button class="btn btn-ghost" onclick="runConvert('remove')">Remove Risky</button>
-        </div>
+
+        <!-- Results panels -->
         <div class="convert-panels">
           <section class="panel"><div class="panel-head"><h3>Original</h3><span class="badge" id="convertOrigBadge">0</span></div><div class="panel-scroll" id="convertOrigTable"></div></section>
           <section class="panel"><div class="panel-head panel-head--green"><h3>Converted</h3><span class="badge badge--green" id="convertNewBadge">0</span></div><div class="panel-scroll" id="convertNewTable"></div></section>
         </div>
+
+        <!-- TIER 3: Review section (games that couldn't be converted) -->
+        <div id="convertReview" class="hidden" style="margin-top:12px">
+          <h4 style="font-size:13px;font-weight:700;color:#ffb300;margin-bottom:8px">These picks need your review</h4>
+          <div id="convertReviewList"></div>
+        </div>
+
         <div class="stat-bar" style="margin-top:12px">
           <div class="stat-block"><span class="stat-num mono" id="convertOldOdds">0</span><span class="stat-lbl">Before</span></div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>

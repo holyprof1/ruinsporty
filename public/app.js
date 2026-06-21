@@ -60,11 +60,18 @@ function setOddsMode(mode) {
   const ex = $("oddsExactPanel"), rn = $("oddsRangePanel");
   if (ex) ex.classList.toggle("hidden", mode !== "exact");
   if (rn) rn.classList.toggle("hidden", mode !== "range");
+  if (mode === "range") updateDualRange();
 }
 
-function clampOddsRange() {
+function updateDualRange() {
   const mn = $("minOdds"), mx = $("maxOdds");
-  if (mn && mx && parseInt(mn.value) > parseInt(mx.value)) mn.value = mx.value;
+  if (!mn || !mx) return;
+  let lo = parseInt(mn.value), hi = parseInt(mx.value), total = parseInt(mx.max) || 1000;
+  if (lo > hi) { mn.value = hi; lo = hi; }
+  const rm = $("rangeMin"), rmx = $("rangeMax"), fill = $("rangeFill");
+  if (rm) rm.textContent = lo;
+  if (rmx) rmx.textContent = hi;
+  if (fill) { fill.style.left = (lo/total*100)+"%"; fill.style.width = ((hi-lo)/total*100)+"%"; }
 }
 
 // Leg count mode toggle
@@ -72,6 +79,18 @@ function setLegMode(mode) {
   document.querySelectorAll("[data-legs]").forEach(b => b.classList.toggle("active", b.dataset.legs === mode));
   const fp = $("legFixedPanel");
   if (fp) fp.classList.toggle("hidden", mode !== "fixed");
+  if (mode === "fixed") updateLegRange();
+}
+
+function updateLegRange() {
+  const mn = $("topN"), mx = $("topNMax");
+  if (!mn || !mx) return;
+  let lo = parseInt(mn.value), hi = parseInt(mx.value), total = parseInt(mx.max) || 50;
+  if (lo > hi) { mn.value = hi; lo = hi; }
+  const lm = $("legMin"), lmx = $("legMax2"), fill = $("legFill");
+  if (lm) lm.textContent = lo;
+  if (lmx) lmx.textContent = hi;
+  if (fill) { fill.style.left = (lo/total*100)+"%"; fill.style.width = ((hi-lo)/total*100)+"%"; }
 }
 
 // Game limit +/- buttons
@@ -281,14 +300,17 @@ function initOptimizer(json) {
   const totalOdds = Math.max(Math.round(allSelections.reduce((a,s) => a*s.odds, 1)), 10);
   // Exact odds slider
   const exSlider = $("stanceTargetOdds");
-  if (exSlider) { exSlider.max = totalOdds; exSlider.value = Math.min(50, totalOdds); const d = $("oddsExactVal"); if (d) d.textContent = exSlider.value + "x"; const m = $("oddsExactMax"); if (m) m.textContent = totalOdds + "x"; }
-  // Range min/max sliders
+  if (exSlider) { exSlider.max = totalOdds; exSlider.value = Math.min(500, totalOdds); const d = $("exactOddsVal"); if (d) d.textContent = exSlider.value + "x"; const m = $("exactOddsMax"); if (m) m.textContent = totalOdds + "x"; }
+  // Range dual sliders
   const mnS = $("minOdds"), mxS = $("maxOdds");
-  if (mnS) { mnS.max = totalOdds; mnS.value = 1; const d = $("oddsMinVal"); if (d) d.textContent = "1x"; const m = $("oddsRangeMax1"); if (m) m.textContent = totalOdds + "x"; }
-  if (mxS) { mxS.max = totalOdds; mxS.value = totalOdds; const d = $("oddsMaxVal"); if (d) d.textContent = totalOdds + "x"; const m = $("oddsRangeMax2"); if (m) m.textContent = totalOdds + "x"; }
-  // Leg count slider
-  const legSlider = $("topN");
-  if (legSlider) { legSlider.max = allSelections.length; legSlider.value = Math.min(10, allSelections.length); const d = $("legCountDisplay"); if (d) d.textContent = legSlider.value; const m = $("legCountMax"); if (m) m.textContent = allSelections.length; }
+  if (mnS) { mnS.max = totalOdds; mnS.value = 1; }
+  if (mxS) { mxS.max = totalOdds; mxS.value = totalOdds; }
+  const rml = $("rangeMaxLabel"); if (rml) rml.textContent = totalOdds + "x";
+  // Leg count dual sliders
+  const lgN = $("topN"), lgNM = $("topNMax");
+  if (lgN) { lgN.max = allSelections.length; lgN.value = 1; }
+  if (lgNM) { lgNM.max = allSelections.length; lgNM.value = allSelections.length; }
+  const lgMax = $("legCountMax"); if (lgMax) lgMax.textContent = allSelections.length;
   setOddsMode("off"); setLegMode("auto");
   wizGo("opt", 2);
 }
@@ -1211,11 +1233,77 @@ async function runConvert(mode) {
       }
       if (mkt === "1x2" && out === "draw") s._removed = true;
     }
+
+    // Advanced mode: read individual toggles
+    if (mode === "advanced") {
+      const on = id => $(id)?.classList?.contains("on");
+      const overMatch = out.match(/^over (\d+\.?\d*)$/i);
+      const val = overMatch ? parseFloat(overMatch[1]) : 0;
+      // Goals toggles
+      if (on("cvtOver35") && overMatch && val >= 3.5) { await tryConvertOver(s, val - 1); continue; }
+      if (on("cvtOver25") && overMatch && val >= 2 && val <= 3) { await tryConvertOver(s, val - 1); continue; }
+      if (on("cvtOver15") && overMatch && val >= 1 && val <= 2) { await tryConvertOver(s, Math.max(0.5, val - 1)); continue; }
+      if (on("cvtBtts") && mkt.includes("gg") && out === "yes") { await tryConvertToOver15(s); continue; }
+      if (on("cvtBttsNo") && mkt.includes("gg") && out === "no") { s._removed = true; continue; }
+      // Result toggles
+      if (on("cvtHome1x") && mkt === "1x2" && out === "home") { await tryConvertToDC(s, "Home or Draw"); continue; }
+      if (on("cvtAwayX2") && mkt === "1x2" && out === "away") { await tryConvertToDC(s, "Draw or Away"); continue; }
+      if (on("cvtHomeDnb") && mkt === "1x2" && out === "home") { await tryConvertToDNB(s, "Home"); continue; }
+      if (on("cvtAwayDnb") && mkt === "1x2" && out === "away") { await tryConvertToDNB(s, "Away"); continue; }
+      if (on("cvtDraw") && mkt === "1x2" && out === "draw") { s._removed = true; continue; }
+      // Remove risky toggles
+      if (on("cvtRmCS") && mkt.includes("correct score")) { s._removed = true; continue; }
+      if (on("cvtRmOver35") && overMatch && val >= 3.5) { s._removed = true; continue; }
+      if (on("cvtRmAH") && mkt.includes("handicap") && /[-]1\.5/.test(s.specifier)) { s._removed = true; continue; }
+      if (on("cvtRmExact") && mkt.includes("exact goals")) { s._removed = true; continue; }
+      // Game limits
+      const maxOddsLimit = parseInt($("cvtMaxOdds")?.value || 0);
+      if (maxOddsLimit > 0 && s.odds > maxOddsLimit) { s._removed = true; continue; }
+    }
   }
+
+  // Advanced: apply top N safest filter
+  if (mode === "advanced") {
+    const topNLimit = parseInt($("cvtTopN")?.value || 0);
+    if (topNLimit > 0) {
+      const active = convertResult.filter(s => !s._removed).sort((a,b) => a.odds - b.odds);
+      if (active.length > topNLimit) {
+        const keep = new Set(active.slice(0, topNLimit).map(s => s.eventId));
+        convertResult.forEach(s => { if (!s._removed && !keep.has(s.eventId)) s._removed = true; });
+      }
+    }
+  }
+
+  // Build review list for unconverted picks
+  const reviewable = convertResult.filter(s => !s._removed && !s._changed);
+  const reviewEl = $("convertReview");
+  if (reviewable.length > 0 && reviewEl) {
+    reviewEl.classList.remove("hidden");
+    $("convertReviewList").innerHTML = reviewable.slice(0, 10).map(s =>
+      `<div class="sel-card" style="border-left-color:var(--amber)"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="sel-meta">${esc(s.market)} &mdash; ${esc(s.outcome)}</div></div><span class="sel-odds">${s.odds.toFixed(2)}</span><button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Swap</button></div>`
+    ).join("");
+  } else if (reviewEl) reviewEl.classList.add("hidden");
 
   if (prog) prog.classList.add("hidden");
   renderConvert();
   showToast("Conversion applied", "success");
+}
+
+async function tryConvertOver(s, newVal) {
+  try {
+    const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+    const t = j.markets?.find(m => m.outcomeName === `Over ${newVal}` && m.marketName.toLowerCase().includes("over/under"));
+    if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; }
+  } catch {}
+}
+async function tryConvertToOver15(s) {
+  try { const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json(); const t = j.markets?.find(m => m.marketName === "Over/Under" && m.outcomeName === "Over 1.5"); if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; } } catch {}
+}
+async function tryConvertToDC(s, name) {
+  try { const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json(); const t = j.markets?.find(m => m.marketName === "Double Chance" && m.outcomeName === name); if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; } } catch {}
+}
+async function tryConvertToDNB(s, side) {
+  try { const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json(); const t = j.markets?.find(m => m.marketName === "Draw No Bet" && m.outcomeName.toLowerCase().includes(side.toLowerCase())); if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; } } catch {}
 }
 
 function renderConvert() {
