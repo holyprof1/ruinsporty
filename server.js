@@ -905,6 +905,10 @@ app.get("/punter/:name", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+app.get("/admin/leaderboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 // ── SportyBet H2H proxy (browser can't call SportyBet directly due to CORS) ──
 
 app.get("/api/proxy-h2h/:eventId", async (req, res) => {

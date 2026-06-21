@@ -152,6 +152,24 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
 .gen-debug pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:11px;color:var(--text2);overflow-x:auto;max-height:300px;white-space:pre-wrap;word-break:break-all}
 .gen-code-inline{font-size:16px;font-weight:800;color:var(--green);letter-spacing:1px}
 
+/* Triple code cards */
+.triple-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.triple-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 16px;text-align:center}
+.triple-card-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.triple-card-label.safe{color:var(--green)}.triple-card-label.balanced{color:var(--amber)}.triple-card-label.value{color:var(--purple)}
+.triple-card-code{font-size:20px;font-weight:900;letter-spacing:3px;color:var(--green);margin-bottom:8px;word-break:break-all}
+.triple-card-meta{font-size:12px;color:var(--text2);margin-bottom:10px}
+.triple-card-meta strong{color:#fff}
+@media(max-width:640px){.triple-cards{grid-template-columns:1fr}}
+
+/* Convert */
+.convert-presets{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.convert-panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.convert-badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:var(--radius-pill);margin-left:6px}
+.convert-changed{background:var(--green-bg);color:var(--green)}
+.convert-removed{background:var(--red-bg);color:var(--red)}
+@media(max-width:640px){.convert-panels{grid-template-columns:1fr}}
+
 /* Merger */
 .merger-inputs{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
 .merger-code-row{display:flex;gap:8px;align-items:center}

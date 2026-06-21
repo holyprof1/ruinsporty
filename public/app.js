@@ -54,13 +54,24 @@ function wizGo(prefix, step) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// Dual range slider for odds target
-function updateOddsRange() {
-  const mn = $("minOdds"), mx = $("maxOdds"), lbl = $("oddsRangeLabel");
-  if (!mn || !mx) return;
-  let lo = parseInt(mn.value), hi = parseInt(mx.value);
-  if (lo > hi) { mn.value = hi; lo = hi; }
-  if (lbl) lbl.textContent = lo + "x — " + hi + "x";
+// Odds target mode toggle
+function setOddsMode(mode) {
+  document.querySelectorAll("[data-target]").forEach(b => b.classList.toggle("active", b.dataset.target === mode));
+  const ex = $("oddsExactPanel"), rn = $("oddsRangePanel");
+  if (ex) ex.classList.toggle("hidden", mode !== "exact");
+  if (rn) rn.classList.toggle("hidden", mode !== "range");
+}
+
+function clampOddsRange() {
+  const mn = $("minOdds"), mx = $("maxOdds");
+  if (mn && mx && parseInt(mn.value) > parseInt(mx.value)) mn.value = mx.value;
+}
+
+// Leg count mode toggle
+function setLegMode(mode) {
+  document.querySelectorAll("[data-legs]").forEach(b => b.classList.toggle("active", b.dataset.legs === mode));
+  const fp = $("legFixedPanel");
+  if (fp) fp.classList.toggle("hidden", mode !== "fixed");
 }
 
 // Game limit +/- buttons
@@ -267,24 +278,18 @@ function initOptimizer(json) {
   populateFilterOptions();
   resetFilters();
   // Set slider max values based on loaded slip
-  const totalOdds = Math.round(allSelections.reduce((a,s) => a*s.odds, 1));
-  // Dual-range odds slider
-  const mnSlider = $("minOdds"), mxSlider = $("maxOdds");
-  if (mnSlider && mxSlider) {
-    const maxVal = Math.max(totalOdds, 100);
-    mnSlider.max = maxVal; mxSlider.max = maxVal;
-    mnSlider.value = 1; mxSlider.value = maxVal;
-    const oddsMax = $("oddsTargetMax"); if (oddsMax) oddsMax.textContent = maxVal + "x";
-    updateOddsRange();
-  }
+  const totalOdds = Math.max(Math.round(allSelections.reduce((a,s) => a*s.odds, 1)), 10);
+  // Exact odds slider
+  const exSlider = $("stanceTargetOdds");
+  if (exSlider) { exSlider.max = totalOdds; exSlider.value = Math.min(50, totalOdds); const d = $("oddsExactVal"); if (d) d.textContent = exSlider.value + "x"; const m = $("oddsExactMax"); if (m) m.textContent = totalOdds + "x"; }
+  // Range min/max sliders
+  const mnS = $("minOdds"), mxS = $("maxOdds");
+  if (mnS) { mnS.max = totalOdds; mnS.value = 1; const d = $("oddsMinVal"); if (d) d.textContent = "1x"; const m = $("oddsRangeMax1"); if (m) m.textContent = totalOdds + "x"; }
+  if (mxS) { mxS.max = totalOdds; mxS.value = totalOdds; const d = $("oddsMaxVal"); if (d) d.textContent = totalOdds + "x"; const m = $("oddsRangeMax2"); if (m) m.textContent = totalOdds + "x"; }
   // Leg count slider
   const legSlider = $("topN");
-  if (legSlider) {
-    legSlider.max = allSelections.length;
-    legSlider.value = Math.min(10, allSelections.length);
-    const legDisp = $("legCountDisplay"); if (legDisp) legDisp.textContent = legSlider.value;
-    const legMax = $("legCountMax"); if (legMax) legMax.textContent = allSelections.length;
-  }
+  if (legSlider) { legSlider.max = allSelections.length; legSlider.value = Math.min(10, allSelections.length); const d = $("legCountDisplay"); if (d) d.textContent = legSlider.value; const m = $("legCountMax"); if (m) m.textContent = allSelections.length; }
+  setOddsMode("off"); setLegMode("auto");
   wizGo("opt", 2);
 }
 
@@ -519,26 +524,57 @@ window.removeFilter = function(action) {
   applyFilters();
 };
 
-// ── Generate ──
+// ── Generate (triple codes: Safe / Balanced / Value) ──
+let tripleCodeResults = {};
+
+function buildVariant(sels, mode, fixedN) {
+  const sorted = [...sels].sort((a,b) => a.odds - b.odds);
+  const n = fixedN || sels.length;
+  if (mode === "safe") return sorted.slice(0, Math.max(1, Math.round(n * 0.4)));
+  if (mode === "value") { const desc = [...sels].sort((a,b) => b.odds - a.odds); return desc.slice(0, Math.max(1, Math.round(n * 0.5))); }
+  // balanced: remove top 20% highest and bottom 10% lowest
+  const lo = Math.round(sorted.length * 0.1), hi = Math.round(sorted.length * 0.8);
+  return sorted.slice(lo, Math.max(lo + 1, hi));
+}
+
+async function genOneCode(sels) {
+  const r = await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selections:genPayload(sels)})});
+  return r.json();
+}
+
 $("generateBtn").addEventListener("click", async () => {
   const kept = filtered.filter(s=>!s.removed); if (!kept.length) return;
-  $("generateBtn").disabled = true; $("generateBtn").textContent = "Generating..."; $("generateResult").classList.add("hidden"); $("codeCard").classList.add("hidden");
+  $("generateBtn").disabled = true; $("generateBtn").textContent = "Generating 3 codes...";
+  $("generateResult").classList.add("hidden"); $("codeCard").classList.add("hidden"); $("tripleCards").classList.add("hidden");
+
+  const fixedN = document.querySelector('[data-legs="fixed"].active') ? parseInt($("topN").value) : 0;
+  const variants = { safe: buildVariant(kept, "safe", fixedN), balanced: kept, value: buildVariant(kept, "value", fixedN) };
+
   try {
-    const r = await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selections:genPayload(kept)})});
-    const json = await r.json();
-    if (json.success && json.shareCode) {
-      $("genCodeDisplay").textContent = json.shareCode;
-      $("codeCard").classList.remove("hidden");
-      $("generateBtn").classList.add("hidden");
-      $("copyGenCode").onclick = () => copyToClipboard(json.shareCode, $("copyGenCode"));
-      showToast("Code: " + json.shareCode, "success");
-    } else {
-      renderGenResult("generateResult", json, kept);
-    }
-  }
-  catch(e) { $("generateResult").classList.remove("hidden"); $("generateResult").innerHTML = `<div class="gen-error"><div class="gen-error-msg">${esc(e.message)}</div></div>`; }
-  finally { $("generateBtn").disabled = false; $("generateBtn").textContent = "Generate New Code"; }
+    const [safeR, balR, valR] = await Promise.all([genOneCode(variants.safe), genOneCode(variants.balanced), genOneCode(variants.value)]);
+    tripleCodeResults = { safe: safeR, balanced: balR, value: valR };
+
+    const card = (label, cls, res, sels) => {
+      if (!res.success) return `<div class="triple-card"><div class="triple-card-label ${cls}">${label}</div><div style="color:var(--red);font-size:12px">Failed</div></div>`;
+      const odds = sels.reduce((a,s) => a*s.odds, 1);
+      return `<div class="triple-card"><div class="triple-card-label ${cls}">${label}</div><div class="triple-card-code mono">${esc(res.shareCode)}</div><div class="triple-card-meta"><strong>${sels.length}</strong> games &middot; <strong>${odds.toFixed(1)}x</strong></div><button class="btn btn-green" onclick="copyToClipboard(${jsArg(res.shareCode)},this)">Copy</button></div>`;
+    };
+
+    $("tripleCards").innerHTML = card("Safe","safe",safeR,variants.safe) + card("Balanced","balanced",balR,variants.balanced) + card("Value","value",valR,variants.value);
+    $("tripleCards").classList.remove("hidden");
+    $("copyAllCodes").style.display = "";
+    $("generateBtn").classList.add("hidden");
+    showToast("3 codes generated", "success");
+  } catch(e) {
+    $("generateResult").classList.remove("hidden");
+    $("generateResult").innerHTML = `<div class="gen-error"><div class="gen-error-msg">${esc(e.message)}</div></div>`;
+  } finally { $("generateBtn").disabled = false; $("generateBtn").textContent = "Generate Codes"; }
 });
+
+function copyAllTripleCodes() {
+  const codes = ["safe","balanced","value"].map(k => tripleCodeResults[k]?.shareCode).filter(Boolean);
+  if (codes.length) copyToClipboard(codes.join("\n"));
+}
 
 // ── Per-pick Optimize ──
 const OPT_RULES = [
@@ -1033,7 +1069,141 @@ document.addEventListener("keydown", e => {
   }
 });
 
-if (getSharedPunterName()) activateTab("leaderboard");
+if (getSharedPunterName() || location.pathname.startsWith("/admin/leaderboard")) activateTab("leaderboard");
+
+// ── Convert Tab ──
+let convertOriginal = [], convertResult = [];
+
+$("convertLoadBtn").addEventListener("click", loadConvert);
+$("convertCode").addEventListener("keydown", e => { if (e.key === "Enter") loadConvert(); });
+
+async function loadConvert() {
+  const code = $("convertCode").value.trim().toUpperCase();
+  if (!code) return showErr("convertError", "Enter a code");
+  showErr("convertError", ""); $("convertLoadBtn").disabled = true; $("convertLoadBtn").textContent = "Loading...";
+  try {
+    const r = await fetch(`/api/booking/${encodeURIComponent(code)}`); const j = await r.json();
+    if (!r.ok) throw new Error(j.error); if (!j.selections?.length) throw new Error("No selections");
+    convertOriginal = j.selections.map(s => ({...s}));
+    convertResult = j.selections.map(s => ({...s}));
+    $("convertResults").classList.remove("hidden");
+    renderConvert();
+  } catch(e) { showErr("convertError", e.message); }
+  finally { $("convertLoadBtn").disabled = false; $("convertLoadBtn").textContent = "Load Slip"; }
+}
+
+async function runConvert(mode) {
+  convertResult = convertOriginal.map(s => ({...s, _changed: false, _removed: false, _oldOutcome: s.outcome, _oldMarket: s.market, _oldOdds: s.odds}));
+
+  for (let i = 0; i < convertResult.length; i++) {
+    const s = convertResult[i];
+    const out = (s.outcome || "").toLowerCase();
+    const mkt = (s.market || "").toLowerCase();
+
+    if (mode === "remove") {
+      if (mkt.includes("correct score") || out.match(/over [3-9]\.5/) || (mkt.includes("gg") && out === "no") || mkt.includes("exact goals") || (mkt.includes("handicap") && /[-]1\.5/.test(s.specifier))) {
+        s._removed = true; continue;
+      }
+    }
+
+    if (mode === "safer" || mode === "goals") {
+      const overMatch = out.match(/^over (\d+\.?\d*)$/i);
+      if (overMatch) {
+        const val = parseFloat(overMatch[1]);
+        if (val >= 1.5) {
+          const newVal = val - 1;
+          try {
+            const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+            if (j.markets) {
+              const target = j.markets.find(m => m.outcomeName === `Over ${newVal}` && m.marketName.includes("Over/Under"));
+              if (target) { Object.assign(s, {market: target.marketName, outcome: target.outcomeName, odds: target.odds, marketId: target.marketId, outcomeId: target.outcomeId, specifier: target.specifier || ""}); s._changed = true; continue; }
+            }
+          } catch {}
+        }
+      }
+    }
+
+    if (mode === "safer") {
+      if (mkt.includes("gg") && out === "yes") {
+        try {
+          const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+          const t = j.markets?.find(m => m.marketName === "Over/Under" && m.outcomeName === "Over 1.5");
+          if (t) { Object.assign(s, {market: t.marketName, outcome: t.outcomeName, odds: t.odds, marketId: t.marketId, outcomeId: t.outcomeId, specifier: t.specifier || ""}); s._changed = true; continue; }
+        } catch {}
+      }
+      if (mkt === "1x2" && (out === "home" || out === "away")) {
+        try {
+          const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+          const dnb = j.markets?.find(m => m.marketName === "Draw No Bet" && m.outcomeName.toLowerCase().includes(out));
+          if (dnb) { Object.assign(s, {market: dnb.marketName, outcome: dnb.outcomeName, odds: dnb.odds, marketId: dnb.marketId, outcomeId: dnb.outcomeId, specifier: dnb.specifier || ""}); s._changed = true; continue; }
+        } catch {}
+      }
+      if (mkt.includes("correct score")) {
+        try {
+          const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+          const t = j.markets?.find(m => m.marketName === "Over/Under" && m.outcomeName === "Over 1.5");
+          if (t) { Object.assign(s, {market: t.marketName, outcome: t.outcomeName, odds: t.odds, marketId: t.marketId, outcomeId: t.outcomeId, specifier: t.specifier || ""}); s._changed = true; continue; }
+        } catch {}
+      }
+    }
+
+    if (mode === "results") {
+      if (mkt === "1x2" && out === "home") {
+        try {
+          const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+          const dc = j.markets?.find(m => m.marketName === "Double Chance" && m.outcomeName === "Home or Draw");
+          if (dc) { Object.assign(s, {market: dc.marketName, outcome: dc.outcomeName, odds: dc.odds, marketId: dc.marketId, outcomeId: dc.outcomeId, specifier: dc.specifier || ""}); s._changed = true; }
+        } catch {}
+      }
+      if (mkt === "1x2" && out === "away") {
+        try {
+          const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
+          const dc = j.markets?.find(m => m.marketName === "Double Chance" && m.outcomeName === "Draw or Away");
+          if (dc) { Object.assign(s, {market: dc.marketName, outcome: dc.outcomeName, odds: dc.odds, marketId: dc.marketId, outcomeId: dc.outcomeId, specifier: dc.specifier || ""}); s._changed = true; }
+        } catch {}
+      }
+      if (mkt === "1x2" && out === "draw") s._removed = true;
+    }
+  }
+
+  renderConvert();
+  showToast("Conversion applied", "success");
+}
+
+function renderConvert() {
+  const active = convertResult.filter(s => !s._removed);
+  const changed = convertResult.filter(s => s._changed).length;
+  const removed = convertResult.filter(s => s._removed).length;
+
+  $("convertOrigBadge").textContent = convertOriginal.length;
+  $("convertNewBadge").textContent = active.length;
+  $("convertOldOdds").textContent = convertOriginal.reduce((a,s) => a*s.odds, 1).toFixed(2);
+  $("convertNewOdds").textContent = active.reduce((a,s) => a*s.odds, 1).toFixed(2);
+  $("convertChanged").textContent = changed;
+  $("convertRemoved").textContent = removed;
+
+  $("convertOrigTable").innerHTML = convertOriginal.map(s => {
+    const cr = convertResult.find(r => r.eventId === s.eventId);
+    const badge = cr?._changed ? '<span class="convert-badge convert-changed">changed</span>' : cr?._removed ? '<span class="convert-badge convert-removed">removed</span>' : '';
+    return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}${badge}</div><div class="sel-meta">${esc(s.market)} — ${esc(s.outcome)}</div></div><span class="sel-odds">${s.odds.toFixed(2)}</span></div>`;
+  }).join("");
+
+  $("convertNewTable").innerHTML = active.map(s => {
+    const arrow = s._changed ? `<span class="change-arrow">${esc(s._oldOutcome)} -&gt;</span> ` : "";
+    return `<div class="sel-card ${s._changed?'changed-card':''}"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="sel-meta">${arrow}${esc(s.market)} — ${esc(s.outcome)}</div></div><span class="sel-odds">${s.odds.toFixed(2)}</span></div>`;
+  }).join("");
+}
+
+window.generateConvertCode = async function() {
+  const active = convertResult.filter(s => !s._removed);
+  if (!active.length) return;
+  $("convertGenBtn").disabled = true; $("convertGenBtn").textContent = "Generating...";
+  try {
+    const r = await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selections:genPayload(active)})});
+    renderGenResult("convertGenResult", await r.json(), active);
+  } catch(e) { showErr("convertError", e.message); }
+  finally { $("convertGenBtn").disabled = false; $("convertGenBtn").textContent = "Generate New Code"; }
+};
 
 // ── PWA Install Banner ──
 let deferredPrompt = null;

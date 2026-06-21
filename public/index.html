@@ -44,7 +44,7 @@
         <button class="tab-btn" data-tab="merger">Merger</button>
         <button class="tab-btn" data-tab="splitter">Splitter</button>
         <button class="tab-btn" data-tab="scanner">Scanner</button>
-        <button class="tab-btn" data-tab="leaderboard">Leaderboard</button>
+        <button class="tab-btn" data-tab="convert">Convert</button>
       </nav>
       <span id="adminBadge" class="admin-badge hidden">ADMIN</span>
     </div>
@@ -59,7 +59,6 @@
         <input type="text" id="heroCode" placeholder="Paste any SportyBet booking code" autocomplete="off" spellcheck="false" />
         <button class="btn btn-green" id="heroLoadBtn">Load Slip</button>
       </div>
-      <p class="hero-hint">Paste any SportyBet booking code to get started</p>
     </section>
     <div class="features-grid">
       <div class="feature-card" data-goto="optimizer"><div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><h3>Optimizer</h3><p>Clean and filter your slip</p></div>
@@ -120,28 +119,35 @@
       </div>
 
       <div class="wiz-section"><h4>ODDS TARGET</h4>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:12px;color:#8a9e8a">Filter by odds range</span>
-          <span id="oddsRangeLabel" style="color:#00c853;font-weight:700;font-size:14px">1x — 1000x</span>
+        <div class="pill-row">
+          <button class="pill active" data-target="off" onclick="setOddsMode('off')">Off</button>
+          <button class="pill" data-target="exact" onclick="setOddsMode('exact')">Exact</button>
+          <button class="pill" data-target="range" onclick="setOddsMode('range')">Range</button>
         </div>
-        <div class="dual-range-wrap">
-          <input type="range" id="minOdds" min="1" max="1000" value="1" step="1" class="dual-range dual-range-min" oninput="updateOddsRange()" />
-          <input type="range" id="maxOdds" min="1" max="1000" value="1000" step="1" class="dual-range dual-range-max" oninput="updateOddsRange()" />
+        <div id="oddsExactPanel" class="wiz-sub-panel hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span>Aim for</span><span id="oddsExactVal" style="color:#00c853;font-weight:700;font-size:18px">50x</span></div>
+          <input type="range" id="stanceTargetOdds" min="1" max="1000" value="50" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('oddsExactVal').textContent=this.value+'x'" />
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1x</span><span id="oddsExactMax">1000x</span></div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px">
-          <span>1x</span><span id="oddsTargetMax">1000x</span>
+        <div id="oddsRangePanel" class="wiz-sub-panel hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span>Min</span><span id="oddsMinVal" style="color:#00c853;font-weight:700;font-size:16px">1x</span></div>
+          <input type="range" id="minOdds" min="1" max="1000" value="1" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('oddsMinVal').textContent=this.value+'x';clampOddsRange()" />
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1x</span><span id="oddsRangeMax1">1000x</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px"><span>Max</span><span id="oddsMaxVal" style="color:#00c853;font-weight:700;font-size:16px">1000x</span></div>
+          <input type="range" id="maxOdds" min="1" max="1000" value="1000" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('oddsMaxVal').textContent=this.value+'x';clampOddsRange()" />
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1x</span><span id="oddsRangeMax2">1000x</span></div>
         </div>
-        <input type="hidden" id="stanceTargetOdds" value="" />
       </div>
 
       <div class="wiz-section"><h4>LEG COUNT</h4>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:12px;color:#8a9e8a">Number of games to keep</span>
-          <span id="legCountDisplay" style="color:#00c853;font-weight:700;font-size:18px">10</span>
+        <div class="pill-row">
+          <button class="pill active" data-legs="auto" onclick="setLegMode('auto')">Auto</button>
+          <button class="pill" data-legs="fixed" onclick="setLegMode('fixed')">Fixed</button>
         </div>
-        <input type="range" id="topN" min="1" max="50" value="10" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('legCountDisplay').textContent=this.value" />
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px">
-          <span>1</span><span id="legCountMax">50</span>
+        <div id="legFixedPanel" class="wiz-sub-panel hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span>LEG COUNT</span><span id="legCountDisplay" style="color:#00c853;font-weight:700;font-size:18px">10</span></div>
+          <input type="range" id="topN" min="1" max="50" value="10" step="1" style="width:100%;height:6px;accent-color:#00c853;cursor:pointer" oninput="document.getElementById('legCountDisplay').textContent=this.value" />
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a9e8a;margin-top:4px"><span>1</span><span id="legCountMax">50</span></div>
         </div>
         <input type="hidden" id="stanceFixedN" />
       </div>
@@ -231,14 +237,14 @@
       </div>
 
       <div id="generateResult" class="hidden"></div>
-
+      <div id="tripleCards" class="triple-cards hidden"></div>
+      <button class="btn btn-ghost" id="copyAllCodes" style="display:none" onclick="copyAllTripleCodes()">Copy All 3 Codes</button>
       <div class="code-card hidden" id="codeCard">
         <div class="code-card-head"><span class="code-card-label">BOOKING CODE</span><span class="code-card-badge">SportyBet</span></div>
         <div class="code-card-code mono" id="genCodeDisplay"></div>
         <button class="btn btn-green btn-big" id="copyGenCode">Copy Booking Code</button>
       </div>
-
-      <button id="generateBtn" class="btn btn-green btn-big wiz-cta" disabled>Generate New Code</button>
+      <button id="generateBtn" class="btn btn-green btn-big wiz-cta" disabled>Generate Codes</button>
 
       <details class="wiz-more"><summary>Optimized Slip (<span id="optBadge">0</span> games)</summary>
         <div id="optimizedTable"></div>
@@ -343,9 +349,45 @@
     </div>
   </div>
 
-  <!-- ═══ TAB: LEADERBOARD (no wizard, stays same) ═══ -->
+  <!-- ═══ TAB: CONVERT ═══ -->
+  <div id="tab-convert" class="tab-page">
+    <div class="page-wrap">
+      <div class="wiz-card" style="margin-top:24px">
+        <h2 class="wiz-title">Convert</h2>
+        <p class="wiz-sub">One-click slip transformer — make any slip safer instantly</p>
+        <label class="field-label">BOOKING CODE</label>
+        <input type="text" id="convertCode" class="field wiz-field wiz-code-input" placeholder="Enter booking code" autocomplete="off" spellcheck="false" />
+        <button id="convertLoadBtn" class="btn btn-green btn-big wiz-cta">Load Slip</button>
+        <p id="convertError" class="error hidden"></p>
+      </div>
+      <div id="convertResults" class="hidden">
+        <div class="convert-presets">
+          <button class="btn btn-green" onclick="runConvert('safer')">Make Safer</button>
+          <button class="btn btn-ghost" onclick="runConvert('goals')">Safer Goals</button>
+          <button class="btn btn-ghost" onclick="runConvert('results')">Safer Results</button>
+          <button class="btn btn-ghost" onclick="runConvert('remove')">Remove Risky</button>
+        </div>
+        <div class="convert-panels">
+          <section class="panel"><div class="panel-head"><h3>Original</h3><span class="badge" id="convertOrigBadge">0</span></div><div class="panel-scroll" id="convertOrigTable"></div></section>
+          <section class="panel"><div class="panel-head panel-head--green"><h3>Converted</h3><span class="badge badge--green" id="convertNewBadge">0</span></div><div class="panel-scroll" id="convertNewTable"></div></section>
+        </div>
+        <div class="stat-bar" style="margin-top:12px">
+          <div class="stat-block"><span class="stat-num mono" id="convertOldOdds">0</span><span class="stat-lbl">Before</span></div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <div class="stat-block accent"><span class="stat-num mono" id="convertNewOdds">0</span><span class="stat-lbl">After</span></div>
+          <div class="stat-sep"></div>
+          <div class="stat-block"><span class="stat-num mono" id="convertChanged">0</span><span class="stat-lbl">Changed</span></div>
+          <div class="stat-block"><span class="stat-num mono red" id="convertRemoved">0</span><span class="stat-lbl">Removed</span></div>
+        </div>
+        <button id="convertGenBtn" class="btn btn-green btn-big wiz-cta" onclick="generateConvertCode()">Generate New Code</button>
+        <div id="convertGenResult" class="hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ LEADERBOARD (admin only, hidden from nav) ═══ -->
   <div id="tab-leaderboard" class="tab-page">
-    <div class="lb-wrap"><h2 class="lb-title">Punter Leaderboard</h2><p class="lb-sub">Ranked by hit rate across all scanned slips</p><div id="leaderboardTable" class="lb-table-wrap"><div class="empty-state">No punters tracked yet. Scan a slip and save to the leaderboard.</div></div></div>
+    <div class="lb-wrap"><h2 class="lb-title">Punter Leaderboard</h2><p class="lb-sub">Ranked by hit rate across all scanned slips</p><div id="leaderboardTable" class="lb-table-wrap"><div class="empty-state">No punters tracked yet.</div></div></div>
   </div>
 
   <!-- Market Modal -->
