@@ -326,12 +326,44 @@
       <button class="wiz-back" onclick="wizGo('split',1)">&#8592; Back</button>
       <div id="splitterConfig">
         <div class="splitter-info"><span id="splitterTotal" class="mono">0</span> selections &middot; <span id="splitterOdds" class="mono">0</span> total odds</div>
-        <div class="panel"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
-        <div class="splitter-config-row">
-          <div><label class="field-label">Split into</label><input type="number" id="splitCount" class="field" min="2" max="10" value="2" /></div>
-          <div><label class="field-label">Distribution</label><select id="splitMethod" class="field"><option value="roundRobin">Balanced</option><option value="byOdds">Odds-Weighted</option><option value="sequential">Sequential</option><option value="random">Random</option></select></div>
+
+        <div class="pill-row" style="margin-bottom:12px">
+          <button class="pill active" onclick="setSplitMode('extract')">Extract</button>
+          <button class="pill" onclick="setSplitMode('split')">Split</button>
         </div>
-        <button id="splitterSplitBtn" class="btn btn-green btn-big wiz-cta">Split Slip</button>
+
+        <!-- Extract mode -->
+        <div id="extractMode">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:#8a9e8a;font-size:12px">How many games?</span><span id="extractCountVal" style="color:#00c853;font-weight:700">10</span></div>
+          <input type="range" id="extractCount" min="1" max="50" value="10" step="1" style="width:100%;accent-color:#00c853;height:6px" oninput="document.getElementById('extractCountVal').textContent=this.value" />
+          <div class="triple-cards" style="margin-top:16px">
+            <div class="triple-card"><div class="triple-card-label safe">Safest</div><p style="font-size:11px;color:var(--text2)">Lowest odds games</p><button class="btn btn-green" onclick="extractAndGen('safe')" style="width:100%;margin-top:8px">Generate</button><div class="gen-code-inline mono" id="extractSafe"></div></div>
+            <div class="triple-card"><div class="triple-card-label balanced">Balanced</div><p style="font-size:11px;color:var(--text2)">Mixed selection</p><button class="btn btn-green" onclick="extractAndGen('balanced')" style="width:100%;margin-top:8px">Generate</button><div class="gen-code-inline mono" id="extractBalanced"></div></div>
+            <div class="triple-card"><div class="triple-card-label value">Best Odds</div><p style="font-size:11px;color:var(--text2)">Highest odds games</p><button class="btn btn-green" onclick="extractAndGen('value')" style="width:100%;margin-top:8px">Generate</button><div class="gen-code-inline mono" id="extractValue"></div></div>
+          </div>
+          <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="extractAllThree()">Generate All 3</button>
+        </div>
+
+        <!-- Split mode -->
+        <div id="splitMode" class="hidden">
+          <div class="pill-row" style="margin-bottom:8px"><span style="font-size:12px;color:#8a9e8a;margin-right:8px">Sub-slips:</span>
+            <button class="pill split-count-pill active" onclick="setSplitCount(2)">2</button>
+            <button class="pill split-count-pill" onclick="setSplitCount(3)">3</button>
+            <button class="pill split-count-pill" onclick="setSplitCount(4)">4</button>
+            <button class="pill split-count-pill" onclick="setSplitCount(5)">5</button>
+            <button class="pill split-count-pill" onclick="setSplitCount(10)">10</button>
+          </div>
+          <input type="hidden" id="splitCount" value="2" />
+          <div class="pill-row" style="margin-bottom:12px"><span style="font-size:12px;color:#8a9e8a;margin-right:8px">Method:</span>
+            <button class="pill split-method-pill active" onclick="setSplitMethod('roundRobin')">Balanced</button>
+            <button class="pill split-method-pill" onclick="setSplitMethod('byOdds')">Odds-Weighted</button>
+            <button class="pill split-method-pill" onclick="setSplitMethod('random')">Randomize</button>
+          </div>
+          <select id="splitMethod" class="field" style="display:none"><option value="roundRobin">Balanced</option><option value="byOdds">Odds-Weighted</option><option value="random">Random</option></select>
+          <button id="splitterSplitBtn" class="btn btn-green btn-big wiz-cta">Split Slip</button>
+        </div>
+
+        <div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Selections</h3></div><div class="panel-scroll" id="splitterSelTable"></div></div>
       </div>
     </div>
     <div class="wiz-step" data-wiz="split-3">
@@ -399,11 +431,14 @@
           <summary>Advanced Settings</summary>
           <div style="padding-top:12px">
             <div class="opt-row"><h4>GOALS</h4>
-              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 3.5+ to Over 2.5</strong></div><div class="tgl on" id="cvtOver35"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 4.5+ to Over 2.5</strong></div><div class="tgl on" id="cvtOver45"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 3.5 to Over 2.5</strong></div><div class="tgl on" id="cvtOver35"></div></div>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 2.5 to Over 1.5</strong></div><div class="tgl on" id="cvtOver25"></div></div>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Over 1.5 to Over 0.5</strong></div><div class="tgl" id="cvtOver15"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Under 1.5 to Under 2.5</strong></div><div class="tgl" id="cvtUnder15"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Under 2.5 to Under 3.5</strong></div><div class="tgl" id="cvtUnder25"></div></div>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>BTTS Yes to Over 1.5</strong></div><div class="tgl on" id="cvtBtts"></div></div>
-              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>BTTS No: remove</strong></div><div class="tgl" id="cvtBttsNo"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>BTTS No to Under 2.5</strong></div><div class="tgl" id="cvtBttsNo"></div></div>
             </div>
             <div class="opt-row"><h4>RESULTS</h4>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Home Win to Double Chance 1X</strong></div><div class="tgl on" id="cvtHome1x"></div></div>
@@ -412,10 +447,17 @@
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Away Win to Draw No Bet</strong></div><div class="tgl" id="cvtAwayDnb"></div></div>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Draw: remove</strong></div><div class="tgl on" id="cvtDraw"></div></div>
             </div>
+            <div class="opt-row"><h4>HALF TIME &amp; HANDICAP</h4>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>HT Over to one level lower</strong></div><div class="tgl on" id="cvtHT"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>HT Result to HT Double Chance</strong></div><div class="tgl" id="cvtHTResult"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Asian Handicap: step safer</strong><span>-1.5 to -0.5, -1 to DNB, -2+ remove</span></div><div class="tgl on" id="cvtAH"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Both Halves Under 1.5 No to Over 2.5</strong></div><div class="tgl" id="cvtBHU"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Corners/Cards/Throw-ins: step down</strong></div><div class="tgl" id="cvtSpecials"></div></div>
+            </div>
             <div class="opt-row"><h4>REMOVE RISKY</h4>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Correct Score</strong></div><div class="tgl on" id="cvtRmCS"></div></div>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Over 3.5+</strong></div><div class="tgl" id="cvtRmOver35"></div></div>
-              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove bad Asian Handicap</strong></div><div class="tgl" id="cvtRmAH"></div></div>
+              <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Asian Handicap -2 or worse</strong></div><div class="tgl" id="cvtRmAH"></div></div>
               <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')"><div><strong>Remove Exact Goals</strong></div><div class="tgl" id="cvtRmExact"></div></div>
             </div>
             <div class="opt-row"><h4>GAME LIMITS</h4>

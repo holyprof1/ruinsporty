@@ -3,3 +3,5 @@ debug/
 data/
 *.log
 .env
+.env.production
+slippilot-deploy.zip

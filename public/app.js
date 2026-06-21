@@ -6,6 +6,7 @@ let changedEventIds = new Set();
 let isAdmin = false;
 let safetyScores = {};
 let pendingSmartRoute = null;
+let bankers = new Set();
 const $ = (id) => document.getElementById(id);
 
 // ── Nav ──
@@ -102,6 +103,12 @@ function adjLimit(btn, delta) {
   valEl.textContent = cur === 0 ? "Off" : cur;
 }
 
+// Banker system
+window.toggleBanker = function(eventId) {
+  if (bankers.has(eventId)) bankers.delete(eventId); else bankers.add(eventId);
+  renderOpt(filtered.filter(s=>!s.removed), filtered.filter(s=>s.removed));
+};
+
 // More Options pill groups (goal, style, adjust)
 document.querySelectorAll(".opt-goal,.opt-style,.opt-adjust").forEach(b => b.addEventListener("click", () => {
   b.parentElement.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
@@ -197,7 +204,9 @@ function cardHtml(s, opts) {
   const meta = changed
     ? `<span class="sel-market">${esc(original.market)}</span> ${esc(original.outcome)} <span class="change-arrow">-&gt;</span> <span class="sel-market">${esc(s.market)}</span> ${esc(s.outcome)}`
     : `<span class="sel-market">${esc(s.market)}</span> — ${esc(s.outcome)}${s.league?" · "+esc(s.league):""}`;
+  const isBanker = bankers.has(s.eventId);
   let btns = "";
+  if (opts?.banker) btns = `<button class="btn-sm ${isBanker?'btn-optimize':'btn-stats'}" onclick="toggleBanker(${jsArg(s.eventId)})" title="Lock as banker">${isBanker?'&#128737; Locked':'&#128737;'}</button>`;
   if (opts?.actions) btns = `<button class="btn-sm btn-stats" onclick="openH2H(${jsArg(s.eventId)},${jsArg(s.homeTeam)},${jsArg(s.awayTeam)})">Stats</button><button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})">Optimize</button><button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Markets</button>`;
   if (opts?.removable) btns = `<button class="btn-rm-code" onclick="removeMergerGame(${jsArg(s.eventId)})">&times;</button>`;
   if (opts?.splitterRemovable) btns = `<button class="btn-rm-code" onclick="removeSplitterGame(${jsArg(s.eventId)})">&times;</button>`;
@@ -420,6 +429,7 @@ function applyFilters() {
   const tmr = new Date(now); tmr.setDate(tmr.getDate()+1); tmr.setHours(0,0,0,0);
 
   filtered = allSelections.map(s => {
+    if (bankers.has(s.eventId)) return { ...s, removed: false };
     let rm = false; const k = s.kickoff ? new Date(s.kickoff) : null;
     if (presets.has("after-6pm") && k && k > t6) rm = true;
     if (presets.has("after-8pm") && k && k > t8) rm = true;
@@ -507,7 +517,7 @@ function renderOpt(kept, removed) {
   $("removedCount").textContent = removed.length;
   $("origOdds").textContent = oO.toFixed(2); $("optOdds").textContent = kO.toFixed(2);
   $("origBadge").textContent = allSelections.length; $("optBadge").textContent = kept.length; $("removedBadge").textContent = removed.length;
-  $("originalTable").innerHTML = renderCards(allSelections);
+  $("originalTable").innerHTML = (bankers.size ? `<div style="padding:8px 14px;font-size:12px;color:var(--green)">&#128737; ${bankers.size} banker${bankers.size>1?'s':''} locked <button class="btn-sm" onclick="bankers.clear();renderOpt(filtered.filter(s=>!s.removed),filtered.filter(s=>s.removed))" style="margin-left:8px">Clear</button></div>` : '') + renderCards(allSelections, {banker:true});
   // Step 3 optimized slip — minimal cards (no action buttons)
   $("optimizedTable").innerHTML = kept.length ? renderCards(kept) : '<div class="empty-state">All removed</div>';
   if (removed.length) { $("removedSection").classList.remove("hidden"); $("removedTable").innerHTML = renderCards(removed, {removed:true}); }
@@ -811,6 +821,7 @@ async function loadSplitter() {
     splitterSels = j.selections;
     $("splitterTotal").textContent = j.selections.length; $("splitterOdds").textContent = j.totalOdds.toFixed(2);
     $("splitterResults").innerHTML = ""; $("splitterCopyAll").classList.add("hidden"); $("splitterGenerateAll").classList.add("hidden");
+    const ec = $("extractCount"); if (ec) { ec.max = j.selections.length; ec.value = Math.min(10, j.selections.length); $("extractCountVal").textContent = ec.value; }
     renderSplitterSelections();
     wizGo("split", 2);
   } catch(e) { showErr("splitterError",e.message); }
@@ -868,6 +879,43 @@ window.copyAllSplitCodes = function() {
   if (!splitData) return;
   const codes = splitData.map((_,i) => $(`splitCode${i}`)?.textContent).filter(c => c && c !== "Failed");
   if (codes.length) copyToClipboard(codes.join("\n"));
+};
+
+// Splitter mode toggles
+window.setSplitMode = function(mode) {
+  const em = $("extractMode"), sm = $("splitMode");
+  document.querySelectorAll("#splitterConfig > .pill-row .pill").forEach((b,i) => b.classList.toggle("active", (mode==="extract"?0:1)===i));
+  if (em) em.classList.toggle("hidden", mode !== "extract");
+  if (sm) sm.classList.toggle("hidden", mode !== "split");
+};
+window.setSplitCount = function(n) {
+  $("splitCount").value = n;
+  document.querySelectorAll(".split-count-pill").forEach(b => b.classList.toggle("active", b.textContent === String(n)));
+};
+window.setSplitMethod = function(m) {
+  $("splitMethod").value = m;
+  document.querySelectorAll(".split-method-pill").forEach(b => b.classList.toggle("active", b.textContent.toLowerCase().includes(m === "roundRobin" ? "balanced" : m === "byOdds" ? "odds" : "random")));
+};
+
+// Extract mode
+window.extractAndGen = async function(mode) {
+  const n = parseInt($("extractCount")?.value || 10);
+  const sorted = [...splitterSels].sort((a,b) => a.odds - b.odds);
+  let sels;
+  if (mode === "safe") sels = sorted.slice(0, n);
+  else if (mode === "value") sels = sorted.reverse().slice(0, n);
+  else sels = sorted.slice(Math.floor(sorted.length * 0.1), Math.floor(sorted.length * 0.1) + n);
+  if (!sels.length) return;
+  try {
+    const r = await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selections:genPayload(sels)})});
+    const j = await r.json();
+    const el = $("extract" + mode.charAt(0).toUpperCase() + mode.slice(1));
+    if (j.success && el) { el.textContent = j.shareCode; showToast(mode + ": " + j.shareCode, "success"); }
+  } catch(e) { showToast(e.message, "error"); }
+};
+
+window.extractAllThree = async function() {
+  await extractAndGen("safe"); await extractAndGen("balanced"); await extractAndGen("value");
 };
 
 // ── Scanner ──
@@ -1238,23 +1286,47 @@ async function runConvert(mode) {
     if (mode === "advanced") {
       const on = id => $(id)?.classList?.contains("on");
       const overMatch = out.match(/^over (\d+\.?\d*)$/i);
+      const underMatch = out.match(/^under (\d+\.?\d*)$/i);
       const val = overMatch ? parseFloat(overMatch[1]) : 0;
-      // Goals toggles
-      if (on("cvtOver35") && overMatch && val >= 3.5) { await tryConvertOver(s, val - 1); continue; }
-      if (on("cvtOver25") && overMatch && val >= 2 && val <= 3) { await tryConvertOver(s, val - 1); continue; }
-      if (on("cvtOver15") && overMatch && val >= 1 && val <= 2) { await tryConvertOver(s, Math.max(0.5, val - 1)); continue; }
+      const uval = underMatch ? parseFloat(underMatch[1]) : 0;
+      // Goals: Over step down
+      if (on("cvtOver45") && overMatch && val >= 4.5) { await tryConvertOver(s, 2.5); continue; }
+      if (on("cvtOver35") && overMatch && val >= 3 && val < 4.5) { await tryConvertOver(s, 2.5); continue; }
+      if (on("cvtOver25") && overMatch && val >= 2 && val < 3) { await tryConvertOver(s, 1.5); continue; }
+      if (on("cvtOver15") && overMatch && val >= 1 && val < 2) { await tryConvertOver(s, 0.5); continue; }
+      // Goals: Under step up (safer)
+      if (on("cvtUnder15") && underMatch && uval <= 1.5) { await tryConvertUnder(s, 2.5); continue; }
+      if (on("cvtUnder25") && underMatch && uval <= 2.5 && uval > 1.5) { await tryConvertUnder(s, 3.5); continue; }
+      // BTTS
       if (on("cvtBtts") && mkt.includes("gg") && out === "yes") { await tryConvertToOver15(s); continue; }
-      if (on("cvtBttsNo") && mkt.includes("gg") && out === "no") { s._removed = true; continue; }
-      // Result toggles
+      if (on("cvtBttsNo") && mkt.includes("gg") && out === "no") { await tryConvertUnder(s, 2.5); continue; }
+      // Results
       if (on("cvtHome1x") && mkt === "1x2" && out === "home") { await tryConvertToDC(s, "Home or Draw"); continue; }
       if (on("cvtAwayX2") && mkt === "1x2" && out === "away") { await tryConvertToDC(s, "Draw or Away"); continue; }
       if (on("cvtHomeDnb") && mkt === "1x2" && out === "home") { await tryConvertToDNB(s, "Home"); continue; }
       if (on("cvtAwayDnb") && mkt === "1x2" && out === "away") { await tryConvertToDNB(s, "Away"); continue; }
       if (on("cvtDraw") && mkt === "1x2" && out === "draw") { s._removed = true; continue; }
-      // Remove risky toggles
+      // HT markets
+      if (on("cvtHT") && mkt.includes("half") && overMatch && val >= 1) { await tryConvertOver(s, Math.max(0.5, val - 1)); continue; }
+      if (on("cvtHTResult") && mkt.includes("half") && mkt.includes("result") && (out==="home"||out==="away")) { await tryConvertToDC(s, out==="home"?"Home or Draw":"Draw or Away"); continue; }
+      // Asian Handicap step safer
+      if (on("cvtAH") && mkt.includes("handicap")) {
+        const hcp = parseFloat((s.specifier||"").match(/hcp=([-\d.]+)/)?.[1] || 0);
+        if (hcp <= -2) { s._removed = true; continue; }
+        if (hcp === -1) { await tryConvertToDNB(s, out.toLowerCase().includes("home")?"Home":"Away"); continue; }
+        if (hcp < 0) { await tryConvertOverHcp(s, hcp + 1); continue; }
+      }
+      // Both Halves Under 1.5 No → Over 2.5
+      if (on("cvtBHU") && mkt.includes("both halves") && mkt.includes("under") && out === "no") { await tryConvertOver(s, 2.5); continue; }
+      // Corners/Cards/Throw-ins step down
+      if (on("cvtSpecials") && overMatch && (mkt.includes("corner")||mkt.includes("card")||mkt.includes("throw")||mkt.includes("foul"))) {
+        const step = val > 10 ? 2 : 1;
+        await tryConvertOver(s, val - step); continue;
+      }
+      // Remove risky
       if (on("cvtRmCS") && mkt.includes("correct score")) { s._removed = true; continue; }
       if (on("cvtRmOver35") && overMatch && val >= 3.5) { s._removed = true; continue; }
-      if (on("cvtRmAH") && mkt.includes("handicap") && /[-]1\.5/.test(s.specifier)) { s._removed = true; continue; }
+      if (on("cvtRmAH") && mkt.includes("handicap") && parseFloat((s.specifier||"").match(/hcp=([-\d.]+)/)?.[1]||0) <= -2) { s._removed = true; continue; }
       if (on("cvtRmExact") && mkt.includes("exact goals")) { s._removed = true; continue; }
       // Game limits
       const maxOddsLimit = parseInt($("cvtMaxOdds")?.value || 0);
@@ -1301,6 +1373,12 @@ async function tryConvertToOver15(s) {
 }
 async function tryConvertToDC(s, name) {
   try { const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json(); const t = j.markets?.find(m => m.marketName === "Double Chance" && m.outcomeName === name); if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; } } catch {}
+}
+async function tryConvertUnder(s, newVal) {
+  try { const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json(); const t = j.markets?.find(m => m.outcomeName === `Under ${newVal}` && m.marketName.toLowerCase().includes("over/under")); if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; } } catch {}
+}
+async function tryConvertOverHcp(s, newHcp) {
+  try { const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json(); const t = j.markets?.find(m => m.marketName.toLowerCase().includes("handicap") && m.specifier?.includes(`hcp=${newHcp}`)); if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; } } catch {}
 }
 async function tryConvertToDNB(s, side) {
   try { const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json(); const t = j.markets?.find(m => m.marketName === "Draw No Bet" && m.outcomeName.toLowerCase().includes(side.toLowerCase())); if (t) { Object.assign(s, {market:t.marketName,outcome:t.outcomeName,odds:t.odds,marketId:t.marketId,outcomeId:t.outcomeId,specifier:t.specifier||""}); s._changed = true; } } catch {}

@@ -1,3 +1,5 @@
+process.on("uncaughtException", err => console.error("Uncaught:", err));
+process.on("unhandledRejection", err => console.error("Unhandled:", err));
 require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
