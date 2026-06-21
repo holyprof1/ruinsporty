@@ -1838,7 +1838,10 @@ window.setAdminOpt = function(btn, key, val) {
   else if (key === "adminMinOdds") adminGenSettings.minOdds = parseInt(val);
 };
 
-const TODAY_PUNTER_CODES = { "39 Billion": "HPS13S", "9Z": "LU84JS", "Big Strategic": "QU303D", "Ayo Jordan": "MDTXU3", "Bayo Bets": "RE9N9N", "OY": "M9J9KV", "Princewill": "V3XV6K", "Sirtee": "HXQH8Q" };
+let TODAY_PUNTER_CODES = {};
+async function loadPunterCodesFromServer() {
+  try { const r = await fetch("/api/admin/punter-codes", { headers: { "x-admin-password": window.__adminPw || "" } }); if (r.ok) TODAY_PUNTER_CODES = await r.json(); } catch {}
+}
 
 window.adminFetchPunters = async function() {
   const btn = $("adminFetchBtn");
@@ -1850,7 +1853,11 @@ window.adminFetchPunters = async function() {
   const now = Date.now();
   let totalFetched = 0;
 
+  await loadPunterCodesFromServer();
+  if (!Object.keys(TODAY_PUNTER_CODES).length) { status.innerHTML = '<div style="color:#e53935">No punter codes set. Go to /admin to set them.</div>'; btn.disabled = false; btn.textContent = "Fetch Today's Punter Codes"; return; }
+
   for (const [name, code] of Object.entries(TODAY_PUNTER_CODES)) {
+    if (!code) { status.innerHTML += `<div style="color:#8a9e8a">${name}: no code set</div>`; continue; }
     try {
       const r = await fetch(`/api/booking/${code}`);
       const j = await r.json();

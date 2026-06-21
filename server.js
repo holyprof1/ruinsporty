@@ -1248,7 +1248,7 @@ app.get("/api/debug/h2h-test", requireAdmin, async (req, res) => {
 });
 
 // Regenerate merged codes (all punters, live games removed)
-const TODAY_CODES = { "39 Billion": "HPS13S", "9Z": "LU84JS", "Big Strategic": "QU303D", "Ayo Jordan": "MDTXU3", "Bayo Bets": "RE9N9N", "OY": "M9J9KV", "Princewill": "V3XV6K", "Sirtee": "HXQH8Q" };
+function getTodayCodes() { return loadPunterCodes(); }
 
 app.post("/api/admin/regen-merged", requireAdmin, async (req, res) => {
   try {
@@ -1256,7 +1256,8 @@ app.post("/api/admin/regen-merged", requireAdmin, async (req, res) => {
     const seen = new Set();
     const now = Date.now();
 
-    for (const [name, code] of Object.entries(TODAY_CODES)) {
+    for (const [name, code] of Object.entries(getTodayCodes())) {
+      if (!code) continue;
       try {
         const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
         const json = await fetchJSON(url);
@@ -1292,6 +1293,33 @@ app.post("/api/admin/regen-all", requireAdmin, (req, res) => {
     if (err) return res.json({ success: false, message: "Analysis failed: " + (err.message || stderr).slice(0, 200) });
     res.json({ success: true, message: "Analysis complete. Codes regenerated.", output: stdout.slice(-500) });
   });
+});
+
+// ── Admin Punter Codes (editable daily) ──
+
+const PUNTER_CODES_FILE = path.join(DATA_DIR, "punter-codes.json");
+
+function loadPunterCodes() {
+  try { return JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8")); }
+  catch { return { "39 Billion": "", "9Z": "", "Big Strategic": "", "Ayo Jordan": "", "Bayo Bets": "", "OY": "", "Princewill": "", "Sirtee": "" }; }
+}
+
+app.get("/api/admin/punter-codes", requireAdmin, (req, res) => {
+  res.json(loadPunterCodes());
+});
+
+app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
+  const current = loadPunterCodes();
+  const updated = { ...current, ...req.body };
+  fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(updated, null, 2));
+  res.json({ success: true, codes: updated });
+});
+
+// ── Global error handler (must be last middleware) ──
+
+app.use((err, req, res, next) => {
+  console.error("[ERROR]", err);
+  res.status(500).json({ error: err.message || "Server error" });
 });
 
 // ── Start ──

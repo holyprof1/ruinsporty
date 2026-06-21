@@ -93,6 +93,13 @@ input:focus{border-color:#00c853}
 
   <!-- LEADERBOARD -->
   <div class="tab-content active" id="tab-punters">
+    <div class="card" style="margin-bottom:12px">
+      <h2>Today's Punter Codes</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:12px">Update each punter's daily booking code here. Saved instantly.</p>
+      <div id="punterCodesEditor"></div>
+      <button class="btn" onclick="savePunterCodes()" style="margin-top:12px" id="saveCodesBtn">Save All Codes</button>
+      <span id="saveCodesMsg" style="font-size:12px;color:#00c853;margin-left:8px"></span>
+    </div>
     <div class="card">
       <h2>Punter Network</h2>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px" id="sortPills">
@@ -156,6 +163,7 @@ async function loadAll() {
   renderPunters();
   renderCodes();
   loadTickets();
+  loadPunterCodes();
   updateQuickStats();
 }
 
@@ -314,6 +322,40 @@ async function loadTickets() {
 async function markTicket(id, status) {
   await fetch('/api/support/'+id, {method:'PATCH', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({status})});
   loadTickets();
+}
+
+// ── PUNTER CODES ──
+
+let punterCodes = {};
+
+async function loadPunterCodes() {
+  try {
+    const r = await fetch('/api/admin/punter-codes', {headers:{'x-admin-password':adminPw}});
+    if (r.ok) punterCodes = await r.json();
+  } catch {}
+  renderPunterCodesEditor();
+}
+
+function renderPunterCodesEditor() {
+  const el = document.getElementById('punterCodesEditor');
+  const names = Object.keys(punterCodes);
+  if (!names.length) { el.innerHTML = '<p style="color:#8a9e8a">No punters configured.</p>'; return; }
+  el.innerHTML = names.map(name =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:110px;font-size:13px;font-weight:600">${esc(name)}</span><input type="text" value="${esc(punterCodes[name]||'')}" id="pc_${name.replace(/\s/g,'_')}" style="flex:1;max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px" placeholder="CODE" /></div>`
+  ).join('');
+}
+
+async function savePunterCodes() {
+  const updated = {};
+  for (const name of Object.keys(punterCodes)) {
+    const el = document.getElementById('pc_' + name.replace(/\s/g, '_'));
+    updated[name] = el ? el.value.trim().toUpperCase() : '';
+  }
+  try {
+    const r = await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(updated)});
+    const j = await r.json();
+    if (j.success) { punterCodes = j.codes; document.getElementById('saveCodesMsg').textContent = 'Saved!'; setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 2000); }
+  } catch(e) { document.getElementById('saveCodesMsg').textContent = 'Error: ' + e.message; }
 }
 
 function esc(s) { const e = document.createElement('span'); e.textContent = s || ''; return e.innerHTML; }

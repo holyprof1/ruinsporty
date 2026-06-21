@@ -26,7 +26,7 @@ fs.readdirSync(pubDir).forEach(f => {
 });
 
 // Data files (only safe ones)
-["stats.json", "support.json", "punters.json", "punter-profiles.json"].forEach(f => {
+["stats.json", "support.json", "punters.json", "punter-profiles.json", "punter-codes.json"].forEach(f => {
   const src = path.join(__dirname, "data", f);
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(stageDir, "data", f));
 });
