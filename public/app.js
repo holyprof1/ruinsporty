@@ -309,7 +309,7 @@ loadLiveStats();
 
 // ── Utils ──
 function esc(s) { const e = document.createElement("span"); e.textContent = s || ""; return e.innerHTML; }
-function jsArg(value) { return esc(JSON.stringify(String(value || ""))); }
+function jsArg(value) { return "'" + String(value || "").replace(/'/g, "\\'") + "'"; }
 function attr(value) { return esc(value).replace(/"/g, "&quot;"); }
 function fmtKickoff(iso) { if (!iso) return "--"; const d = new Date(iso); if (isNaN(d)) return "--"; return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})+" "+d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}); }
 function showToast(msg, type) { const t = document.createElement("div"); t.className = "toast toast-"+(type||"info"); t.textContent = msg; document.body.appendChild(t); requestAnimationFrame(() => t.classList.add("show")); setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2000); }
@@ -338,12 +338,10 @@ function cardHtml(s, opts) {
   const isBanker = bankers.has(s.eventId);
   let btns = "";
   if (opts?.banker) {
-    btns = `<button class="btn-sm ${isBanker?'btn-optimize':'btn-stats'}" onclick="toggleBanker(${jsArg(s.eventId)})" title="Lock">${isBanker?'&#128737;':'&#128737;'}</button>`;
-    btns += `<button class="btn-sm${isExcluded?' btn-optimize':''}" onclick="toggleExclude(${jsArg(s.eventId)})" title="Exclude" style="${isExcluded?'color:var(--red);border-color:var(--red)':''}">&#10005;</button>`;
-    btns += `<button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Markets</button>`;
-    btns += `<button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})">Safer</button>`;
+    btns = `<button class="btn-sm ${isBanker?'btn-optimize':'btn-stats'}" onclick="toggleBanker(${jsArg(s.eventId)})" title="Lock as banker">${isBanker?'&#128737;':'&#128737;'}</button>`;
+    btns += `<button class="btn-sm${isExcluded?' btn-optimize':''}" onclick="toggleExclude(${jsArg(s.eventId)})" title="Remove game" style="${isExcluded?'color:var(--red);border-color:var(--red)':''}">&#10005;</button>`;
   }
-  if (opts?.actions) btns = `<button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})">Markets</button><button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})">Safer</button>`;
+  if (opts?.actions) btns = `<button class="btn-sm btn-optimize" onclick="optimizePick(${jsArg(s.eventId)})" title="Make safer">&#8595;</button><button class="btn-sm btn-markets" onclick="openMarkets(${jsArg(s.eventId)})" title="Swap market">&#8644;</button>`;
   if (opts?.removable) btns = `<button class="btn-rm-code" onclick="removeMergerGame(${jsArg(s.eventId)})">&times;</button>`;
   if (opts?.splitterRemovable) btns = `<button class="btn-rm-code" onclick="removeSplitterGame(${jsArg(s.eventId)})">&times;</button>`;
   let safetyHtml = "";
