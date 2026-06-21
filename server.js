@@ -28,12 +28,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 app.set("trust proxy", 1);
-let sessionStore;
-try {
-  const FileStore = require("session-file-store")(session);
-  sessionStore = new FileStore({ path: SESSIONS_DIR, ttl: 3600, retries: 0, logFn: function(){} });
-} catch(e) { console.log("FileStore failed, using memory:", e.message); }
-app.use(session({ store: sessionStore, secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
+app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
 
 // ── Helpers ──
 
