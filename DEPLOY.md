@@ -1,57 +1,104 @@
-# SlipPilot — cPanel Deployment Guide (Harmonweb)
+# SlipPilot — cPanel Deployment (Harmonweb)
 
-## Step 1 — Upload Files
-- Login to cPanel
-- Go to File Manager
-- Navigate to public_html
-- Upload slippilot-deploy.zip
-- Extract it
+## Your Setup
+- Host: Harmonweb (harmonweb.com)
+- Domain: slippilot.com.ng
+- App root: `/home/myvalcom/slippilot`
+- Node.js: v20.20.2 (production)
+- Startup file: server.js
 
-## Step 2 — Setup Node.js App
-- In cPanel, find "Setup Node.js App"
-- Click "Create Application"
-- Node.js version: 18 or higher
-- Application mode: Production
-- Application root: public_html (or public_html/slippilot)
-- Application URL: slippilot.com.ng
-- Application startup file: server.js
-- Click Create
+## Deploy Steps (Upload New Version)
 
-## Step 3 — Environment Variables
-In the Node.js app panel, add these environment variables:
-- ADMIN_PASSWORD=HPfirstpJ
-- API_FOOTBALL_KEY=967dcdc512484c631bf76f7493f5c9b5
-- SESSION_SECRET=slippilot-secret-2024-change-this
-- PORT=3000
-- NODE_ENV=production
+### 1. Prepare Files
+```
+npm run deploy:zip
+```
+This creates `slippilot-deploy.zip` (465 KB) with proper `public/` and `data/` folder structure.
 
-## Step 4 — Install Dependencies
-- In Node.js app panel, click "Run NPM Install"
-- Wait for completion
+### 2. Upload to cPanel
+- Login to cPanel (harmonweb)
+- Open **File Manager**
+- Navigate to `/home/myvalcom/slippilot/`
+- **Delete** everything EXCEPT `node_modules/` folder
+- Click **Upload** → select `slippilot-deploy.zip`
+- Click on the uploaded zip → click **Extract** → extract to current directory
+- Verify: `server.js` and `public/` folder should be at `/home/myvalcom/slippilot/`
 
-## Step 5 — Start App
-- Click "Start App" or "Restart"
-- Visit slippilot.com.ng to confirm it loads
+### 3. Install Dependencies
+- Go to **Setup Node.js App** in cPanel
+- Click the **pencil (edit)** icon on slippilot.com.ng
+- Click **Run NPM Install** button
+- Wait for "Packages installed successfully"
 
-## Step 6 — Enable SSL
-- In cPanel, go to "Let's Encrypt SSL"
-- Select slippilot.com.ng
-- Click Install (free SSL, auto-renews)
-- HTTPS is required for PWA install prompt to work
+### 4. Restart
+- Click **Restart** button (circular arrow)
+- Or click **Stop App** then **Start App**
 
-## Step 7 — Submit to Google
+### 5. Verify
+- Visit https://slippilot.com.ng — homepage should load
+- Visit https://slippilot.com.ng/admin — login with password
+- Test: paste a booking code in Optimizer → should load games
+
+## Environment Variables (already set)
+In Node.js app settings:
+```
+ADMIN_PASSWORD = HPfirstpJ
+API_FOOTBALL_KEY = f1739cfdacf78915c1b8a7eb2ad726ba
+NODE_ENV = production
+PORT = 3000
+SESSION_SECRET = slippilot-sp-2026-prod
+```
+
+## File Structure on Server
+```
+/home/myvalcom/slippilot/
+  server.js          ← main app
+  package.json
+  .env               ← from .env.production
+  .htaccess          ← Apache reverse proxy rules
+  node_modules/      ← created by NPM Install
+  public/
+    index.html       ← main site
+    admin.html       ← admin panel
+    app.js           ← frontend logic
+    style.css        ← styles
+    icon-192.png     ← PWA icon
+    icon-512.png     ← PWA icon
+    manifest.json    ← PWA manifest
+    ...
+  data/
+    stats.json       ← usage counters
+    punters.json     ← leaderboard
+    support.json     ← support tickets
+    punter-profiles.json ← punter analysis
+```
+
+## Overwrite vs Skip
+- **Always overwrite**: server.js, package.json, public/ folder, .htaccess
+- **Skip if live version has user data**: data/support.json (has real tickets), data/stats.json (has real counts)
+- **Never upload**: node_modules, .git, analyze.js, debug/
+
+## If App Won't Start
+1. Check cPanel **Error Logs** (Metrics → Errors)
+2. Confirm all 5 environment variables are set
+3. Click **Run NPM Install** again
+4. Click **Restart**
+5. If still failing — delete `node_modules/`, then Run NPM Install fresh
+
+## SSL
+- Already enabled via Let's Encrypt
+- Auto-renews every 90 days
+- Required for PWA install prompt
+
+## Google Search Console
 - Go to search.google.com/search-console
 - Add property: slippilot.com.ng
-- Submit sitemap: slippilot.com.ng/sitemap.xml
+- Verify with DNS or HTML file
+- Submit sitemap: https://slippilot.com.ng/sitemap.xml
 
-## Updating the Site
-- Make changes locally
-- Run: npm run deploy:zip
-- Upload the zip to cPanel and extract (overwrite)
-- In Node.js app panel, click Restart
-
-## If App Crashes
-- Check cPanel Error Logs
-- Confirm all environment variables are set
-- Run NPM Install again
-- Restart app
+## Local-Only Files (never upload)
+- data/generated-codes.json — analysis output
+- data/codes-today.txt — daily codes
+- data/api-usage.json — API call tracking
+- data/sessions/ — local session files
+- analyze.js, analyze2.js — punter analysis scripts
