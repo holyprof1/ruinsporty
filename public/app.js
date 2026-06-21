@@ -280,7 +280,7 @@ async function loadSlip() {
       // All expired — route to scanner
       $("scanCode").value = code;
       activateTab("scanner");
-      showToast("This slip has already played — showing results", "info");
+      showToast("This slip has already played. Showing results.", "info");
       scanSlip();
       return;
     }
@@ -1166,10 +1166,14 @@ let deepScanEnabled = false;
 const deepScanCache = {};
 
 function toggleDeepScan() {
+  if (!deepScanEnabled && !localStorage.getItem("deepScanConsented")) {
+    if (!confirm("Deep Scan analyzes last 5 matches and H2H for every game.\nLimited calls per session to keep SlipPilot free.\n\nEnable Deep Scan?")) return;
+    localStorage.setItem("deepScanConsented", "true");
+  }
   deepScanEnabled = !deepScanEnabled;
   const tgl = $("tglDeepScan");
   if (tgl) tgl.classList.toggle("on", deepScanEnabled);
-  if (deepScanEnabled) showToast("Deep Scan enabled — conversions will use match data", "success");
+  if (deepScanEnabled) showToast("Deep Scan enabled", "success");
 }
 
 async function getDeepScanData(s) {
