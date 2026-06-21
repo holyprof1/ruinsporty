@@ -34,19 +34,17 @@ app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWO
 
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
-    https
-      .get(url, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+    const req = https
+      .get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 }, (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch {
-            reject(new Error("Invalid JSON response"));
-          }
+          try { resolve(JSON.parse(data)); }
+          catch { reject(new Error("Invalid JSON from " + url.slice(0, 60))); }
         });
       })
-      .on("error", reject);
+      .on("error", reject)
+      .on("timeout", () => { req.destroy(); reject(new Error("Request timeout: " + url.slice(0, 60))); });
   });
 }
 
@@ -59,6 +57,7 @@ function postJSON(url, body) {
         hostname: parsed.hostname,
         path: parsed.pathname + parsed.search,
         method: "POST",
+        timeout: 15000,
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           "Content-Type": "application/json",
@@ -70,15 +69,13 @@ function postJSON(url, body) {
         let data = "";
         res.on("data", (c) => (data += c));
         res.on("end", () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch {
-            reject(new Error("Invalid JSON from POST"));
-          }
+          try { resolve(JSON.parse(data)); }
+          catch { reject(new Error("Invalid JSON from POST")); }
         });
       }
     );
     req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("POST timeout")); });
     req.write(payload);
     req.end();
   });
@@ -1293,6 +1290,17 @@ app.post("/api/admin/regen-all", requireAdmin, (req, res) => {
     if (err) return res.json({ success: false, message: "Analysis failed: " + (err.message || stderr).slice(0, 200) });
     res.json({ success: true, message: "Analysis complete. Codes regenerated.", output: stdout.slice(-500) });
   });
+});
+
+// ── Debug: test outbound HTTPS ──
+app.get("/api/debug/outbound", async (req, res) => {
+  const start = Date.now();
+  try {
+    const r = await fetchJSON("https://www.sportybet.com/api/ng/orders/share/S2WZVC");
+    res.json({ ok: true, time: Date.now() - start + "ms", hasData: !!r?.data, bizCode: r?.bizCode });
+  } catch (e) {
+    res.json({ ok: false, time: Date.now() - start + "ms", error: e.message });
+  }
 });
 
 // ── Admin Punter Codes (editable daily) ──
