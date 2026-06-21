@@ -525,15 +525,37 @@ function applyFilters() {
   if (topN !== null && topN > 0) doTopN(topN);
   [5,10,15,20].forEach(n => { if (presets.has(`top-${n}`)) doTopN(n); });
 
-  // Stance-based behavior — only applies when user explicitly picks a stance
+  // Stance-based behavior
   const activeStance = document.querySelector(".stance-card.active")?.dataset?.stance || "manual";
-  if (activeStance === "value") {
-    // Aggressive: keep ALL games, undo any removals
-    filtered = filtered.map(s => ({...s, removed: false}));
-  } else if (activeStance === "safe") {
-    // Safe: convert risky picks (done async after render), no removal here
+
+  // Risk scoring: flag risky picks
+  const RISKY_MARKETS = /correct score|exact goals|both halves|asian handicap/i;
+  const RISKY_OUTCOMES = /over [3-9]\.\d|away/i;
+  const WEAK_LEAGUES = /reserve|u1[0-9]|u2[0-1]|youth|junior|women|female|friendly|amateur/i;
+
+  function riskScore(s) {
+    let risk = 0;
+    if (RISKY_MARKETS.test(s.market)) risk += 3;
+    if (RISKY_OUTCOMES.test(s.outcome)) risk += 2;
+    if (WEAK_LEAGUES.test(s.league) || WEAK_LEAGUES.test(s.category)) risk += 2;
+    if (s.odds > 3.0) risk += 2;
+    if (s.odds > 2.0) risk += 1;
+    return risk;
   }
-  // "manual" (default Balanced): no automatic removal — user controls everything
+
+  if (activeStance === "safe") {
+    // Remove genuinely risky picks (high risk score), convert the rest async
+    filtered = filtered.map(s => {
+      if (bankers.has(s.eventId) || s.removed) return s;
+      const risk = riskScore(s);
+      if (risk >= 5) return { ...s, removed: true };
+      return s;
+    });
+  } else if (activeStance === "value") {
+    // Aggressive: keep ALL games
+    filtered = filtered.map(s => ({ ...s, removed: false }));
+  }
+  // "manual" (default Balanced): no automatic removal
 
   // NEVER show 0 games — always keep at least 3
   const MIN_GAMES = 3;
@@ -714,12 +736,33 @@ window.removeFilter = function(action) {
 let tripleCodeResults = {};
 
 function buildVariant(sels, mode) {
-  const sorted = [...sels].sort((a,b) => a.odds - b.odds);
-  if (mode === "ultrasafe") return sorted.slice(0, Math.min(5, sorted.length));
-  if (mode === "safe") return sorted.slice(0, Math.min(10, sorted.length));
-  if (mode === "value") { return [...sels].sort((a,b) => b.odds - a.odds).slice(0, Math.max(1, Math.round(sels.length * 0.5))); }
-  if (mode === "aggressive") return [...sels].sort((a,b) => b.odds - a.odds);
-  return sels; // balanced = full set
+  const n = sels.length;
+  if (n <= 3) return [...sels]; // too few to split
+
+  const byOddsAsc = [...sels].sort((a, b) => a.odds - b.odds);
+  const byOddsDesc = [...sels].sort((a, b) => b.odds - a.odds);
+
+  if (mode === "ultrasafe") {
+    // Lowest odds picks only, max 60% of slip
+    const count = Math.max(3, Math.round(n * 0.4));
+    return byOddsAsc.slice(0, count);
+  }
+  if (mode === "safe") {
+    // Lower 70% by odds
+    const count = Math.max(3, Math.round(n * 0.7));
+    return byOddsAsc.slice(0, count);
+  }
+  if (mode === "value") {
+    // Top 50% highest odds
+    const count = Math.max(2, Math.round(n * 0.5));
+    return byOddsDesc.slice(0, count);
+  }
+  if (mode === "aggressive") {
+    // All games sorted by highest odds
+    return byOddsDesc;
+  }
+  // balanced = all games as-is
+  return [...sels];
 }
 
 async function genOneCode(sels) {
