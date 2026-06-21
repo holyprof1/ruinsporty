@@ -87,8 +87,8 @@ input:focus{border-color:#00c853}
 
   <div class="tab-row">
     <button class="tab-btn active" data-tab="punters" onclick="switchAdminTab('punters')">Leaderboard</button>
-    <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">Generated Codes</button>
-    <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets</button>
+    <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">Codes</button>
+    <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
   </div>
 
   <!-- LEADERBOARD -->
@@ -286,7 +286,10 @@ async function loadTickets() {
     const r = await fetch('/api/support', {headers:{'x-admin-password':adminPw}});
     const j = await r.json();
     const tickets = (j.tickets || []).reverse();
-    document.getElementById('qsTickets').textContent = tickets.filter(t => t.status === 'New').length;
+    const newCount = tickets.filter(t => t.status === 'New').length;
+    document.getElementById('qsTickets').textContent = newCount;
+    const badge = document.getElementById('ticketBadge');
+    if (newCount > 0) { badge.textContent = newCount; badge.style.display = 'inline'; } else { badge.style.display = 'none'; }
     if (!tickets.length) { document.getElementById('ticketsList').innerHTML = '<p style="color:#8a9e8a">No tickets yet. Users can submit via the ? button on the main site.</p>'; return; }
     document.getElementById('ticketsList').innerHTML = tickets.map(t => {
       const bc = t.status === 'New' ? 'badge-new' : 'badge-done';

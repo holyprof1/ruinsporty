@@ -1000,7 +1000,12 @@ function requireAdmin(req, res, next) {
   return res.status(403).json({ error: "Unauthorized" });
 }
 
-app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
+app.get("/admin", (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "-1");
+  res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
 app.get("/admin/leaderboard", requireAdmin, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 app.get("/admin/support", requireAdmin, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 

@@ -446,9 +446,16 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
 .stance-card span{font-size:10px;color:var(--text2)}
 .stance-input{margin-top:6px;width:60px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;text-align:center;outline:none}
 
-/* Support FAB */
+/* Support FAB — desktop only */
 .support-fab{position:fixed;bottom:24px;right:24px;width:48px;height:48px;border-radius:50%;background:var(--green);color:#fff;font-size:22px;font-weight:900;border:none;cursor:pointer;z-index:800;box-shadow:0 4px 16px rgba(0,0,0,.4);transition:.2s}
 .support-fab:hover{transform:scale(1.1);background:#1ed760}
+
+/* Mobile Bottom Nav */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);z-index:900;padding:6px 0 env(safe-area-inset-bottom,6px);justify-content:space-around}
+.bnav-item{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--text3);font-family:inherit;font-size:9px;font-weight:600;cursor:pointer;padding:6px 8px;transition:.15s;min-width:0}
+.bnav-item svg{flex-shrink:0}
+.bnav-item.active{color:var(--green)}
+.bnav-item.active svg{stroke:var(--green)}
 
 /* Tab fade transition */
 .tab-page{opacity:1;transition:opacity .3s ease}
@@ -530,4 +537,8 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
   .result-card{padding:24px 16px}
   .result-stat-val{font-size:22px}
   .code-card-code{font-size:24px;letter-spacing:3px}
+  .bottom-nav{display:flex}
+  .tab-nav{display:none}
+  .support-fab{display:none}
+  body{padding-bottom:72px}
 }

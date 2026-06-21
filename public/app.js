@@ -67,6 +67,7 @@ function activateTab(tab) {
     if (pg) pg.classList.add("active");
     currentTab = tab;
     if (tab === "leaderboard") showLeaderboardView();
+    document.querySelectorAll(".bnav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   }, 300);
 }
 function getSharedPunterName() {

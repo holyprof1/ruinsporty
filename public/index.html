@@ -622,8 +622,17 @@
     </div>
   </div>
 
-  <!-- Floating Support Button -->
+  <!-- Floating Support Button (desktop only) -->
   <button class="support-fab" onclick="$('supportModal').classList.remove('hidden')">?</button>
+
+  <!-- Mobile Bottom Nav (native app style) -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="bnav-item" data-tab="optimizer" onclick="activateTab('optimizer')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Optimize</span></button>
+    <button class="bnav-item" data-tab="merger" onclick="activateTab('merger')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Merge</span></button>
+    <button class="bnav-item" data-tab="scanner" onclick="activateTab('scanner')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Scan</span></button>
+    <button class="bnav-item" data-tab="convert" onclick="activateTab('convert')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg><span>Convert</span></button>
+    <button class="bnav-item" onclick="$('supportModal').classList.remove('hidden')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>Help</span></button>
+  </nav>
 
   <!-- Support Modal -->
   <div id="supportModal" class="modal hidden">
