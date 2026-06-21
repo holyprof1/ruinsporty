@@ -1322,6 +1322,17 @@ app.get("/api/admin/visitors", requireAdmin, (req, res) => {
   } catch { res.json({ today: 0, uniqueToday: 0, total: 0, topRefs: [], recent: [] }); }
 });
 
+// Page lock system
+const PAGE_LOCKS_FILE = path.join(DATA_DIR, "page-locks.json");
+function loadPageLocks() { try { return JSON.parse(fs.readFileSync(PAGE_LOCKS_FILE, "utf-8")); } catch { return {}; } }
+
+app.get("/api/page-locks", (req, res) => { res.json(loadPageLocks()); });
+
+app.post("/api/admin/page-locks", requireAdmin, (req, res) => {
+  fs.writeFileSync(PAGE_LOCKS_FILE, JSON.stringify(req.body, null, 2));
+  res.json({ success: true });
+});
+
 const HEADER_CODE_FILE = path.join(DATA_DIR, "header-code.txt");
 
 app.get("/api/admin/header-code", requireAdmin, (req, res) => {

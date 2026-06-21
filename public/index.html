@@ -237,7 +237,10 @@
         <div class="panel wiz-games-panel"><div class="panel-scroll" id="originalTable"></div></div>
       </div>
 
-      <button class="btn btn-green btn-big wiz-cta" id="optimizeBtn" onclick="runOptimize()">Optimize Slip</button>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-green btn-big" style="flex:1" id="optimizeBtn" onclick="runOptimize()">Optimize Slip</button>
+        <button class="btn btn-ghost" onclick="removeLastByTime()" title="Remove the game with the latest kickoff time" style="white-space:nowrap">Remove Last</button>
+      </div>
     </div>
 
     <!-- STEP 3: Results -->

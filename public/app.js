@@ -68,6 +68,8 @@ function activateTab(tab) {
     currentTab = tab;
     if (tab === "leaderboard") showLeaderboardView();
     document.querySelectorAll(".bnav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    const lock = isLocked(tab);
+    if (lock && !isAdmin) showLockOverlay(tab, lock);
   }, 300);
 }
 function getSharedPunterName() {
@@ -75,6 +77,30 @@ function getSharedPunterName() {
   return match ? decodeURIComponent(match[1].replace(/\+/g, " ")) : "";
 }
 $("logoBtn").addEventListener("click", showHomepage);
+
+// Page lock system
+let pageLocks = {};
+async function checkPageLocks() {
+  try { const r = await fetch("/api/page-locks"); pageLocks = await r.json(); } catch {}
+}
+checkPageLocks();
+
+function isLocked(tab) { return pageLocks[tab] || null; }
+
+function showLockOverlay(tab, lockType) {
+  const pg = $(`tab-${tab}`);
+  if (!pg) return;
+  const msgs = { full: "Coming Soon", preview: "Preview Mode", paid: "Premium Feature" };
+  const subs = { full: "We're working on this. Check back soon!", preview: "You can look around, but actions are disabled.", paid: "This feature is available in the paid version." };
+  let overlay = pg.querySelector(".lock-overlay");
+  if (!overlay) { overlay = document.createElement("div"); overlay.className = "lock-overlay"; pg.style.position = "relative"; pg.prepend(overlay); }
+  if (lockType === "full") {
+    overlay.innerHTML = `<div style="position:absolute;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px"><h2 style="font-size:28px;font-weight:900;color:var(--green);margin-bottom:8px">${msgs[lockType]}</h2><p style="color:var(--text2);font-size:14px">${subs[lockType]}</p></div>`;
+  } else {
+    overlay.innerHTML = `<div style="position:sticky;top:0;z-index:50;background:rgba(255,179,0,.1);border:1px solid rgba(255,179,0,.2);border-radius:8px;padding:10px 16px;margin:12px 20px;text-align:center;font-size:13px;color:#ffb300;font-weight:600">${msgs[lockType]}: ${subs[lockType]}</div>`;
+    pg.querySelectorAll("button,input,select,textarea").forEach(el => { if (!el.closest(".lock-overlay")) el.disabled = true; });
+  }
+}
 document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => activateTab(b.dataset.tab)));
 document.querySelectorAll("[data-goto]").forEach(el => el.addEventListener("click", () => activateTab(el.dataset.goto)));
 $("heroLoadBtn").addEventListener("click", () => { const c = $("heroCode").value.trim().toUpperCase(); if (!c) return; $("bookingCode").value = c; activateTab("optimizer"); loadSlip(); });
@@ -147,6 +173,18 @@ function adjLimit(btn, delta) {
   valEl.textContent = cur === 0 ? "Off" : cur;
 }
 
+// Remove last game by kickoff time
+window.removeLastByTime = function() {
+  if (!allSelections.length) return;
+  const withTime = allSelections.filter(s => s.kickoff && !excluded.has(s.eventId) && !bankers.has(s.eventId));
+  if (!withTime.length) { showToast("No games to remove", "info"); return; }
+  const last = withTime.sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff))[0];
+  excluded.add(last.eventId);
+  updateExcludedUI();
+  renderOpt(filtered.filter(s => !s.removed), filtered.filter(s => s.removed));
+  showToast(`Removed: ${last.homeTeam} vs ${last.awayTeam}`, "success");
+};
+
 // Banker system
 window.toggleBanker = function(eventId) {
   if (bankers.has(eventId)) bankers.delete(eventId); else bankers.add(eventId);
@@ -184,38 +222,54 @@ document.querySelectorAll(".opt-goal,.opt-style,.opt-adjust").forEach(b => b.add
 }));
 
 function runOptimize() {
+  // Must set folds or odds target
+  const oddsMode = document.querySelector('[data-target].active')?.dataset?.target || "off";
+  const legMode = document.querySelector('[data-legs].active')?.dataset?.legs || "auto";
+  if (oddsMode === "off" && legMode === "auto") {
+    showToast("Set a Leg Count or Odds Target first", "error");
+    return;
+  }
+
   applyFilters();
+
+  // After filters, enforce odds target — remove highest-odds games to bring total down
+  if (oddsMode === "exact") {
+    const target = parseFloat($('stanceTargetOdds').value) || 0;
+    if (target > 0) {
+      let kept = filtered.filter(s => !s.removed);
+      let totalOdds = kept.reduce((a, s) => a * s.odds, 1);
+      // Remove highest-odds non-banker games until within target
+      while (totalOdds > target * 1.15 && kept.length > 3) {
+        const worst = kept.filter(s => !bankers.has(s.eventId)).sort((a, b) => b.odds - a.odds)[0];
+        if (!worst) break;
+        const idx = filtered.findIndex(f => f.eventId === worst.eventId);
+        if (idx !== -1) filtered[idx] = { ...filtered[idx], removed: true };
+        kept = filtered.filter(s => !s.removed);
+        totalOdds = kept.reduce((a, s) => a * s.odds, 1);
+      }
+    }
+  }
+
   wizGo('opt', 3);
   const kept = filtered.filter(s => !s.removed);
   const removed = filtered.filter(s => s.removed);
   const rg = $('resultGames'); if (rg) rg.textContent = kept.length;
 
-  // Target indicator — never remove games to hit odds target
+  // Show target indicator
   const targetEl = $('oddsTargetIndicator');
   const noticeEl = $('optNotice');
-  const targetPill = document.querySelector('[data-target].active');
   if (noticeEl) noticeEl.classList.add('hidden');
-  if (targetEl && targetPill && targetPill.dataset.target !== 'off' && kept.length > 0) {
-    const kO = kept.reduce((a,s) => a*s.odds, 1);
-    if (targetPill.dataset.target === 'exact') {
+  if (targetEl && kept.length > 0) {
+    const kO = kept.reduce((a, s) => a * s.odds, 1);
+    if (oddsMode === "exact") {
       const t = parseFloat($('stanceTargetOdds').value) || 0;
       if (t > 0) {
-        const diff = Math.abs(kO - t) / t;
-        if (diff < 0.2) {
-          targetEl.className = 'target-pill target-hit';
-          targetEl.textContent = '✓ Within target ' + t + 'x';
-        } else {
-          targetEl.className = 'target-pill target-miss';
-          targetEl.textContent = 'Target ' + t + 'x not reached — your slip is ' + kO.toFixed(1) + 'x. Adjust leg count or stance to get closer.';
-        }
+        const within = kO <= t * 1.15;
+        targetEl.className = 'target-pill ' + (within ? 'target-hit' : 'target-miss');
+        targetEl.textContent = within ? '✓ ' + kO.toFixed(1) + 'x (target ' + t + 'x)' : kO.toFixed(1) + 'x — above target ' + t + 'x';
         targetEl.classList.remove('hidden');
       }
-    } else if (targetPill.dataset.target === 'range') {
-      const mn = parseFloat($('minOdds').value) || 0, mx = parseFloat($('maxOdds').value) || Infinity;
-      targetEl.className = 'target-pill ' + (kO >= mn && kO <= mx ? 'target-hit' : 'target-miss');
-      targetEl.textContent = (kO >= mn && kO <= mx) ? '✓ Within ' + mn + 'x–' + mx + 'x' : 'Outside ' + mn + 'x–' + mx + 'x (got ' + kO.toFixed(1) + 'x). Adjust leg count or stance to get closer.';
-      targetEl.classList.remove('hidden');
-    }
+    } else if (targetEl) targetEl.classList.add('hidden');
   } else if (targetEl) targetEl.classList.add('hidden');
   $('generateBtn').classList.remove('hidden');
   $('codeCard').classList.add('hidden');
@@ -556,10 +610,12 @@ function applyFilters() {
   }
 
   if (activeStance === "safe") {
-    // Conservative: remove anything risky (risk 4+), convert the rest async
+    // Conservative: remove risky markets + games over 3.0 odds
     filtered = filtered.map(s => {
       if (bankers.has(s.eventId) || s.removed) return s;
-      return riskScore(s) >= 4 ? { ...s, removed: true } : s;
+      if (s.odds > 3.0) return { ...s, removed: true };
+      if (riskScore(s) >= 4) return { ...s, removed: true };
+      return s;
     });
   } else if (activeStance === "manual") {
     // Balanced: remove only the most dangerous (risk 6+), keep everything moderate

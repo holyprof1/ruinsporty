@@ -148,6 +148,13 @@ input:focus{border-color:#00c853}
       <div id="visRecent" style="font-size:11px;color:#8a9e8a;max-height:200px;overflow-y:auto"></div>
     </div>
     <div class="card">
+      <h2>Page Locks</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:12px">Lock any tab. Full = shows "Coming Soon" page. Preview = shows content but nothing works.</p>
+      <div id="pageLocksList"></div>
+      <button class="btn" onclick="savePageLocks()" style="margin-top:8px">Save Locks</button>
+      <span id="lockMsg" style="font-size:12px;color:#00c853;margin-left:8px"></span>
+    </div>
+    <div class="card">
       <h2>Header Code Injection</h2>
       <p style="font-size:11px;color:#8a9e8a;margin-bottom:8px">Add Google Analytics, Meta Pixel, or any tracking code. Inserted into &lt;head&gt; of every page.</p>
       <textarea id="headerCode" style="width:100%;min-height:100px;background:#0a0f0a;color:#00c853;border:1px solid #1e2e1e;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;resize:vertical" placeholder="Paste your tracking code here..."></textarea>
@@ -190,6 +197,7 @@ async function loadAll() {
   loadPunterCodes();
   loadVisitors();
   loadHeaderCode();
+  loadPageLocks();
   updateQuickStats();
 }
 
@@ -382,6 +390,28 @@ async function savePunterCodes() {
     const j = await r.json();
     if (j.success) { punterCodes = j.codes; document.getElementById('saveCodesMsg').textContent = 'Saved!'; setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 2000); }
   } catch(e) { document.getElementById('saveCodesMsg').textContent = 'Error: ' + e.message; }
+}
+
+// ── PAGE LOCKS ──
+
+let pageLocks = {};
+async function loadPageLocks() {
+  try { const r = await fetch('/api/page-locks'); pageLocks = await r.json(); } catch {}
+  const tabs = ['optimizer','merger','splitter','scanner','convert'];
+  const el = document.getElementById('pageLocksList');
+  el.innerHTML = tabs.map(t => {
+    const lock = pageLocks[t] || 'none';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:80px;font-weight:600;text-transform:capitalize">${t}</span><select id="lock_${t}" style="padding:6px 10px;background:#0a0f0a;color:#fff;border:1px solid #1e2e1e;border-radius:6px;font-size:12px"><option value="none" ${lock==='none'?'selected':''}>Active</option><option value="full" ${lock==='full'?'selected':''}>Full Lock (Coming Soon)</option><option value="preview" ${lock==='preview'?'selected':''}>Preview (Read Only)</option><option value="paid" ${lock==='paid'?'selected':''}>Paid Version</option></select></div>`;
+  }).join('');
+}
+
+async function savePageLocks() {
+  const tabs = ['optimizer','merger','splitter','scanner','convert'];
+  const locks = {};
+  tabs.forEach(t => { const v = document.getElementById('lock_'+t).value; if (v !== 'none') locks[t] = v; });
+  await fetch('/api/admin/page-locks', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(locks)});
+  document.getElementById('lockMsg').textContent = 'Saved!';
+  setTimeout(() => document.getElementById('lockMsg').textContent = '', 2000);
 }
 
 // ── VISITORS ──
