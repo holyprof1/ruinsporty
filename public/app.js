@@ -1011,7 +1011,7 @@ window.openH2H = async function(eid, home, away) {
       j = await r.json();
     }
 
-    if (!j?.found) { $("h2hBody").innerHTML = '<div class="empty-state">Stats unavailable for this match</div>'; return; }
+    if (!j?.found) { $("h2hBody").innerHTML = '<div class="empty-state">No match data found. Stats are available for most football leagues.</div>'; return; }
 
     const stats = j.keyStats || {};
     const homeForm = j.homeTeam?.form || j.homeForm || [];
@@ -1110,13 +1110,21 @@ async function runConvert(mode) {
       const overMatch = out.match(/^over (\d+\.?\d*)$/i);
       if (overMatch) {
         const val = parseFloat(overMatch[1]);
-        if (val >= 1.5) {
-          const newVal = val - 1;
+        // Determine step size by sport/market context
+        let step = 1;
+        if (val > 50) step = 10; // basketball points, large totals
+        else if (val > 10) step = 2; // corners, throw-ins, fouls
+        else step = 1; // goals, tennis games
+        const newVal = val - step;
+        if (newVal >= 0.5) {
           try {
             const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`); const j = await r.json();
             if (j.markets) {
-              const target = j.markets.find(m => m.outcomeName === `Over ${newVal}` && m.marketName.includes("Over/Under"));
+              const target = j.markets.find(m => m.outcomeName === `Over ${newVal}` && m.marketName.toLowerCase().includes("over/under"));
               if (target) { Object.assign(s, {market: target.marketName, outcome: target.outcomeName, odds: target.odds, marketId: target.marketId, outcomeId: target.outcomeId, specifier: target.specifier || ""}); s._changed = true; continue; }
+              // Fallback: find closest lower Over in same market
+              const sameType = j.markets.filter(m => m.marketId === s.marketId && /^Over /i.test(m.outcomeName) && parseFloat(m.outcomeName.match(/[\d.]+/)?.[0] || 999) < val).sort((a,b) => parseFloat(b.outcomeName.match(/[\d.]+/)?.[0]||0) - parseFloat(a.outcomeName.match(/[\d.]+/)?.[0]||0));
+              if (sameType[0]) { Object.assign(s, {market: sameType[0].marketName, outcome: sameType[0].outcomeName, odds: sameType[0].odds, marketId: sameType[0].marketId, outcomeId: sameType[0].outcomeId, specifier: sameType[0].specifier || ""}); s._changed = true; continue; }
             }
           } catch {}
         }
@@ -1220,3 +1228,29 @@ setTimeout(() => {
 
 // Footer links
 document.querySelectorAll(".footer-links a").forEach(a => a.addEventListener("click", () => activateTab(a.dataset.goto)));
+
+// ── Support ──
+const supType = $("supType");
+if (supType) supType.addEventListener("change", () => {
+  const v = supType.value;
+  const ph = $("supPartnerHint"), dh = $("supDonateHint");
+  if (ph) ph.classList.toggle("hidden", v !== "Partnership");
+  if (dh) dh.classList.toggle("hidden", v !== "Donate");
+});
+
+window.submitSupport = async function() {
+  const email = $("supEmail")?.value?.trim();
+  const message = $("supMessage")?.value?.trim();
+  if (!email || !message) { showToast("Email and message required", "error"); return; }
+  try {
+    const r = await fetch("/api/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: $("supName")?.value?.trim(), email, type: $("supType")?.value, message }) });
+    const j = await r.json();
+    if (j.success) {
+      const s = $("supSuccess"); if (s) { s.textContent = "Got it! We'll reach out to " + email + " with updates."; s.classList.remove("hidden"); }
+      $("supName").value = ""; $("supEmail").value = ""; $("supMessage").value = "";
+    }
+  } catch(e) { showToast(e.message, "error"); }
+};
+
+// Admin support page
+if (location.pathname.startsWith("/admin/support")) activateTab("leaderboard");

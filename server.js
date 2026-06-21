@@ -909,6 +909,43 @@ app.get("/admin/leaderboard", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+app.get("/admin/support", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ── Support ──
+
+const SUPPORT_FILE = path.join(DATA_DIR, "support.json");
+
+function loadSupport() { try { return JSON.parse(fs.readFileSync(SUPPORT_FILE, "utf-8")); } catch { return []; } }
+function saveSupport(data) { fs.writeFileSync(SUPPORT_FILE, JSON.stringify(data, null, 2)); }
+
+app.post("/api/support", (req, res) => {
+  const { name, email, type, message } = req.body;
+  if (!email || !message) return res.status(400).json({ error: "Email and message required" });
+  const tickets = loadSupport();
+  tickets.push({ id: Date.now(), date: new Date().toISOString(), name: name || "Anonymous", email, type: type || "Other", message, status: "New" });
+  saveSupport(tickets);
+  res.json({ success: true });
+});
+
+app.get("/api/support", (req, res) => {
+  const adminPw = req.headers["x-admin-password"];
+  if (adminPw !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: "Unauthorized" });
+  res.json({ tickets: loadSupport() });
+});
+
+app.patch("/api/support/:id", (req, res) => {
+  const adminPw = req.headers["x-admin-password"];
+  if (adminPw !== process.env.ADMIN_PASSWORD) return res.status(403).json({ error: "Unauthorized" });
+  const tickets = loadSupport();
+  const t = tickets.find(t => t.id === parseInt(req.params.id));
+  if (!t) return res.status(404).json({ error: "Not found" });
+  if (req.body.status) t.status = req.body.status;
+  saveSupport(tickets);
+  res.json({ success: true });
+});
+
 // ── SportyBet H2H proxy (browser can't call SportyBet directly due to CORS) ──
 
 app.get("/api/proxy-h2h/:eventId", async (req, res) => {

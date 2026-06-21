@@ -446,6 +446,10 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
 .stance-card span{font-size:10px;color:var(--text2)}
 .stance-input{margin-top:6px;width:60px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;text-align:center;outline:none}
 
+/* Support FAB */
+.support-fab{position:fixed;bottom:24px;right:24px;width:48px;height:48px;border-radius:50%;background:var(--green);color:#fff;font-size:22px;font-weight:900;border:none;cursor:pointer;z-index:800;box-shadow:0 4px 16px rgba(0,0,0,.4);transition:.2s}
+.support-fab:hover{transform:scale(1.1);background:#1ed760}
+
 /* Responsive */
 @media(max-width:1024px){
   .how-steps{grid-template-columns:1fr}
