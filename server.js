@@ -10,12 +10,14 @@ const fs = require("fs");
 const app = express();
 const PORT = 3000;
 
+const DATA_DIR = path.join(__dirname, "data");
+const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
 const DEBUG_DIR = path.join(__dirname, "debug", "markets");
 const H2H_DEBUG_DIR = path.join(__dirname, "debug", "h2h");
-const DATA_DIR = path.join(__dirname, "data");
+fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 fs.mkdirSync(DEBUG_DIR, { recursive: true });
 fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true });
-fs.mkdirSync(DATA_DIR, { recursive: true });
 
 app.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -25,9 +27,13 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
-const FileStore = require("session-file-store")(session);
 app.set("trust proxy", 1);
-app.use(session({ store: new FileStore({ path: path.join(__dirname, "data", "sessions"), ttl: 3600, retries: 0 }), secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, maxAge: 3600000 } }));
+let sessionStore;
+try {
+  const FileStore = require("session-file-store")(session);
+  sessionStore = new FileStore({ path: SESSIONS_DIR, ttl: 3600, retries: 0, logFn: function(){} });
+} catch(e) { console.log("FileStore failed, using memory:", e.message); }
+app.use(session({ store: sessionStore, secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
 
 // ── Helpers ──
 
