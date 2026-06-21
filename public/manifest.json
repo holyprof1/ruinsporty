@@ -2,7 +2,7 @@
   "name": "SlipPilot",
   "short_name": "SlipPilot",
   "description": "Analyze. Optimize. Win. — SportyBet slip optimizer",
-  "start_url": "/?mode=app",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a0f0a",

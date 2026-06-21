@@ -4,53 +4,55 @@ const path = require("path");
 
 const zipName = "slippilot-deploy.zip";
 const zipPath = path.join(__dirname, zipName);
+const stageDir = path.join(__dirname, "_deploy_stage");
 
-// Build list of files to include (explicit, no junk)
-const include = [
-  "server.js",
-  "package.json",
-  "package-lock.json",
-  ".htaccess",
-  ".env.production",
-  ".gitignore",
-  "DEPLOY.md",
-  "AGENTS.md",
-  "create-deploy-zip.js",
-];
+// Clean stage
+if (fs.existsSync(stageDir)) fs.rmSync(stageDir, { recursive: true });
+fs.mkdirSync(path.join(stageDir, "public"), { recursive: true });
+fs.mkdirSync(path.join(stageDir, "data"), { recursive: true });
 
-// Include all public/ files
+// Root files
+const rootFiles = ["server.js", "package.json", "package-lock.json", ".htaccess", "DEPLOY.md", "AGENTS.md", "create-deploy-zip.js"];
+rootFiles.forEach(f => { if (fs.existsSync(path.join(__dirname, f))) fs.copyFileSync(path.join(__dirname, f), path.join(stageDir, f)); });
+
+// .env.production → .env on server
+if (fs.existsSync(path.join(__dirname, ".env.production"))) fs.copyFileSync(path.join(__dirname, ".env.production"), path.join(stageDir, ".env"));
+
+// Public files
 const pubDir = path.join(__dirname, "public");
-const pubFiles = fs.readdirSync(pubDir).map(f => path.join("public", f));
+fs.readdirSync(pubDir).forEach(f => {
+  const src = path.join(pubDir, f);
+  if (fs.statSync(src).isFile()) fs.copyFileSync(src, path.join(stageDir, "public", f));
+});
 
-// Include only specific data/ files
-const dataInclude = ["stats.json", "support.json", "punters.json", "punter-profiles.json"];
-const dataDir = path.join(__dirname, "data");
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-// Ensure defaults exist
-const defaults = {
-  "stats.json": JSON.stringify({ slipsLoaded: 0, codesGenerated: 0, slipsScanned: 0, puntersTracked: 0, slipsMerged: 0, slipsSplit: 0 }, null, 2),
-  "support.json": "[]",
-  "punters.json": "[]",
-};
-for (const [file, content] of Object.entries(defaults)) {
-  const fp = path.join(dataDir, file);
+// Data files (only safe ones)
+["stats.json", "support.json", "punters.json", "punter-profiles.json"].forEach(f => {
+  const src = path.join(__dirname, "data", f);
+  if (fs.existsSync(src)) fs.copyFileSync(src, path.join(stageDir, "data", f));
+});
+
+// Ensure defaults
+const defaults = { "stats.json": '{"slipsLoaded":0,"codesGenerated":0,"slipsScanned":0,"puntersTracked":0}', "support.json": "[]" };
+for (const [f, content] of Object.entries(defaults)) {
+  const fp = path.join(stageDir, "data", f);
   if (!fs.existsSync(fp)) fs.writeFileSync(fp, content);
 }
-const dataFiles = dataInclude.filter(f => fs.existsSync(path.join(dataDir, f))).map(f => path.join("data", f));
 
-const allFiles = [...include.filter(f => fs.existsSync(path.join(__dirname, f))), ...pubFiles, ...dataFiles];
-const fileList = allFiles.map(f => `'${f}'`).join(",");
-
+// Create zip
+if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 try {
-  if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-  execSync(
-    `powershell -Command "Compress-Archive -Path ${fileList} -DestinationPath '${zipPath}' -Force"`,
-    { stdio: "inherit", cwd: __dirname }
-  );
+  execSync(`powershell -Command "Get-ChildItem -Path '${stageDir}' | Compress-Archive -DestinationPath '${zipPath}' -Force"`, { stdio: "inherit" });
   const size = (fs.statSync(zipPath).size / 1024).toFixed(0);
-  console.log(`\n${zipName} created (${size} KB)`);
-  console.log(`Files: ${allFiles.length}`);
-  console.log(`\nReady to upload to slippilot.com.ng`);
+  const fileCount = execSync(`powershell -Command "(Get-ChildItem -Path '${stageDir}' -Recurse -File).Count"`, { encoding: "utf8" }).trim();
+  console.log(`\n${zipName} created (${size} KB, ${fileCount} files)`);
+  console.log(`\nStructure inside zip:`);
+  console.log(`  server.js, package.json, .env, .htaccess`);
+  console.log(`  public/  (index.html, app.js, style.css, icons...)`);
+  console.log(`  data/    (stats.json, punters.json...)`);
+  console.log(`\nUpload to cPanel → Extract → Run NPM Install → Restart`);
 } catch (e) {
-  console.error("Zip creation failed:", e.message);
+  console.error("Zip failed:", e.message);
 }
+
+// Clean stage
+fs.rmSync(stageDir, { recursive: true });
