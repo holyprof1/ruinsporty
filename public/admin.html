@@ -106,6 +106,8 @@ input:focus{border-color:#00c853}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
         <h2 style="margin:0">Leaderboard</h2>
         <input type="text" id="lbSearch" placeholder="Search punter..." style="max-width:180px;padding:6px 12px;font-size:12px" oninput="loadLB()" />
+        <button class="btn-sm" onclick="rescanAll(this)" id="rescanBtn" style="border-color:#ffb300;color:#ffb300">Rescan All Codes</button>
+        <span id="rescanMsg" style="font-size:11px;color:#8a9e8a"></span>
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px" id="sortPills">
         <button class="pill active" onclick="sortLB('trust',this)">Trust</button>
@@ -415,6 +417,30 @@ function toggleLBCard(id) {
   // Close all others first
   document.querySelectorAll('#lbCards .code-section').forEach(s => s.style.display = 'none');
   section.style.display = isOpen ? 'none' : 'block';
+}
+
+async function rescanAll(btn) {
+  btn.disabled = true; btn.textContent = 'Scanning...';
+  document.getElementById('rescanMsg').textContent = 'Rescanning all codes with pending games...';
+  try {
+    const r = await fetch('/api/admin/rescan-all', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}});
+    const j = await r.json();
+    if (j.error) { document.getElementById('rescanMsg').textContent = j.error; return; }
+    // Poll until done
+    const poll = setInterval(async () => {
+      try {
+        const s = await fetch('/api/admin/rescan-status', {headers:{'x-admin-password':adminPw}});
+        const sj = await s.json();
+        if (!sj.running) {
+          clearInterval(poll);
+          btn.disabled = false; btn.textContent = 'Rescan All Codes';
+          document.getElementById('rescanMsg').textContent = 'Done! Refreshing...';
+          document.getElementById('rescanMsg').style.color = '#00c853';
+          setTimeout(() => { loadLB(); document.getElementById('rescanMsg').textContent = ''; }, 1000);
+        }
+      } catch { clearInterval(poll); btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
+    }, 3000);
+  } catch(e) { document.getElementById('rescanMsg').textContent = 'Error: ' + e.message; btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
 }
 
 async function addCodeLB(name, id) {

@@ -1619,6 +1619,115 @@ app.get("/api/weak-matches", requireAdmin, (req, res) => {
   res.json(loadWeakMatches());
 });
 
+// ── Auto-Rescan All Punter Codes ──
+
+let rescanRunning = false;
+
+app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
+  if (rescanRunning) return res.status(409).json({ error: "Rescan already running" });
+  rescanRunning = true;
+  res.json({ success: true, message: "Rescan started" });
+
+  try {
+    const lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8"));
+    const todayCodes = loadPunterCodes();
+    const today = new Date().toISOString().slice(0, 10);
+    const lbMap = new Map(lb.map(p => [p.punter, p]));
+
+    // Step 1: Add today's active codes to leaderboard if not present
+    for (const [name, code] of Object.entries(todayCodes)) {
+      if (!code) continue;
+      let entry = lbMap.get(name);
+      if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0, won: 0, lost: 0, hitRate: 0, trustScore: 0 }; lb.push(entry); lbMap.set(name, entry); }
+      if (!entry.codes) entry.codes = [];
+      const codeStr = typeof code === "string" ? code : (Array.isArray(code) ? code[0] : "");
+      if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
+        entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0 });
+      }
+    }
+
+    // Step 2: Rescan every code that needs updating (pending > 0, or games === 0)
+    let scanned = 0, updated = 0, errors = 0;
+    for (const entry of lb) {
+      if (!entry.codes) continue;
+      for (const codeEntry of entry.codes) {
+        const needsScan = (codeEntry.pending > 0) || (codeEntry.games === 0 && codeEntry.code);
+        if (!needsScan) continue;
+        try {
+          const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(codeEntry.code)}`;
+          const json = await fetchJSON(url);
+          if (!json || json.bizCode !== 10000 || !json.data) { errors++; continue; }
+          const outcomes = json.data.outcomes || [];
+          const ticketSels = json.data.ticket?.selections || [];
+          const selections = mapOutcomes(outcomes, ticketSels);
+          const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+          const won = results.filter(r => r.verdict === "WON").length;
+          const lost = results.filter(r => r.verdict === "LOST").length;
+          const voided = results.filter(r => r.verdict === "VOID").length;
+          const pending = results.filter(r => r.verdict === "PENDING").length;
+          const settled = won + lost;
+          const hitRate = settled > 0 ? Math.round(won / settled * 100) : 0;
+
+          const changed = codeEntry.won !== won || codeEntry.lost !== lost || codeEntry.pending !== pending;
+          codeEntry.games = results.length;
+          codeEntry.won = won; codeEntry.lost = lost; codeEntry.void = voided;
+          codeEntry.pending = pending; codeEntry.hitRate = hitRate;
+
+          if (changed) updated++;
+          scanned++;
+        } catch { errors++; }
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      // Recalculate punter totals
+      const settled = entry.codes.filter(c => (c.won + c.lost) > 0);
+      entry.won = settled.reduce((a, c) => a + c.won, 0);
+      entry.lost = settled.reduce((a, c) => a + c.lost, 0);
+      entry.totalGames = settled.reduce((a, c) => a + c.games, 0);
+      const ts = entry.won + entry.lost;
+      entry.hitRate = ts > 0 ? Math.round(entry.won / ts * 100) : 0;
+      const rates = settled.map(c => c.hitRate);
+      if (rates.length) {
+        const avg = rates.reduce((a, r) => a + r, 0) / rates.length;
+        const variance = rates.length > 1 ? Math.sqrt(rates.reduce((a, r) => a + Math.pow(r - avg, 2), 0) / rates.length) : 0;
+        entry.consistency = Math.round(100 - variance);
+        let trust = entry.hitRate;
+        if (rates.length >= 3 && variance < 15) trust += 10;
+        if (rates.some(r => r >= 80)) trust += 10;
+        if (rates.some(r => r < 40)) trust -= 10;
+        entry.trustScore = Math.max(0, Math.min(100, trust));
+      }
+      entry.daysActive = new Set(entry.codes.map(c => c.date)).size;
+      entry.lastActive = entry.codes[0]?.date || today;
+    }
+
+    // Also update punter-profiles.json to stay in sync
+    try {
+      const profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, "utf-8"));
+      for (const entry of lb) {
+        if (profiles[entry.punter]) {
+          profiles[entry.punter].won = entry.won;
+          profiles[entry.punter].lost = entry.lost;
+          profiles[entry.punter].hitRate = entry.hitRate;
+          profiles[entry.punter].trustScore = entry.trustScore;
+          profiles[entry.punter].consistency = entry.consistency;
+          profiles[entry.punter].totalGames = entry.totalGames;
+          if (entry.codes?.length) profiles[entry.punter].codes = entry.codes;
+        }
+      }
+      fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
+    } catch {}
+
+    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
+    console.log(`[Rescan] Done: ${scanned} scanned, ${updated} updated, ${errors} errors`);
+  } catch (e) { console.error("[Rescan] Fatal:", e); }
+  finally { rescanRunning = false; }
+});
+
+app.get("/api/admin/rescan-status", requireAdmin, (req, res) => {
+  res.json({ running: rescanRunning });
+});
+
 // ── Daily Session Intelligence ──
 
 const sessionEngine = require("./session-engine");
