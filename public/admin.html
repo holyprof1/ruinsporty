@@ -403,36 +403,38 @@ function renderLB(list) {
     const showWon = lbPeriod === 'all' ? (p.won || 0) : periodWon;
     const showLost = lbPeriod === 'all' ? (p.lost || 0) : periodLost;
     const showHR = lbPeriod === 'all' ? (p.hitRate || 0) : periodHR;
+    const hrC = showHR >= 70 ? '#00c853' : showHR >= 55 ? '#ffb300' : '#e53935';
+
     const codeRows = codes.slice(0, 10).map(c => {
-      const d = c.date ? new Date(c.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '-';
+      const d = c.date ? c.date.slice(5) : '-';
       const rc2 = (c.hitRate||0) >= 75 ? '#00c853' : (c.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
-      return `<div class="code-grid"><span class="code-val">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games||0}</span><span style="color:#00c853">${c.won||0}</span><span style="color:#e53935">${c.lost||0}</span><span>${c.void||0}</span><span style="color:${rc2};font-weight:700">${c.hitRate||0}%</span><span><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button></span></div>`;
+      return `<div style="display:grid;grid-template-columns:80px 50px 40px 40px 40px 40px 50px 1fr;gap:4px;align-items:center;font-size:11px;padding:4px 12px;border-bottom:1px solid rgba(255,255,255,.03)"><span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games||0}</span><span style="color:#00c853">${c.won||0}</span><span style="color:#e53935">${c.lost||0}</span><span style="color:#ffb300">${c.pending||0}</span><span style="color:${rc2};font-weight:700">${c.hitRate||0}%</span><span><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)" style="padding:2px 8px;font-size:9px">Copy</button></span></div>`;
     }).join('');
 
-    return `<div class="punter-card" id="${id}">
-      <div class="punter-header" onclick="toggleLBCard('${id}')">
-        <div class="rank-badge ${rc}">${i+1}</div>
+    return `<div style="background:#111811;border:1px solid #1e2e1e;border-radius:8px;margin-bottom:6px;overflow:hidden" id="${id}">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer" onclick="toggleLBCard('${id}')">
+        <div class="rank-badge ${rc}" style="width:26px;height:26px;font-size:12px">${i+1}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:14px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">${icon}${esc(p.punter)} ${badgesHtml}</div>
-          <div style="font-size:11px;color:#8a9e8a;margin-top:2px">${esc(p.handle||'')} ${p.todayCode ? '· <span style="color:#00c853;font-family:monospace;font-weight:700">'+esc(p.todayCode)+'</span>' : ''}</div>
+          <span style="font-weight:800;font-size:13px">${icon}${esc(p.punter)}</span>
+          <span style="font-size:10px;color:#8a9e8a;margin-left:4px">${esc(p.handle||'')}</span>
+          ${p.todayCode ? '<span style="font-size:10px;color:#00c853;font-family:monospace;font-weight:700;margin-left:6px">'+esc(p.todayCode)+'</span>' : ''}
+          ${badgesHtml ? '<span style="margin-left:4px">'+badgesHtml+'</span>' : ''}
         </div>
-        <div class="trust-ring" style="background:${ringBg};border:2px solid ${ringC};color:${ringC}">${trust||'-'}</div>
+        <div style="display:flex;gap:10px;align-items:center;font-size:12px;font-weight:700;flex-shrink:0">
+          <span style="color:#00c853">${showWon}W</span>
+          <span style="color:#e53935">${showLost}L</span>
+          <span style="color:#ffb300">${pending}P</span>
+          <span style="color:${hrC}">${showHR}%</span>
+          <div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:${ringBg};border:2px solid ${ringC};color:${ringC}">${trust||'-'}</div>
+        </div>
       </div>
-      <div class="punter-stats" style="grid-template-columns:repeat(6,1fr)">
-        <div><div class="ps-val" style="color:#00c853">${showWon}</div><div class="ps-lbl">Won</div></div>
-        <div><div class="ps-val" style="color:#e53935">${showLost}</div><div class="ps-lbl">Lost</div></div>
-        <div><div class="ps-val" style="color:#ffb300">${pending}</div><div class="ps-lbl">Pending</div></div>
-        <div><div class="ps-val" style="color:${showHR>=70?'#00c853':showHR>=55?'#ffb300':'#e53935'}">${showHR}%</div><div class="ps-lbl">Hit Rate</div></div>
-        <div><div class="ps-val">${codes.length}</div><div class="ps-lbl">Codes</div></div>
-        <div><div class="ps-val" style="color:${riskC};text-transform:capitalize;font-size:13px">${p.riskProfile||'-'}</div><div class="ps-lbl">${p.daysActive||0}d</div></div>
-      </div>
-      <div class="code-section" style="display:none">
-        ${codes.length ? `<div class="code-grid hdr"><span>CODE</span><span>DATE</span><span>GAMES</span><span>WON</span><span>LOST</span><span>VOID</span><span>RATE</span><span></span></div>${codeRows}` : '<p style="color:#8a9e8a;font-size:12px;padding:4px 0">No code history yet.</p>'}
-        <div class="add-form">
-          <input type="text" placeholder="Add code" id="ac_${id}" style="max-width:120px" />
-          <input type="date" value="${new Date().toISOString().slice(0,10)}" id="ad_${id}" />
-          <button class="btn-sm" onclick="addCodeLB('${esc(p.punter)}','${id}')">Add</button>
-          <span id="am_${id}" style="font-size:11px;color:#8a9e8a"></span>
+      <div class="code-section" style="display:none;border-top:1px solid #1e2e1e;padding:8px 0">
+        ${codes.length ? `<div style="display:grid;grid-template-columns:80px 50px 40px 40px 40px 40px 50px 1fr;gap:4px;align-items:center;font-size:9px;color:#8a9e8a;padding:2px 12px 6px;text-transform:uppercase;font-weight:700"><span>CODE</span><span>DATE</span><span>G</span><span>W</span><span>L</span><span>P</span><span>HR</span><span></span></div>${codeRows}` : '<p style="color:#8a9e8a;font-size:11px;padding:6px 14px">No code history.</p>'}
+        <div style="display:flex;gap:6px;align-items:center;padding:8px 12px;border-top:1px solid #1e2e1e">
+          <input type="text" placeholder="Code" id="ac_${id}" style="max-width:100px;padding:5px 8px;font-size:11px" />
+          <input type="date" value="${new Date().toISOString().slice(0,10)}" id="ad_${id}" style="padding:5px 8px;font-size:11px" />
+          <button class="btn-sm" onclick="addCodeLB('${esc(p.punter)}','${id}')" style="padding:3px 10px;font-size:10px">Add</button>
+          <span id="am_${id}" style="font-size:10px;color:#8a9e8a"></span>
         </div>
       </div>
     </div>`;

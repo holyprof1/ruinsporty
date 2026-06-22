@@ -1015,6 +1015,7 @@ app.get("/convert", (req, res) => res.redirect("/#convert"));
 app.get("/merger", (req, res) => res.redirect("/#merger"));
 app.get("/optimize-sportybet-slip", (req, res) => res.sendFile(path.join(__dirname, "public", "optimize-sportybet-slip.html")));
 app.get("/sportybet-booking-code-converter", (req, res) => res.sendFile(path.join(__dirname, "public", "sportybet-booking-code-converter.html")));
+app.get("/check-sportybet-slip-result", (req, res) => res.sendFile(path.join(__dirname, "public", "check-sportybet-slip-result.html")));
 
 // ── Admin Panel ──
 
@@ -1520,10 +1521,23 @@ function loadLeaderboard() {
       if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0 }; lb.push(entry); lbMap2.set(name, entry); }
       entry.todayCode = code;
       if (!entry.codes) entry.codes = [];
-      // Add today's code to the codes list if not already there (as pending)
       const codeStr = typeof code === "string" ? code : (Array.isArray(code) ? code[0] : "");
       if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
         entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0, status: "active" });
+      }
+    }
+  } catch {}
+  // Attach generated codes from code-history to AI/SlipPilot/Generated entries
+  try {
+    const ch = loadCodeHistory();
+    const lbMap3 = new Map(lb.map(p => [p.punter, p]));
+    for (const c of ch) {
+      if (!c.punter || !c.code) continue;
+      let entry = lbMap3.get(c.punter);
+      if (!entry) { entry = { punter: c.punter, codes: [], isAI: c.punter.startsWith("AI ") || c.punter === "SlipPilot" || c.punter === "Generated" }; lb.push(entry); lbMap3.set(c.punter, entry); }
+      if (!entry.codes) entry.codes = [];
+      if (!entry.codes.some(x => x.code === c.code)) {
+        entry.codes.push({ code: c.code, date: c.date, games: c.games || 0, won: 0, lost: 0, void: 0, pending: c.games || 0, hitRate: 0, group: c.group });
       }
     }
   } catch {}
