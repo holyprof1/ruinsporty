@@ -6,7 +6,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .mono{font-family:'JetBrains Mono',monospace}
 
 /* Topbar */
-.topbar{position:sticky;top:0;z-index:100;background:linear-gradient(180deg,#0d2818 0%,var(--card) 100%);border-bottom:1px solid var(--border)}
+.topbar{position:sticky;top:0;z-index:100;background:linear-gradient(180deg,#0d2818 0%,var(--card) 100%);border-bottom:1px solid var(--border);padding-top:env(safe-area-inset-top, 0px)}
 .topbar-inner{max-width:1480px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;gap:12px}
 .logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;color:#fff;cursor:pointer;white-space:nowrap}
 .tab-nav{display:flex;gap:2px;flex-wrap:wrap}
@@ -543,9 +543,9 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
   body{padding-bottom:calc(72px + env(safe-area-inset-bottom, 0px))}
 }
 
-/* Hide scrollbars in app views, keep scroll */
-.tab-page,.card,.punter-card,.code-section{scrollbar-width:none;-ms-overflow-style:none}
-.tab-page::-webkit-scrollbar,.card::-webkit-scrollbar{display:none}
+/* Hide scrollbars everywhere, keep scroll */
+html,body,.tab-page,.card,.punter-card,.code-section{scrollbar-width:none;-ms-overflow-style:none}
+html::-webkit-scrollbar,body::-webkit-scrollbar,.tab-page::-webkit-scrollbar,.card::-webkit-scrollbar{display:none}
 
 /* Safe area for standalone PWA */
 @supports(padding: max(0px)) {
