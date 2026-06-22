@@ -1669,10 +1669,11 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
       }
     }
 
-    // Step 2: Rescan every code that needs updating (pending > 0, or games === 0)
+    // Step 2: Rescan codes that need updating — skip bulk "Generated" entries
     let scanned = 0, updated = 0, errors = 0;
     for (const entry of lb) {
       if (!entry.codes) continue;
+      if (entry.punter === "Generated") continue; // 150+ codes, skip bulk
       for (const codeEntry of entry.codes) {
         const needsScan = (codeEntry.pending > 0) || (codeEntry.games === 0 && codeEntry.code);
         if (!needsScan) continue;
@@ -1699,7 +1700,7 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
           if (changed) updated++;
           scanned++;
         } catch { errors++; }
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 150));
       }
 
       // Recalculate punter totals
