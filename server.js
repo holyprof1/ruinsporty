@@ -1412,6 +1412,27 @@ app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
   res.json({ success: true, codes: updated });
 });
 
+// ── Social Links (editable from admin) ──
+
+const SOCIAL_FILE = path.join(DATA_DIR, "social-links.json");
+
+app.get("/api/social-links", (req, res) => {
+  try { res.json(JSON.parse(fs.readFileSync(SOCIAL_FILE, "utf-8"))); }
+  catch { res.json({ twitter: "slippilot", email: "support@slippilot.com.ng" }); }
+});
+
+app.get("/api/admin/social-links", requireAdmin, (req, res) => {
+  try { res.json(JSON.parse(fs.readFileSync(SOCIAL_FILE, "utf-8"))); }
+  catch { res.json({ twitter: "slippilot", email: "support@slippilot.com.ng" }); }
+});
+
+app.post("/api/admin/social-links", requireAdmin, (req, res) => {
+  const { twitter, email } = req.body;
+  const data = { twitter: (twitter || "").trim(), email: (email || "").trim() };
+  fs.writeFileSync(SOCIAL_FILE, JSON.stringify(data, null, 2));
+  res.json({ success: true, ...data });
+});
+
 // ── User Submissions ──
 
 const SUBMISSIONS_FILE = path.join(DATA_DIR, "user-submissions.json");

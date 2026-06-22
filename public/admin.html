@@ -169,6 +169,20 @@ input:focus{border-color:#00c853}
       <div id="subRecent" style="font-size:11px;color:#8a9e8a;max-height:150px;overflow-y:auto"></div>
     </div>
     <div class="card">
+      <h2>Social Links</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:12px">These appear in the Help/Support modal. Leave blank to hide.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <span style="min-width:70px;font-size:13px;font-weight:600">X / Twitter</span>
+        <input type="text" id="socialTwitter" placeholder="handle (without @)" style="flex:1;max-width:200px" />
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <span style="min-width:70px;font-size:13px;font-weight:600">Email</span>
+        <input type="text" id="socialEmail" placeholder="support@example.com" style="flex:1;max-width:260px" />
+      </div>
+      <button class="btn" onclick="saveSocialLinks()">Save Social Links</button>
+      <span id="socialMsg" style="font-size:12px;color:#00c853;margin-left:8px"></span>
+    </div>
+    <div class="card">
       <h2>Page Locks</h2>
       <p style="font-size:11px;color:#8a9e8a;margin-bottom:12px">Lock any tab. Full = shows "Coming Soon" page. Preview = shows content but nothing works.</p>
       <div id="pageLocksList"></div>
@@ -259,6 +273,7 @@ async function loadAll() {
   try { loadVisitors(); } catch(e) { console.error('loadVisitors:', e); }
   try { loadSubmissions(); } catch(e) { console.error('loadSubmissions:', e); }
   try { loadHeaderCode(); } catch(e) { console.error('loadHeaderCode:', e); }
+  try { loadSocialLinks(); } catch(e) { console.error('loadSocialLinks:', e); }
   try { loadPageLocks(); } catch(e) { console.error('loadPageLocks:', e); }
   try { updateQuickStats(); } catch(e) { console.error('updateQuickStats:', e); }
   try { loadLB(); } catch(e) { console.error('loadLB:', e); }
@@ -558,6 +573,27 @@ async function loadVisitors() {
     document.getElementById('visRefs').innerHTML = (j.topRefs || []).map(([ref, count]) => `<div>${esc(ref.slice(0, 50))} — <strong>${count}</strong></div>`).join('') || '<div>No referrers today</div>';
     document.getElementById('visRecent').innerHTML = (j.recent || []).map(v => `<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)">${v.time?.slice(11,19)||''} ${v.path} ${v.ref?.slice(0,30)||''}</div>`).join('') || '<div>No visitors yet</div>';
   } catch {}
+}
+
+// ── SOCIAL LINKS ──
+
+async function loadSocialLinks() {
+  try {
+    const r = await fetch('/api/admin/social-links', {headers:{'x-admin-password':adminPw}});
+    const j = await r.json();
+    document.getElementById('socialTwitter').value = j.twitter || '';
+    document.getElementById('socialEmail').value = j.email || '';
+  } catch {}
+}
+
+async function saveSocialLinks() {
+  const twitter = document.getElementById('socialTwitter').value.trim();
+  const email = document.getElementById('socialEmail').value.trim();
+  try {
+    await fetch('/api/admin/social-links', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({twitter, email})});
+    document.getElementById('socialMsg').textContent = 'Saved!';
+    setTimeout(() => document.getElementById('socialMsg').textContent = '', 2000);
+  } catch(e) { document.getElementById('socialMsg').textContent = 'Error: ' + e.message; }
 }
 
 // ── SUBMISSIONS ──

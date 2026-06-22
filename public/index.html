@@ -662,10 +662,7 @@
         <button class="btn btn-green btn-big" onclick="submitSupport()">Send Message</button>
         <p id="supSuccess" class="hidden" style="color:var(--green);font-size:13px;margin-top:8px;text-align:center"></p>
         <p style="font-size:11px;color:var(--text3);text-align:center;margin-top:12px">We typically respond within a few hours.</p>
-        <div style="display:flex;justify-content:center;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-          <a href="https://x.com/slippilot" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px;transition:.15s" onmouseover="this.style.borderColor='#1DA1F2';this.style.color='#1DA1F2'" onmouseout="this.style.borderColor='';this.style.color=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow</a>
-          <a href="mailto:support@slippilot.com.ng" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px;transition:.15s" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='';this.style.color=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>Email</a>
-        </div>
+        <div id="socialLinks" style="display:flex;justify-content:center;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)"></div>
         <div id="installPrompt" style="margin-top:14px;text-align:center;border-top:1px solid var(--border);padding-top:14px">
           <p style="font-size:12px;color:var(--text2);margin-bottom:8px">Get the app for faster access</p>
           <button class="btn btn-ghost" onclick="installPWA()" style="font-size:13px">Install SlipPilot App</button>

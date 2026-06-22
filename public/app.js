@@ -1934,6 +1934,20 @@ window.shareSlipPilot = function(code) {
   }
 };
 
+// Load social links dynamically
+(async function() {
+  try {
+    const r = await fetch("/api/social-links");
+    const j = await r.json();
+    const el = $("socialLinks");
+    if (!el) return;
+    let html = "";
+    if (j.twitter) html += `<a href="https://x.com/${j.twitter.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow</a>`;
+    if (j.email) html += `<a href="mailto:${j.email}" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>Email</a>`;
+    if (html) el.innerHTML = html; else el.style.display = "none";
+  } catch {}
+})();
+
 // Footer links
 document.querySelectorAll(".footer-links a").forEach(a => a.addEventListener("click", () => activateTab(a.dataset.goto)));
 
