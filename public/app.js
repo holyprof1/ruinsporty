@@ -238,10 +238,31 @@ function runOptimize() {
     if (target > 0) {
       let kept = filtered.filter(s => !s.removed);
       let totalOdds = kept.reduce((a, s) => a * s.odds, 1);
-      // Remove highest-odds non-banker games until within target
       while (totalOdds > target * 1.15 && kept.length > 3) {
-        const worst = kept.filter(s => !bankers.has(s.eventId)).sort((a, b) => b.odds - a.odds)[0];
-        if (!worst) break;
+        const removable = kept.filter(s => !bankers.has(s.eventId)).sort((a, b) => b.odds - a.odds);
+        if (!removable.length) break;
+        const worst = removable[0];
+        const newOdds = totalOdds / worst.odds;
+        if (newOdds < target * 0.5 && kept.length <= 5) break;
+        const idx = filtered.findIndex(f => f.eventId === worst.eventId);
+        if (idx !== -1) filtered[idx] = { ...filtered[idx], removed: true };
+        kept = filtered.filter(s => !s.removed);
+        totalOdds = kept.reduce((a, s) => a * s.odds, 1);
+      }
+    }
+  }
+
+  if (oddsMode === "range") {
+    const lo = parseInt($("minOdds")?.value) || 0;
+    const hi = parseInt($("maxOdds")?.value) || 999999;
+    if (lo > 0 || hi < 999999) {
+      let kept = filtered.filter(s => !s.removed);
+      let totalOdds = kept.reduce((a, s) => a * s.odds, 1);
+      while (totalOdds > hi && kept.length > 3) {
+        const removable = kept.filter(s => !bankers.has(s.eventId)).sort((a, b) => b.odds - a.odds);
+        if (!removable.length) break;
+        const worst = removable[0];
+        if (totalOdds / worst.odds < lo * 0.5 && kept.length <= 5) break;
         const idx = filtered.findIndex(f => f.eventId === worst.eventId);
         if (idx !== -1) filtered[idx] = { ...filtered[idx], removed: true };
         kept = filtered.filter(s => !s.removed);
@@ -840,7 +861,7 @@ async function genOneCode(sels) {
 
 $("generateBtn").addEventListener("click", async () => {
   const kept = filtered.filter(s=>!s.removed && !excluded.has(s.eventId)); if (!kept.length) return;
-  $("generateBtn").disabled = true; $("generateBtn").textContent = "Generating 5 codes...";
+  $("generateBtn").disabled = true; $("generateBtn").textContent = "Generating codes...";
   $("generateResult").classList.add("hidden"); $("codeCard").classList.add("hidden"); $("tripleCards").classList.add("hidden");
 
   const variants = {
@@ -1939,17 +1960,27 @@ window.shareSlipPilot = function(code) {
 
 // Load social links dynamically
 (async function() {
-  try {
-    const r = await fetch("/api/social-links");
-    const j = await r.json();
-    const el = $("socialLinks");
-    if (!el) return;
-    let html = "";
-    if (j.twitter) html += `<a href="https://x.com/${j.twitter.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow</a>`;
-    if (j.email) html += `<a href="mailto:${j.email}" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>Email</a>`;
-    if (html) el.innerHTML = html; else el.style.display = "none";
-  } catch {}
+  const el = $("socialLinks");
+  if (!el) return;
+  let j = { twitter: "slippilot", email: "support@slippilot.com.ng" };
+  try { const r = await fetch("/api/social-links"); if (r.ok) j = await r.json(); } catch {}
+  let html = "";
+  if (j.twitter) html += `<a href="https://x.com/${j.twitter.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Follow</a>`;
+  if (j.email) html += `<a href="mailto:${j.email}" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:100px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>Email</a>`;
+  el.innerHTML = html;
 })();
+
+// Secret admin access: tap "Contact Us" header 5 times fast
+let secretTaps = 0, secretTimer = null;
+document.addEventListener("click", function(e) {
+  const header = e.target.closest(".modal-header h3");
+  if (header && header.textContent === "Contact Us") {
+    secretTaps++;
+    clearTimeout(secretTimer);
+    secretTimer = setTimeout(() => secretTaps = 0, 2000);
+    if (secretTaps >= 5) { secretTaps = 0; window.location = "/admin"; }
+  }
+});
 
 // Footer links
 document.querySelectorAll(".footer-links a").forEach(a => a.addEventListener("click", () => activateTab(a.dataset.goto)));
