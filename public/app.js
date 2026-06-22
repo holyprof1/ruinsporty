@@ -320,7 +320,7 @@ function renderGenResult(elId, json, kept) {
   const el = $(elId); el.classList.remove("hidden");
   if (json.success && json.shareCode) {
     const odds = kept.reduce((a,s) => a*s.odds, 1);
-    el.innerHTML = `<div class="gen-success"><div class="gen-label">New Booking Code</div><div class="gen-code-row"><span class="gen-code mono">${esc(json.shareCode)}</span><button class="btn btn-ghost btn-copy" onclick="copyToClipboard(${jsArg(json.shareCode)},this)">Copy</button></div><div class="gen-details"><span>${kept.length} selections</span><span>Odds: ${odds.toFixed(2)}</span></div></div>`;
+    el.innerHTML = `<div class="gen-success"><div class="gen-label">New Booking Code</div><div class="gen-code-row"><span class="gen-code mono">${esc(json.shareCode)}</span><button class="btn btn-ghost btn-copy" onclick="copyToClipboard(${jsArg(json.shareCode)},this)">Copy</button><button class="btn btn-ghost btn-copy" onclick="shareSlipPilot(${jsArg(json.shareCode)})" style="border-color:rgba(33,150,243,.3);color:#2196f3">Share</button></div><div class="gen-details"><span>${kept.length} selections</span><span>Odds: ${odds.toFixed(2)}</span></div></div>`;
     showToast("Code: " + json.shareCode, "success");
   } else {
     el.innerHTML = `<div class="gen-error"><div class="gen-label">Failed</div><div class="gen-error-msg">${esc(json.error||"Unknown")}</div><details class="gen-debug"><summary>Debug</summary><pre>${esc(JSON.stringify(json,null,2))}</pre></details></div>`;
@@ -1905,6 +1905,35 @@ if (!isStandalone) {
   if (gate) gate.classList.remove("hidden");
 }
 
+// Install PWA from support modal
+window.installPWA = function() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else if (isIOS) {
+    showToast("Tap Share > Add to Home Screen", "info");
+  } else {
+    showInstallSheet();
+  }
+};
+
+// Hide install button inside PWA
+if (isStandalone) {
+  const ip = $("installPrompt");
+  if (ip) ip.style.display = "none";
+}
+
+// Share SlipPilot link
+window.shareSlipPilot = function(code) {
+  const url = code ? "https://slippilot.com.ng/#optimizer?code=" + encodeURIComponent(code) : "https://slippilot.com.ng";
+  if (navigator.share) {
+    navigator.share({ title: "SlipPilot", text: code ? "Check this slip on SlipPilot" : "Optimize your SportyBet slips free", url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url);
+    showToast("Link copied!", "success");
+  }
+};
+
 // Footer links
 document.querySelectorAll(".footer-links a").forEach(a => a.addEventListener("click", () => activateTab(a.dataset.goto)));
 
@@ -2382,3 +2411,16 @@ window.copyAllPermCodes = function() {
   const codes = Array.from(document.querySelectorAll(".perm-code")).map(el => el.textContent).filter(Boolean);
   if (codes.length) copyToClipboard(codes.join("\n"));
 };
+
+// Shared link handler: /#optimizer?code=XXXX
+(function() {
+  const hash = location.hash || "";
+  const m = hash.match(/code=([A-Z0-9]+)/i);
+  if (m && m[1]) {
+    setTimeout(() => {
+      activateTab("optimizer");
+      const input = $("bookingCode");
+      if (input) { input.value = m[1].toUpperCase(); loadSlip(); }
+    }, 500);
+  }
+})();

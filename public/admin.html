@@ -295,12 +295,37 @@ function toggleLBOrder() {
 
 async function loadLB() {
   const search = (document.getElementById('lbSearch')?.value || '').trim();
-  const url = `/api/leaderboard?sort=${lbSort}&order=${lbOrder}${search ? '&search=' + encodeURIComponent(search) : ''}`;
+  let list = [];
+
+  // Try new endpoint first
   try {
-    const r = await fetch(url);
-    const j = await r.json();
-    renderLB(j.leaderboard || []);
-  } catch { renderLB([]); }
+    const r = await fetch(`/api/leaderboard?sort=${lbSort}&order=${lbOrder}${search ? '&search=' + encodeURIComponent(search) : ''}`);
+    if (r.ok) { const j = await r.json(); list = j.leaderboard || []; }
+  } catch {}
+
+  // Fallback: build from punter-profiles (works on old server)
+  if (!list.length) {
+    try {
+      const r = await fetch('/api/punter-profiles', {headers:{'x-admin-password':adminPw}});
+      if (r.ok) {
+        const p = await r.json();
+        list = Object.values(p).map(v => ({
+          punter: v.name, handle: v.handle||'', trustScore: v.trustScore||0,
+          won: v.won||0, lost: v.lost||0, hitRate: v.hitRate||0,
+          consistency: v.consistency||0, codes: v.codes||[],
+          daysActive: (v.codes||[]).length, totalGames: v.totalGames||0,
+          consensusRate: 0, conversionRate: 0, riskProfile: 'medium', badges: [],
+        }));
+        const q = (search||'').toLowerCase();
+        if (q) list = list.filter(p => p.punter.toLowerCase().includes(q) || (p.handle||'').toLowerCase().includes(q));
+        const dir = lbOrder === 'asc' ? 1 : -1;
+        const sortKey = {trust:'trustScore',hitRate:'hitRate',wins:'won',totalBets:'totalGames',active:'daysActive',consensus:'consensusRate'}[lbSort] || 'trustScore';
+        list.sort((a,b) => ((b[sortKey]||0) - (a[sortKey]||0)) * dir);
+      }
+    } catch {}
+  }
+
+  renderLB(list);
 }
 
 function renderLB(list) {
