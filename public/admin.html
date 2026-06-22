@@ -460,10 +460,7 @@ function toggleLBCard(id) {
   if (!card) return;
   const section = card.querySelector('.code-section');
   if (!section) return;
-  const isOpen = section.style.display !== 'none';
-  // Close all others first
-  document.querySelectorAll('#lbCards .code-section').forEach(s => s.style.display = 'none');
-  section.style.display = isOpen ? 'none' : 'block';
+  section.style.display = section.style.display === 'none' ? 'block' : 'none';
 }
 
 async function rescanAll(btn) {
@@ -655,22 +652,30 @@ async function loadVisitors() {
 async function scanCodeInline(btn, code) {
   btn.disabled = true; btn.textContent = '...';
   try {
+    let j;
     const r = await fetch('/api/admin/scan-code', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code})});
-    if (!r.ok) {
-      // Fallback to read-only scan if endpoint missing
+    if (r.ok) { j = await r.json(); }
+    else {
       const r2 = await fetch('/api/scan/' + encodeURIComponent(code));
-      const j = await r2.json();
-      btn.textContent = j.won + 'W/' + j.lost + 'L/' + j.pending + 'P';
-      btn.style.color = j.lost === 0 ? '#00c853' : '#ffb300';
-      btn.disabled = false;
-      return;
+      j = await r2.json();
     }
-    const j = await r.json();
     if (j.error) { btn.textContent = 'Err'; btn.style.color = '#e53935'; btn.disabled = false; return; }
-    btn.textContent = j.won + 'W/' + j.lost + 'L/' + j.pending + 'P';
-    btn.style.color = j.lost === 0 && j.pending === 0 ? '#00c853' : '#ffb300';
+    // Update the numbers in THIS row without reloading the whole leaderboard
+    const row = btn.closest('div[style*="grid"]');
+    if (row) {
+      const spans = row.querySelectorAll('span');
+      // spans: code, date, games, won, lost, pending, hr, buttons
+      if (spans.length >= 7) {
+        spans[2].textContent = j.total || spans[2].textContent;
+        spans[3].textContent = j.won || 0;
+        spans[4].textContent = j.lost || 0;
+        spans[5].textContent = j.pending || 0;
+        spans[6].textContent = (j.hitRate || 0) + '%';
+        spans[6].style.color = (j.hitRate||0) >= 75 ? '#00c853' : (j.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
+      }
+    }
+    btn.textContent = 'Scan';
     btn.disabled = false;
-    loadLB();
   } catch(e) { btn.textContent = 'Err'; btn.style.color = '#e53935'; btn.disabled = false; }
 }
 
