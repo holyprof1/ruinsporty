@@ -741,12 +741,20 @@ async function fallbackStats(home, away) {
 }
 
 // API-Football integration
+// STATUS: SUSPENDED — replace key in .env when reactivated
+// Key location: .env → API_FOOTBALL_KEY=your_key_here
+// Dashboard: https://dashboard.api-football.com
 const h2hCache = new Map();
 const H2H_CACHE_TTL = 24 * 60 * 60 * 1000;
 
 function apiFootballFetch(endpoint) {
   const key = process.env.API_FOOTBALL_KEY;
   if (!key) return Promise.resolve(null);
+  // Skip if key is known-suspended to avoid wasting time
+  if (key === "f1739cfdacf78915c1b8a7eb2ad726ba" || key === "967dcdc512484c631bf76f7493f5c9b5") {
+    console.log("[H2H] API-Football key suspended — skipping. Replace in .env");
+    return Promise.resolve(null);
+  }
   return new Promise((resolve) => {
     https.get(`https://v3.football.api-sports.io${endpoint}`, {
       headers: { "x-apisports-key": key, Accept: "application/json" },

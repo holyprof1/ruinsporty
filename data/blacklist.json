@@ -1,0 +1,34 @@
+{
+  "matches": [
+    { "home": "Argentina", "away": "Austria", "reason": "94L/6W — exotic markets failed", "losses": 94 },
+    { "home": "Deportivo Binacional FC", "away": "Cusco FC", "reason": "80L/0W", "losses": 80 },
+    { "home": "Welwalo Adigrat", "away": "Hadiya Hossana FC", "reason": "77L/1W", "losses": 77 },
+    { "home": "IK Oddevold", "away": "Ljungskile SK", "reason": "76L/0W", "losses": 76 },
+    { "home": "FC Torpedo Kutaisi", "away": "FC Spaeri", "reason": "71L/0W", "losses": 71 },
+    { "home": "FC Dila Gori", "away": "FC Rustavi", "reason": "70L/2W", "losses": 70 },
+    { "home": "Kjøbenhavns Boldklub U21", "away": "Snekkersten IF U21", "reason": "65L/0W", "losses": 65 },
+    { "home": "Belgium", "away": "IR Iran", "reason": "8L/0W", "losses": 8 }
+  ],
+  "dangerousLeagues": [
+    { "league": "World Cup", "rule": "require 3+ consecutive wins before including", "historicalHR": 25 },
+    { "league": "Copa de la Liga", "rule": "require 3+ consecutive wins before including", "historicalHR": 8 },
+    { "league": "Erovnuli Liga", "rule": "require 3+ consecutive wins before including", "historicalHR": 3 },
+    { "league": "U21", "rule": "require 3+ consecutive wins before including", "historicalHR": 0 }
+  ],
+  "blockedMarkets": [
+    "Both Halves Over 1.5",
+    "1st Half - Over/Under",
+    "Correct Score",
+    "Halftime/Fulltime",
+    "First Goalscorer",
+    "Last Goalscorer",
+    "2nd Half - Argentina Over/Under",
+    "2nd Half - France Over/Under",
+    "Excluded Number of Goals - Away",
+    "Excluded Number of Goals - Home"
+  ],
+  "blockedMarketPatterns": [
+    "2nd Half -.*Over/Under"
+  ],
+  "updatedAt": "2026-06-23"
+}

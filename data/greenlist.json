@@ -1,0 +1,50 @@
+{
+  "leagues": [
+    { "league": "Premier Division", "country": "Ireland", "hr": 99, "samples": 148, "priority": 1 },
+    { "league": "Tercera Division, Reserves", "country": "Uruguay", "hr": 99, "samples": 449, "priority": 1 },
+    { "league": "II Lyga", "country": "Lithuania", "hr": 99, "samples": 79, "priority": 1 },
+    { "league": "Latvijas Kauss", "country": "Latvia", "hr": 99, "samples": 78, "priority": 1 },
+    { "league": "3. Division, Group 3", "country": "Norway", "hr": 98, "samples": 146, "priority": 1 },
+    { "league": "3. Division, Group 4", "country": "Norway", "hr": 97, "samples": 159, "priority": 1 },
+    { "league": "3. Division, Group 2", "country": "Norway", "hr": 94, "samples": 79, "priority": 1 },
+    { "league": "3. Division, Group 1", "country": "Norway", "hr": 100, "samples": 7, "priority": 2 },
+    { "league": "3. Division, Group 5", "country": "Norway", "hr": 91, "samples": 11, "priority": 2 },
+    { "league": "3. Division, Group 6", "country": "Norway", "hr": 93, "samples": 15, "priority": 2 },
+    { "league": "Svenska Cup", "country": "Sweden", "hr": 97, "samples": 137, "priority": 1 },
+    { "league": "Esiliiga", "country": "Estonia", "hr": 96, "samples": 84, "priority": 1 },
+    { "league": "Esiliiga B", "country": "Estonia", "hr": 86, "samples": 21, "priority": 2 },
+    { "league": "Besta deild", "country": "Iceland", "hr": 96, "samples": 89, "priority": 1 },
+    { "league": "Virsliga", "country": "Latvia", "hr": 95, "samples": 88, "priority": 1 },
+    { "league": "Erovnuli Liga 2", "country": "Georgia", "hr": 98, "samples": 55, "priority": 1 },
+    { "league": "Division 2", "country": "Sweden", "hr": 93, "samples": 285, "priority": 1 },
+    { "league": "Superettan", "country": "Sweden", "hr": 66, "samples": 248, "priority": 3 }
+  ],
+  "markets": [
+    { "market": "2nd Half - Multigoals", "hr": 96, "samples": 156, "priority": 1 },
+    { "market": "Both Halves Under 1.5", "hr": 94, "samples": 298, "priority": 1 },
+    { "market": "Over/Under", "hr": 92, "samples": 1116, "priority": 1 },
+    { "market": "Home Team to Win to Nil", "hr": 99, "samples": 76, "priority": 1 },
+    { "market": "1X2", "hr": 86, "samples": 97, "priority": 2 },
+    { "market": "Over/Under - Early Goals", "hr": 79, "samples": 389, "priority": 2 },
+    { "market": "GG/NG", "hr": 71, "samples": 38, "priority": 3 },
+    { "market": "Draw No Bet", "hr": 74, "samples": 19, "priority": 3 },
+    { "market": "Double Chance", "hr": 59, "samples": 254, "priority": 3, "note": "Only 59% — use Over/Under instead when possible" }
+  ],
+  "punters": [
+    { "punter": "Ayo Jordan", "hr": 75, "total": 173, "avgOdds": 1.299, "priority": 1, "bestTime": "evening", "bestMarkets": ["Over/Under", "Double Chance"] },
+    { "punter": "9Z", "hr": 73, "total": 175, "avgOdds": 1.339, "priority": 1, "bestTime": "early", "bestMarkets": ["Over/Under", "Goal Bounds", "GG/NG"] },
+    { "punter": "39 Billion", "hr": 74, "total": 312, "avgOdds": 1.372, "priority": 1, "bestTime": "early", "bestMarkets": ["1X2", "Draw No Bet", "Over/Under"] },
+    { "punter": "Comrade", "hr": 74, "total": 38, "avgOdds": 1.365, "priority": 1, "bestTime": "afternoon", "bestMarkets": ["Over/Under", "Both Halves Under 1.5", "2nd Half Multigoals"] }
+  ],
+  "oddsRange": {
+    "optimal": { "min": 1.15, "max": 1.35, "hr": "84-91%" },
+    "acceptable": { "min": 1.10, "max": 1.45, "hr": "67-91%" },
+    "avoid": { "min": 1.50, "max": 999, "hr": "under 58%" }
+  },
+  "timeWindows": {
+    "best": ["4-6pm", "6-8pm"],
+    "good": ["12-2pm"],
+    "avoid": ["2-4pm"]
+  },
+  "updatedAt": "2026-06-23"
+}
