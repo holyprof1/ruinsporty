@@ -1,0 +1,678 @@
+══════════════════════════════════════════════════════════════════════
+  SLIPPILOT — DAILY REPORT — June 22, 2026
+  Generated: 2026-06-22T10:53:10.432Z
+══════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────┐
+│              PUNTER LEADERBOARD                  │
+└─────────────────────────────────────────────────┘
+
+  #1 Mr Lantern
+     Selections: 127 total, 42 future football
+     Avg odds: 1.356 | Aggressiveness: 7.9% | Consistency: 92.7
+     Top markets: Over/Under (37), Over/Under - Early Goals (28), 1X2 (13), 1st Half - Over/Under (10), Double Chance (9)
+     Top leagues: Premier League (10), World Cup (7), Tercera Division, Reserves (6), Besta deild (6), Primera B (6)
+     Overlap: Top Boy (30), King Eric (2), 39 Billion (29), 9Z (28)
+
+  #2 9Z
+     Selections: 40 total, 38 future football
+     Avg odds: 1.364 | Aggressiveness: 10% | Consistency: 92.3
+     Top markets: Over/Under (12), Over/Under - Early Goals (5), GG/NG (5), Both Halves Under 1.5 (4), 1X2 (3)
+     Top leagues: Esiliiga B (4), Premier League (4), Tercera Division, Reserves (4), Superettan (2), Svenska Cup (2)
+     Overlap: Top Boy (26), King Eric (1), Mr Lantern (28), 39 Billion (24)
+
+  #3 Top Boy
+     Selections: 42 total, 38 future football
+     Avg odds: 1.367 | Aggressiveness: 9.5% | Consistency: 91.6
+     Top markets: Over/Under (8), Double Chance (8), Both Halves Under 1.5 (7), 2nd Half - Multigoals (6), 1X2 (4)
+     Top leagues: Premier League (6), Tercera Division, Reserves (6), Superettan (3), Division 2 (3), MLB (3)
+     Overlap: King Eric (1), Mr Lantern (30), 39 Billion (22), 9Z (26)
+
+  #4 39 Billion
+     Selections: 39 total, 33 future football
+     Avg odds: 1.422 | Aggressiveness: 12.8% | Consistency: 84.9
+     Top markets: Over/Under (13), 2nd Half - Double Chance (7), Double Chance (6), Draw No Bet (3), Both Halves Under 1.5 (2)
+     Top leagues: Esiliiga B (3), Division 2 (3), Superettan (3), Tercera Division, Reserves (3), World Cup (2)
+     Overlap: Top Boy (22), King Eric (2), Mr Lantern (29), 9Z (24)
+
+  #5 King Eric
+     Selections: 46 total, 6 future football
+     Avg odds: 1.424 | Aggressiveness: 10.9% | Consistency: 88.7
+     Top markets: Winner (20), Total games 20.5 (7), Total games 19.5 (6), 1X2 - 2UP (3), Total games 21.5 (2)
+     Top leagues: Wimbledon Men Singles (13), WTA Bad Homburg, Germany Women Singles (9), ATP Eastbourne, Great Britain Men Singles (9), ATP Mallorca, Spain Men Singles (8), World Cup (6)
+     Overlap: Top Boy (1), Mr Lantern (2), 39 Billion (2), 9Z (1)
+
+┌─────────────────────────────────────────────────┐
+│              CONSENSUS PICKS                     │
+└─────────────────────────────────────────────────┘
+
+  ★ [5p] [safety 100] Argentina vs Austria
+     World Cup | 2026-06-22T17:00:00.000Z
+     Best pick: 1X2 → Home @1.49
+     Punters: Top Boy, King Eric, Mr Lantern, 39 Billion, 9Z
+       Top Boy: 1X2 → Home @1.49
+       King Eric: 1X2 & Over/Under 2.5 → Home & Over 2.5 @2.25
+       Mr Lantern: 1X2 → Home @1.49
+       39 Billion: Over/Under → Over 2 @1.46
+       9Z: Home Team to Win Either Half → Yes @1.26
+
+  ★ [4p] [safety 100] FK Rigas Futbola Skola vs Ogre United
+     Virsliga | 2026-06-22T15:00:00.000Z
+     Best pick: Over/Under - Early Goals → Over 2.5 @1.21
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: 2nd Half - Multigoals → 1-3 @1.3
+       Mr Lantern: Over/Under - Early Goals → Over 2.5 @1.21
+       39 Billion: Over/Under → Over 2.5 @1.23
+       9Z: Over/Under - Early Goals → Over 2.5 @1.21
+
+  ★ [4p] [safety 100] Aalesund 2 vs Ranheim 2
+     3. Division, Group 2 | 2026-06-22T15:00:00.000Z
+     Best pick: Ranheim 2 Over/Under → Over 1.5 @1.46
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: Ranheim 2 Over/Under → Over 1.5 @1.46
+       Mr Lantern: Double Chance → Home or Away @1.23
+       39 Billion: 2nd Half - Double Chance → Home or Away @1.29
+       9Z: Over/Under → Over 3.5 @1.45
+
+  ★ [4p] [safety 100] Odds BK 2 vs Flekkeroy IL
+     3. Division, Group 4 | 2026-06-22T15:00:00.000Z
+     Best pick: Over/Under → Over 2.5 @1.29
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: Over/Under → Over 2.5 @1.29
+       Mr Lantern: 1X2 → Away @1.64
+       39 Billion: Over/Under → Over 2.5 @1.29
+       9Z: 1X2 → Away @1.64
+
+  ★ [4p] [safety 100] Fana IL vs Sogndal 2
+     3. Division, Group 3 | 2026-06-22T16:00:00.000Z
+     Best pick: Over/Under → Over 2.5 @1.26
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: Sogndal 2 Over/Under → Over 1.5 @1.52
+       Mr Lantern: Over/Under → Over 2.5 @1.26
+       39 Billion: Over/Under → Over 2.5 @1.26
+       9Z: Over/Under → Over 2.5 @1.26
+
+  ★ [4p] [safety 100] Al-Salmiya SC vs Al-Fahaheel
+     Premier League | 2026-06-22T16:05:00.000Z
+     Best pick: Over/Under → Over 1.5 @1.23
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: Over/Under → Over 1.5 @1.23
+       Mr Lantern: Over/Under - Early Goals → Over 1.5 @1.2
+       39 Billion: Over/Under → Over 2.5 @1.74
+       9Z: Both Halves Under 1.5 → No @1.44
+     ⚠ CONTRADICTION on Over/Under: Top Boy=Over 1.5 vs 39 Billion=Over 2.5
+
+  ★ [4p] [safety 100] Varbergs BoIS vs Landskrona BoIS
+     Superettan | 2026-06-22T17:00:00.000Z
+     Best pick: 2nd Half - Multigoals → 1-3 @1.28
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: 2nd Half - Multigoals → 1-3 @1.28
+       Mr Lantern: Over/Under - Early Goals → Over 1.5 @1.23
+       39 Billion: Over/Under → Over 3 @2.4
+       9Z: Over/Under → Over 2 @1.39
+     ⚠ CONTRADICTION on Over/Under: 39 Billion=Over 3 vs 9Z=Over 2
+
+  ★ [4p] [safety 100] Landvetter IS vs Dalstorps IF
+     Svenska Cup | 2026-06-22T17:00:00.000Z
+     Best pick: 2nd Half - Multigoals → 1-3 @1.27
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: 2nd Half - Multigoals → 1-3 @1.27
+       Mr Lantern: Over/Under - Early Goals → Over 1.5 @1.22
+       39 Billion: Double Chance → Home or Away @1.29
+       9Z: GG/NG → Yes @1.61
+
+  ★ [4p] [safety 100] Rappe GOIF vs Hassleholms IF
+     Svenska Cup | 2026-06-22T17:00:00.000Z
+     Best pick: 2nd Half - Multigoals → 1-3 @1.26
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: 2nd Half - Multigoals → 1-3 @1.26
+       Mr Lantern: 1X2 → Away @1.3
+       39 Billion: Asian Handicap 1 → Away (-1.0) @1.44
+       9Z: Over/Under - Early Goals → Over 2.5 @1.38
+
+  ★ [4p] [safety 100] FK Smiltene/Bjss vs Valmiera FC
+     Latvijas Kauss | 2026-06-22T17:00:00.000Z
+     Best pick: Over/Under → Over 2.5 @1.26
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: Over/Under → Over 2.5 @1.26
+       Mr Lantern: Over/Under → Over 2.5 @1.26
+       39 Billion: Over/Under → Over 2.5 @1.26
+       9Z: Over/Under → Over 2.5 @1.26
+
+  ★ [4p] [safety 100] Liverpool Montevideo vs CA River Plate (URU)
+     Tercera Division, Reserves | 2026-06-22T18:00:00.000Z
+     Best pick: Draw No Bet → Home @1.29
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: Double Chance → Home or Away @1.24
+       Mr Lantern: Over/Under → Over 1.5 @1.23
+       39 Billion: Draw No Bet → Home @1.29
+       9Z: Draw No Bet → Home @1.29
+
+  ★ [4p] [safety 93] KR Reykjavik vs IA Akranes
+     Besta deild | 2026-06-22T19:15:00.000Z
+     Best pick: Over/Under → Over 3 @1.38
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: Over/Under → Over 3 @1.38
+       Mr Lantern: Over/Under - Early Goals → Over 2.5 @1.26
+       39 Billion: Double Chance & Over/Under 2.5 → Home/Away & Over 2.5 @1.4
+       9Z: Over/Under → Over 3 @1.38
+
+  ★ [4p] [safety 77] IK Oddevold vs Ljungskile SK
+     Superettan | 2026-06-22T17:00:00.000Z
+     Best pick: 1X2 → Home @2
+     Punters: Top Boy, Mr Lantern, 39 Billion, 9Z
+       Top Boy: 1X2 → Home @2
+       Mr Lantern: Over/Under → Under 3.5 @1.43
+       39 Billion: Home Team or Over 2.5 → Yes @1.32
+       9Z: Asian Handicap 0 → Home (0) @1.47
+
+  ★ [3p] [safety 95] Wolaita Dicha SC vs Ethio Electric
+     Premier League | 2026-06-22T12:00:00.000Z
+     Best pick: Draw No Bet → Home @1.54
+     Punters: Top Boy, 39 Billion, 9Z
+       Top Boy: Both Halves Under 1.5 → Yes @1.6
+       39 Billion: Draw No Bet → Home @1.54
+       9Z: Draw No Bet → Home @1.54
+
+  ★ [3p] [safety 100] FC Dila Gori vs FC Rustavi
+     Erovnuli Liga | 2026-06-22T15:00:00.000Z
+     Best pick: Double Chance → Home or Away @1.32
+     Punters: Top Boy, Mr Lantern, 9Z
+       Top Boy: Double Chance → Home or Away @1.32
+       Mr Lantern: Goal Bounds - Away → 1-3+ @1.4
+       9Z: Over/Under - Early Goals → Over 1.5 @1.33
+
+  ★ [3p] [safety 99] Boston River vs Club Oriental de Football
+     Tercera Division, Reserves | 2026-06-22T16:00:00.000Z
+     Best pick: Double Chance → Home or Away @1.25
+     Punters: Top Boy, Mr Lantern, 39 Billion
+       Top Boy: Double Chance → Home or Away @1.25
+       Mr Lantern: Over/Under → Over 1.5 @1.27
+       39 Billion: Double Chance → Home or Away @1.25
+
+  ★ [3p] [safety 87] Foerde vs Aasane Fotball 2
+     3. Division, Group 3 | 2026-06-22T16:00:00.000Z
+     Best pick: Over/Under → Over 2.5 @1.33
+     Punters: Top Boy, Mr Lantern, 39 Billion
+       Top Boy: Over/Under → Over 2.5 @1.33
+       Mr Lantern: Double Chance → Home or Away @1.24
+       39 Billion: 2nd Half - Double Chance → Home or Away @1.33
+
+  ★ [3p] [safety 90] FK Haugesund 2 vs Madla
+     3. Division, Group 4 | 2026-06-22T16:00:00.000Z
+     Best pick: Over/Under → Over 2.5 @1.23
+     Punters: Top Boy, Mr Lantern, 39 Billion
+       Top Boy: Over/Under → Over 2.5 @1.23
+       Mr Lantern: Over/Under → Over 2.5 @1.23
+       39 Billion: 2nd Half - Double Chance → Home or Away @1.29
+
+  ★ [3p] [safety 94] FC Torpedo Kutaisi vs FC Spaeri
+     Erovnuli Liga | 2026-06-22T17:00:00.000Z
+     Best pick: 2nd Half - Double Chance → Home or Away @1.37
+     Punters: Top Boy, Mr Lantern, 9Z
+       Top Boy: 2nd Half - Double Chance → Home or Away @1.37
+       Mr Lantern: Over/Under - Early Goals → Over 1.5 @1.19
+       9Z: Over/Under → Over 1.5 @1.22
+
+  ★ [3p] [safety 88] Bodens BK vs IFK Luleaa
+     Division 2 | 2026-06-22T17:00:00.000Z
+     Best pick: Both Halves Under 1.5 → No @1.32
+     Punters: Top Boy, 39 Billion, 9Z
+       Top Boy: Both Halves Under 1.5 → No @1.32
+       39 Billion: Both Halves Under 1.5 → No @1.32
+       9Z: GG/NG → Yes @1.47
+
+  ★ [3p] [safety 100] Orebro SK vs Sandvikens IF
+     Superettan | 2026-06-22T17:05:00.000Z
+     Best pick: Double Chance → Home or Away @1.3
+     Punters: Top Boy, Mr Lantern, 39 Billion
+       Top Boy: 2nd Half - Multigoals → 1-3 @1.27
+       Mr Lantern: Double Chance → Home or Away @1.3
+       39 Billion: Double Chance → Home or Away @1.3
+
+  ★ [3p] [safety 86] IK Sleipner vs Nykopings BIS
+     Division 2 | 2026-06-22T17:30:00.000Z
+     Best pick: Both Halves Under 1.5 → No @1.34
+     Punters: Top Boy, Mr Lantern, 39 Billion
+       Top Boy: Both Halves Under 1.5 → No @1.34
+       Mr Lantern: Over/Under → Over 2.5 @1.58
+       39 Billion: Double Chance → Home or Away @1.28
+
+  ★ [3p] [safety 100] Kuwait SC vs Al Arabi
+     Premier League | 2026-06-22T17:45:00.000Z
+     Best pick: Over/Under - Early Goals → Over 1.5 @1.22
+     Punters: Top Boy, Mr Lantern, 9Z
+       Top Boy: Any Team To Score 3 or More Goals in a Row → No @1.24
+       Mr Lantern: Over/Under - Early Goals → Over 1.5 @1.22
+       9Z: Over/Under - Early Goals → Over 1.5 @1.22
+
+  ★ [3p] [safety 96] Montevideo Wanderers vs Penarol Montevideo
+     Tercera Division, Reserves | 2026-06-22T18:00:00.000Z
+     Best pick: Over/Under → Over 1.5 @1.24
+     Punters: Top Boy, Mr Lantern, 9Z
+       Top Boy: Double Chance → Home or Draw @1.33
+       Mr Lantern: Over/Under → Over 1.5 @1.24
+       9Z: Over/Under → Over 1.5 @1.24
+
+  ★ [3p] [safety 74] Deportivo Binacional FC vs Cusco FC
+     Copa de la Liga | 2026-06-22T18:00:00.000Z
+     Best pick: 1X2 → Away @1.43
+     Punters: Top Boy, Mr Lantern, 9Z
+       Top Boy: Both Halves Over 1.5 → No @1.17
+       Mr Lantern: 1X2 → Away @1.43
+       9Z: 1X2 → Away @1.43
+
+  ★ [3p] [safety 95] Shelbourne FC vs Bohemians Dublin FC
+     Premier Division | 2026-06-22T18:45:00.000Z
+     Best pick: 2nd Half - Multigoals → 1-3 @1.3
+     Punters: Top Boy, Mr Lantern, 9Z
+       Top Boy: 2nd Half - Multigoals → 1-3 @1.3
+       Mr Lantern: Over/Under - Early Goals → Over 1.5 @1.31
+       9Z: Over/Under → Over 2 @1.57
+
+  ★ [3p] [safety 100] Qadsia SC vs Kazma SC
+     Premier League | 2026-06-22T18:45:00.000Z
+     Best pick: Over/Under → Over 1.5 @1.27
+     Punters: Top Boy, Mr Lantern, 9Z
+       Top Boy: Over/Under → Over 1.5 @1.27
+       Mr Lantern: 1X2 - 1UP → Home @1.32
+       9Z: Over/Under - Early Goals → Over 1.5 @1.24
+
+  ★ [3p] [safety 72] France vs Iraq
+     World Cup | 2026-06-22T21:00:00.000Z
+     Best pick: Handicap 0:2 → Home (0:2) @1.74
+     Punters: King Eric, Mr Lantern, 39 Billion
+       King Eric: Handicap 0:2 → Home (0:2) @1.74
+       Mr Lantern: France Over/Under → Over 2.5 @1.49
+       39 Billion: Over/Under → Over 3 @1.48
+
+  ★ [3p] [safety 89] Viljandi JK Tulevik vs Tartu JK Tammeka U21
+     Esiliiga B | 2026-06-22T12:00:00.000Z
+     Best pick: GG/NG → Yes @1.18
+     Punters: Mr Lantern, 39 Billion, 9Z
+       Mr Lantern: GG/NG → Yes @1.18
+       39 Billion: 2nd Half - Double Chance → Home or Away @1.27
+       9Z: Goal Bounds → 4-5+ @1.42
+
+  ★ [3p] [safety 98] Defensor Sporting vs Deportivo Maldonado Reserve
+     Tercera Division, Reserves | 2026-06-22T13:00:00.000Z
+     Best pick: Over/Under → Over 1.5 @1.21
+     Punters: Mr Lantern, 39 Billion, 9Z
+       Mr Lantern: Over/Under → Over 1.5 @1.21
+       39 Billion: Over/Under → Over 1.5 @1.21
+       9Z: Over/Under → Over 1.5 @1.21
+
+  ★ [3p] [safety 90] FC Elva vs Tallinna FC Flora U21
+     Esiliiga | 2026-06-22T16:00:00.000Z
+     Best pick: Over/Under - Early Goals → Over 2.5 @1.33
+     Punters: Mr Lantern, 39 Billion, 9Z
+       Mr Lantern: Over/Under - Early Goals → Over 2.5 @1.33
+       39 Billion: Over/Under → Over 2.5 @1.36
+       9Z: Both Halves Under 1.5 → No @1.21
+
+  ★ [3p] [safety 78] Maardu Linnameeskond vs Viimsi JK
+     Esiliiga | 2026-06-22T16:00:00.000Z
+     Best pick: 1X2 - 1UP → Away @1.38
+     Punters: Mr Lantern, 39 Billion, 9Z
+       Mr Lantern: 1X2 - 1UP → Away @1.38
+       39 Billion: 2nd Half - Double Chance → Home or Away @1.35
+       9Z: GG/NG → Yes @1.47
+
+  ★ [3p] [safety 100] FCI Levadia Tallinn vs FC Phoenix Johvi
+     Esiliiga B | 2026-06-22T16:00:00.000Z
+     Best pick: Double Chance → Home or Away @1.22
+     Punters: Mr Lantern, 39 Billion, 9Z
+       Mr Lantern: Double Chance → Home or Away @1.22
+       39 Billion: 2nd Half - Double Chance → Home or Away @1.29
+       9Z: GG/NG → Yes @1.19
+
+  ★ [3p] [safety 100] Shamrock Rovers vs Derry City FC
+     Premier Division | 2026-06-22T19:00:00.000Z
+     Best pick: Over/Under - Early Goals → Over 1.5 @1.33
+     Punters: Mr Lantern, 39 Billion, 9Z
+       Mr Lantern: Over/Under - Early Goals → Over 1.5 @1.33
+       39 Billion: Draw No Bet → Home @1.34
+       9Z: Double Chance & Over/Under 1.5 → Home/Away & Over 1.5 @1.71
+
+  ★ [3p] [safety 77] AD Confianca SE vs Guarani FC SP
+     Brasileiro Serie C | 2026-06-22T22:30:00.000Z
+     Best pick: Asian Handicap -0.5 → Away (+0.5) @1.32
+     Punters: Mr Lantern, 39 Billion, 9Z
+       Mr Lantern: Asian Handicap -0.5 → Away (+0.5) @1.32
+       39 Billion: Double Chance → Home or Away @1.33
+       9Z: Guarani FC SP Over/Under → Over 0.5 @1.36
+
+  ★ [2p] [safety 55] Fasil Kenema SC vs Arba Minch Ketema
+     Premier League | 2026-06-22T12:00:00.000Z
+     Best pick: Both Halves Under 1.5 → Yes @1.59
+     Punters: Top Boy, Mr Lantern
+       Top Boy: Both Halves Under 1.5 → Yes @1.59
+       Mr Lantern: Double Chance → Home or Draw @1.31
+
+  ★ [2p] [safety 64] FC Gareji Sagarejo vs Odishi
+     Erovnuli Liga 2 | 2026-06-22T13:00:00.000Z
+     Best pick: Over/Under → Under 2.5 @1.68
+     Punters: Top Boy, Mr Lantern
+       Top Boy: Over/Under → Under 2.5 @1.68
+       Mr Lantern: 1X2 → Home @1.73
+
+  ★ [2p] [safety 53] FC Telavi vs Aragvi Dusheti
+     Erovnuli Liga 2 | 2026-06-22T16:00:00.000Z
+     Best pick: 1X2 → Home @1.66
+     Punters: Top Boy, Mr Lantern
+       Top Boy: 1X2 → Home @1.66
+       Mr Lantern: 1X2 → Home @1.66
+
+  ★ [2p] [safety 77] FK Utenis Utena vs FK Panevezys B
+     II Lyga | 2026-06-22T16:00:00.000Z
+     Best pick: Both Halves Under 1.5 → No @1.2
+     Punters: Top Boy, 9Z
+       Top Boy: Both Halves Under 1.5 → No @1.2
+       9Z: Both Halves Under 1.5 → No @1.2
+
+  ★ [2p] [safety 82] Central Espanol Reserve vs Colon FC Reserve
+     Tercera Division, Reserves | 2026-06-22T17:00:00.000Z
+     Best pick: Double Chance → Home or Away @1.31
+     Punters: Top Boy, Mr Lantern
+       Top Boy: Double Chance → Home or Away @1.31
+       Mr Lantern: Over/Under → Under 3.5 @1.3
+
+  ★ [2p] [safety 83] Juventud de Las Piedras vs Racing Club Montevideo
+     Tercera Division, Reserves | 2026-06-22T17:00:00.000Z
+     Best pick: Double Chance → Home or Away @1.28
+     Punters: Top Boy, Mr Lantern
+       Top Boy: Double Chance → Home or Away @1.28
+       Mr Lantern: Over/Under → Under 3.5 @1.32
+
+  ★ [2p] [safety 76] Syrianska FC vs Raagsveds IF
+     Division 2 | 2026-06-22T17:30:00.000Z
+     Best pick: Both Halves Under 1.5 → No @1.24
+     Punters: Top Boy, 39 Billion
+       Top Boy: Both Halves Under 1.5 → No @1.24
+       39 Billion: Over/Under → Over 2.5 @1.41
+
+  ★ [2p] [safety 61] Kjøbenhavns Boldklub U21 vs Snekkersten IF U21
+     U21 | 2026-06-22T17:45:00.000Z
+     Best pick: 1X2 → Away @1.27
+     Punters: Top Boy, 9Z
+       Top Boy: 1X2 → Away @1.27
+       9Z: 1X2 → Away @1.27
+
+  ★ [2p] [safety 84] Progreso vs Nacional de Montevideo
+     Tercera Division, Reserves | 2026-06-22T18:00:00.000Z
+     Best pick: Double Chance → Draw or Away @1.27
+     Punters: Top Boy, 9Z
+       Top Boy: Double Chance → Draw or Away @1.27
+       9Z: Goal Bounds - Away → 1-3+ @1.23
+
+  ★ [2p] [safety 97] Joinville EC SC vs Figueirense FC SC
+     U20 Catarinense, Serie A | 2026-06-22T18:00:00.000Z
+     Best pick: Double Chance → Home or Away @1.17
+     Punters: Top Boy, 9Z
+       Top Boy: Double Chance → Home or Away @1.17
+       9Z: Over/Under → Over 2.5 @1.47
+
+  ★ [2p] [safety 79] JK Tallinna Kalev vs JK Narva Trans
+     Esiliiga B | 2026-06-22T16:00:00.000Z
+     Best pick: Over/Under → Over 2.5 @1.23
+     Punters: Mr Lantern, 9Z
+       Mr Lantern: Over/Under → Over 2.5 @1.23
+       9Z: GG/NG → Yes @1.23
+
+  ★ [2p] [safety 78] IBV Vestmannaeyjar vs Breidablik Kopavogur W
+     Besta deild, Women | 2026-06-22T18:00:00.000Z
+     Best pick: Over/Under → Over 2.5 @1.29
+     Punters: Mr Lantern, 39 Billion
+       Mr Lantern: Over/Under → Over 2.5 @1.29
+       39 Billion: Goal Bounds - Away → 2-3+ @1.26
+
+  ★ [2p] [safety 91] Atletico Grau vs Pirata FC
+     Copa de la Liga | 2026-06-22T20:15:00.000Z
+     Best pick: Double Chance → Home or Away @1.23
+     Punters: 39 Billion, 9Z
+       39 Billion: Double Chance → Home or Away @1.23
+       9Z: Goal Bounds → 2-5+ @1.35
+
+  ★ [2p] [safety 64] Tallinna JK Legion vs Parnu JK Vaprus II
+     Esiliiga B | 2026-06-22T14:00:00.000Z
+     Best pick: Over/Under → Over 3.5 @1.39
+     Punters: 39 Billion, 9Z
+       39 Billion: Over/Under → Over 3.5 @1.39
+       9Z: Goal Bounds → 4-5+ @1.4
+
+┌─────────────────────────────────────────────────┐
+│              SAFETY RANKINGS                     │
+└─────────────────────────────────────────────────┘
+
+  Top 20 safest:
+    [100] Argentina vs Austria — 1X2 → Home @1.49 (5p)
+    [100] FK Rigas Futbola Skola vs Ogre United — Over/Under - Early Goals → Over 2.5 @1.21 (4p)
+    [100] Aalesund 2 vs Ranheim 2 — Ranheim 2 Over/Under → Over 1.5 @1.46 (4p)
+    [100] Odds BK 2 vs Flekkeroy IL — Over/Under → Over 2.5 @1.29 (4p)
+    [100] Fana IL vs Sogndal 2 — Over/Under → Over 2.5 @1.26 (4p)
+    [100] Al-Salmiya SC vs Al-Fahaheel — Over/Under → Over 1.5 @1.23 (4p)
+    [100] Varbergs BoIS vs Landskrona BoIS — 2nd Half - Multigoals → 1-3 @1.28 (4p)
+    [100] Landvetter IS vs Dalstorps IF — 2nd Half - Multigoals → 1-3 @1.27 (4p)
+    [100] Rappe GOIF vs Hassleholms IF — 2nd Half - Multigoals → 1-3 @1.26 (4p)
+    [100] FK Smiltene/Bjss vs Valmiera FC — Over/Under → Over 2.5 @1.26 (4p)
+    [100] Liverpool Montevideo vs CA River Plate (URU) — Draw No Bet → Home @1.29 (4p)
+    [100] FC Dila Gori vs FC Rustavi — Double Chance → Home or Away @1.32 (3p)
+    [100] Orebro SK vs Sandvikens IF — Double Chance → Home or Away @1.3 (3p)
+    [100] Kuwait SC vs Al Arabi — Over/Under - Early Goals → Over 1.5 @1.22 (3p)
+    [100] Qadsia SC vs Kazma SC — Over/Under → Over 1.5 @1.27 (3p)
+    [100] FCI Levadia Tallinn vs FC Phoenix Johvi — Double Chance → Home or Away @1.22 (3p)
+    [100] Shamrock Rovers vs Derry City FC — Over/Under - Early Goals → Over 1.5 @1.33 (3p)
+    [99] Boston River vs Club Oriental de Football — Double Chance → Home or Away @1.25 (3p)
+    [98] Defensor Sporting vs Deportivo Maldonado Reserve — Over/Under → Over 1.5 @1.21 (3p)
+    [97] Joinville EC SC vs Figueirense FC SC — Double Chance → Home or Away @1.17 (2p)
+
+  Bottom 10 (most dangerous):
+    [40] Welwalo Adigrat vs Hadiya Hossana FC — Both Halves Under 1.5 → Yes @1.61 (1p)
+    [41] FC Merani Martvili vs FC Gori — 1X2 → Home @1.58 (1p)
+    [41] Norway vs Senegal — 1X2 - 2UP → Home @2.08 (1p)
+    [46] Portugal vs Uzbekistan — Handicap 0:1 → Home (0:1) @1.59 (1p)
+    [52] Sioni Bolnisi vs FC Samtredia — Over/Under → Over 2.5 @1.79 (1p)
+    [52] Jordan vs Algeria — 1X2 - 2UP → Away @1.52 (1p)
+    [53] FC Telavi vs Aragvi Dusheti — 1X2 → Home @1.66 (2p)
+    [55] Fasil Kenema SC vs Arba Minch Ketema — Both Halves Under 1.5 → Yes @1.59 (2p)
+    [61] England vs Ghana — 1X2 - 2UP → Home @1.23 (1p)
+    [61] Kjøbenhavns Boldklub U21 vs Snekkersten IF U21 — 1X2 → Away @1.27 (2p)
+
+┌─────────────────────────────────────────────────┐
+│              GENERATED BOOKING CODES             │
+└─────────────────────────────────────────────────┘
+
+  ── Group A: Low-Risk Stable ──
+  Stake: ₦1,000–2,000 | Flex: 1-2
+
+    1. JJJ3MH  |  8 games  |  odds 8.01  |  safety 87.3  |  consensus 3.1
+    2. HNJNK1  |  10 games  |  odds 16.93  |  safety 94.9  |  consensus 3.6
+    3. JDMNP8  |  11 games  |  odds 13.7  |  safety 92.2  |  consensus 3.1
+    4. U1MK9C  |  12 games  |  odds 30.52  |  safety 89.2  |  consensus 3.1
+    5. WUGHLR  |  12 games  |  odds 25.06  |  safety 89.6  |  consensus 2.9
+    6. QCT4FX  |  12 games  |  odds 23.4  |  safety 91.5  |  consensus 3.1
+    7. JDMNPB  |  12 games  |  odds 24.97  |  safety 92.8  |  consensus 3
+    8. JK4X07  |  12 games  |  odds 34.62  |  safety 90.3  |  consensus 3.2
+    9. KL0TH3  |  14 games  |  odds 51.45  |  safety 87.6  |  consensus 2.9
+    10. QFV5FF  |  14 games  |  odds 54.63  |  safety 86.6  |  consensus 2.7
+
+  ── Group B: High-Confidence Medium ──
+  Stake: ₦500–1,000 | Flex: 2-3
+
+    1. VDJ0T4  |  17 games  |  odds 167.62  |  safety 89.5  |  consensus 3.1
+    2. LB3UA7  |  20 games  |  odds 244.34  |  safety 86.5  |  consensus 2.9
+    3. X2EZYF  |  20 games  |  odds 287.17  |  safety 84.4  |  consensus 2.8
+    4. VGL1UL  |  19 games  |  odds 307.13  |  safety 89.9  |  consensus 3.2
+    5. MCLJV5  |  20 games  |  odds 763  |  safety 83.2  |  consensus 2.9
+    6. JBT8KX  |  19 games  |  odds 363.86  |  safety 79.3  |  consensus 2.6
+    7. KTZ9EW  |  20 games  |  odds 314.76  |  safety 84.8  |  consensus 2.7
+    8. X7BF8K  |  20 games  |  odds 684.88  |  safety 83.5  |  consensus 3
+    9. K1NN2Q  |  18 games  |  odds 415.33  |  safety 85.7  |  consensus 2.8
+    10. S0GG6V  |  18 games  |  odds 261.08  |  safety 86.3  |  consensus 3.1
+
+  ── Group C: Balanced Mixed ──
+  Stake: ₦200–500 | Flex: 3-5
+
+    1. XL6CVW  |  21 games  |  odds 327.97  |  safety 93.3  |  consensus 3.2
+    2. XC7WJM  |  29 games  |  odds 7,681.29  |  safety 87.4  |  consensus 3
+    3. VT6QK0  |  21 games  |  odds 717.97  |  safety 84.4  |  consensus 3
+    4. L5TE36  |  30 games  |  odds 9,128.61  |  safety 86.1  |  consensus 2.9
+    5. XF9XLJ  |  25 games  |  odds 1,987.41  |  safety 85.9  |  consensus 3
+    6. JG2W5A  |  22 games  |  odds 469.93  |  safety 89.2  |  consensus 3
+    7. ZZKLP7  |  29 games  |  odds 4,876.27  |  safety 89.3  |  consensus 3.1
+    8. KC2BJ3  |  27 games  |  odds 2,524.77  |  safety 84.9  |  consensus 2.9
+    9. XXTPQ0  |  24 games  |  odds 2,511.96  |  safety 83.5  |  consensus 2.8
+    10. XJBYN2  |  29 games  |  odds 8,045.48  |  safety 83.4  |  consensus 2.8
+
+  ── Group D: Aggressive High-Payout ──
+  Stake: ₦100–200 | Flex: 5-8
+
+    1. R9DEM5  |  40 games  |  odds 263,709.87  |  safety 84.6  |  consensus 2.8
+    2. RB7UUC  |  36 games  |  odds 52,341.2  |  safety 84.7  |  consensus 2.8
+    3. MR1HXV  |  40 games  |  odds 76,377.45  |  safety 84  |  consensus 2.7
+    4. MRFG76  |  27 games  |  odds 1,502.24  |  safety 88.7  |  consensus 2.9
+    5. XLT6AE  |  31 games  |  odds 14,668.81  |  safety 85.5  |  consensus 2.7
+    6. JTQ67F  |  32 games  |  odds 15,945.67  |  safety 86.1  |  consensus 2.9
+    7. XP8DY0  |  36 games  |  odds 100,819.42  |  safety 82.7  |  consensus 2.7
+    8. JE8G28  |  34 games  |  odds 19,666.46  |  safety 82.4  |  consensus 2.6
+    9. KM8E9L  |  39 games  |  odds 416,532.01  |  safety 77.5  |  consensus 2.4
+    10. Y8U738  |  25 games  |  odds 8,188.51  |  safety 71.7  |  consensus 2.2
+
+  ── Group E: Extreme Moonshot ──
+  Stake: ₦50–100 | Flex: 8-12
+
+    1. K2W8VJ  |  44 games  |  odds 405,426.48  |  safety 84.7  |  consensus 2.8
+    2. KSYGQT  |  37 games  |  odds 65,543.06  |  safety 87.3  |  consensus 2.9
+    3. M7Q3Q5  |  49 games  |  odds 3,063,185.32  |  safety 84.8  |  consensus 2.9
+    4. LXAE2M  |  44 games  |  odds 1,300,150.6  |  safety 81.9  |  consensus 2.8
+    5. U74TY6  |  44 games  |  odds 828,376.38  |  safety 84.5  |  consensus 2.8
+    6. UD8W10  |  38 games  |  odds 147,695.11  |  safety 83.6  |  consensus 2.8
+    7. YDQNEJ  |  42 games  |  odds 817,779.51  |  safety 78.2  |  consensus 2.5
+    8. KL0THH  |  45 games  |  odds 1,998,451.53  |  safety 68.2  |  consensus 1.8
+    9. KY8X4X  |  38 games  |  odds 186,474.79  |  safety 60.1  |  consensus 1.4
+    10. GVM8CN  |  37 games  |  odds 194,637.55  |  safety 54.6  |  consensus 1.2
+
+┌─────────────────────────────────────────────────┐
+│          TOP 20 SLIPS BY EXPECTED VALUE          │
+└─────────────────────────────────────────────────┘
+
+    M7Q3Q5  |  Group E  |  49g  |  odds 3,063,185.32  |  safety 84.8  |  EV 1266.5
+    LXAE2M  |  Group E  |  44g  |  odds 1,300,150.6  |  safety 81.9  |  EV 1153.0
+    U74TY6  |  Group E  |  44g  |  odds 828,376.38  |  safety 84.5  |  EV 1151.5
+    K2W8VJ  |  Group E  |  44g  |  odds 405,426.48  |  safety 84.7  |  EV 1093.7
+    YDQNEJ  |  Group E  |  42g  |  odds 817,779.51  |  safety 78.2  |  EV 1064.6
+    R9DEM5  |  Group D  |  40g  |  odds 263,709.87  |  safety 84.6  |  EV 1056.0
+    KM8E9L  |  Group D  |  39g  |  odds 416,532.01  |  safety 77.5  |  EV 1002.8
+    UD8W10  |  Group E  |  38g  |  odds 147,695.11  |  safety 83.6  |  EV 995.1
+    KL0THH  |  Group E  |  45g  |  odds 1,998,451.53  |  safety 68.2  |  EV 989.4
+    KSYGQT  |  Group E  |  37g  |  odds 65,543.06  |  safety 87.3  |  EV 968.2
+    XP8DY0  |  Group D  |  36g  |  odds 100,819.42  |  safety 82.7  |  EV 952.8
+    MR1HXV  |  Group D  |  40g  |  odds 76,377.45  |  safety 84  |  EV 944.5
+    RB7UUC  |  Group D  |  36g  |  odds 52,341.2  |  safety 84.7  |  EV 920.3
+    JTQ67F  |  Group D  |  32g  |  odds 15,945.67  |  safety 86.1  |  EV 833.2
+    XLT6AE  |  Group D  |  31g  |  odds 14,668.81  |  safety 85.5  |  EV 820.2
+    JE8G28  |  Group D  |  34g  |  odds 19,666.46  |  safety 82.4  |  EV 814.7
+    L5TE36  |  Group C  |  30g  |  odds 9,128.61  |  safety 86.1  |  EV 785.2
+    XC7WJM  |  Group C  |  29g  |  odds 7,681.29  |  safety 87.4  |  EV 781.9
+    ZZKLP7  |  Group C  |  29g  |  odds 4,876.27  |  safety 89.3  |  EV 758.4
+    XJBYN2  |  Group C  |  29g  |  odds 8,045.48  |  safety 83.4  |  EV 750.0
+
+┌─────────────────────────────────────────────────┐
+│          TOP 20 SLIPS BY SAFETY SCORE            │
+└─────────────────────────────────────────────────┘
+
+    HNJNK1  |  Group A  |  10g  |  odds 16.93  |  safety 94.9
+    XL6CVW  |  Group C  |  21g  |  odds 327.97  |  safety 93.3
+    JDMNPB  |  Group A  |  12g  |  odds 24.97  |  safety 92.8
+    JDMNP8  |  Group A  |  11g  |  odds 13.7  |  safety 92.2
+    QCT4FX  |  Group A  |  12g  |  odds 23.4  |  safety 91.5
+    JK4X07  |  Group A  |  12g  |  odds 34.62  |  safety 90.3
+    VGL1UL  |  Group B  |  19g  |  odds 307.13  |  safety 89.9
+    WUGHLR  |  Group A  |  12g  |  odds 25.06  |  safety 89.6
+    VDJ0T4  |  Group B  |  17g  |  odds 167.62  |  safety 89.5
+    ZZKLP7  |  Group C  |  29g  |  odds 4,876.27  |  safety 89.3
+    U1MK9C  |  Group A  |  12g  |  odds 30.52  |  safety 89.2
+    JG2W5A  |  Group C  |  22g  |  odds 469.93  |  safety 89.2
+    MRFG76  |  Group D  |  27g  |  odds 1,502.24  |  safety 88.7
+    KL0TH3  |  Group A  |  14g  |  odds 51.45  |  safety 87.6
+    XC7WJM  |  Group C  |  29g  |  odds 7,681.29  |  safety 87.4
+    JJJ3MH  |  Group A  |  8g  |  odds 8.01  |  safety 87.3
+    KSYGQT  |  Group E  |  37g  |  odds 65,543.06  |  safety 87.3
+    QFV5FF  |  Group A  |  14g  |  odds 54.63  |  safety 86.6
+    LB3UA7  |  Group B  |  20g  |  odds 244.34  |  safety 86.5
+    S0GG6V  |  Group B  |  18g  |  odds 261.08  |  safety 86.3
+
+┌─────────────────────────────────────────────────┐
+│          TOP 10 HIGHEST ODDS SLIPS               │
+└─────────────────────────────────────────────────┘
+
+    M7Q3Q5  |  Group E  |  49g  |  odds 3,063,185.32  |  safety 84.8
+    KL0THH  |  Group E  |  45g  |  odds 1,998,451.53  |  safety 68.2
+    LXAE2M  |  Group E  |  44g  |  odds 1,300,150.6  |  safety 81.9
+    U74TY6  |  Group E  |  44g  |  odds 828,376.38  |  safety 84.5
+    YDQNEJ  |  Group E  |  42g  |  odds 817,779.51  |  safety 78.2
+    KM8E9L  |  Group D  |  39g  |  odds 416,532.01  |  safety 77.5
+    K2W8VJ  |  Group E  |  44g  |  odds 405,426.48  |  safety 84.7
+    R9DEM5  |  Group D  |  40g  |  odds 263,709.87  |  safety 84.6
+    GVM8CN  |  Group E  |  37g  |  odds 194,637.55  |  safety 54.6
+    KY8X4X  |  Group E  |  38g  |  odds 186,474.79  |  safety 60.1
+
+┌─────────────────────────────────────────────────┐
+│          SURVIVAL SIMULATION                     │
+└─────────────────────────────────────────────────┘
+
+  (Probability a slip has ≤ N failures, modeled from odds-implied win rates)
+
+  Group A (Low-Risk Stable):
+    Clean sweep: 2% | 1-cut: 11% | 2-cut: 29% | 3-cut: 53% | 5-cut: 88%
+  Group B (High-Confidence Medium):
+    Clean sweep: 0% | 1-cut: 1% | 2-cut: 3% | 3-cut: 10% | 5-cut: 40%
+  Group C (Balanced Mixed):
+    Clean sweep: 0% | 1-cut: 0% | 2-cut: 1% | 3-cut: 3% | 5-cut: 16%
+  Group D (Aggressive High-Payout):
+    Clean sweep: 0% | 1-cut: 0% | 2-cut: 0% | 3-cut: 0% | 5-cut: 3%
+  Group E (Extreme Moonshot):
+    Clean sweep: 0% | 1-cut: 0% | 2-cut: 0% | 3-cut: 0% | 5-cut: 0%
+
+┌─────────────────────────────────────────────────┐
+│          MATCH EXPOSURE ANALYSIS                 │
+└─────────────────────────────────────────────────┘
+
+  Unique matches used: 88
+  Max exposure: 30 slips
+
+  Most exposed:
+    France vs Iraq: 30 slips
+    Varbergs BoIS vs Landskrona BoIS: 29 slips
+    FC Elva vs Tallinna FC Flora U21: 29 slips
+    Landvetter IS vs Dalstorps IF: 27 slips
+    Boston River vs Club Oriental de Football: 27 slips
+    Odds BK 2 vs Flekkeroy IL: 27 slips
+    Shamrock Rovers vs Derry City FC: 27 slips
+    Maardu Linnameeskond vs Viimsi JK: 27 slips
+    Deportivo Binacional FC vs Cusco FC: 27 slips
+    Orebro SK vs Sandvikens IF: 26 slips
+
+  Least exposed:
+    Nakashima, Brandon vs Draper, Jack: 2 slips
+    Struff, Jan-Lennard vs Landaluce, Martin: 2 slips
+    Li, Ann vs Alexandrova, Ekaterina: 1 slips
+    Tirante, Thiago Agustin vs Fearnley, Jacob: 1 slips
+    Walton, Adam vs Kyrgios, Nick: 1 slips
+
+┌─────────────────────────────────────────────────┐
+│          RECOMMENDED STAKING                     │
+└─────────────────────────────────────────────────┘
+
+  Budget: ₦20,000 spread
+
+  Group A × 10 slips @ ₦1,000  = ₦10,000  (50%)  ← best EV with flex
+  Group B × 10 slips @ ₦500    = ₦5,000   (25%)
+  Group C × 10 slips @ ₦200    = ₦2,000   (10%)
+  Group D × 10 slips @ ₦100    = ₦1,000   (5%)
+  Group E × 10 slips @ ₦50     = ₦500     (2.5%)
+  Reserve                       = ₦1,500   (7.5%)
+
+  Always use flex. Group A with 1-2 flex = highest survival rate.
+
+══════════════════════════════════════════════════════════════════════
