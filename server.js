@@ -1652,7 +1652,7 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
   res.json({ success: true, message: "Rescan started" });
 
   try {
-    const lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8"));
+    const lb = loadLeaderboard(); // Uses merged data (profiles + code-history + punter-codes)
     const todayCodes = loadPunterCodes();
     const today = new Date().toISOString().slice(0, 10);
     const lbMap = new Map(lb.map(p => [p.punter, p]));
