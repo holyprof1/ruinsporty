@@ -422,7 +422,7 @@ function renderLB(list) {
     const codeRows = codes.slice(0, 10).map(c => {
       const d = c.date ? c.date.slice(5) : '-';
       const rc2 = (c.hitRate||0) >= 75 ? '#00c853' : (c.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
-      return `<div style="display:grid;grid-template-columns:80px 50px 40px 40px 40px 40px 50px 1fr;gap:4px;align-items:center;font-size:11px;padding:4px 12px;border-bottom:1px solid rgba(255,255,255,.03)"><span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games||0}</span><span style="color:#00c853">${c.won||0}</span><span style="color:#e53935">${c.lost||0}</span><span style="color:#ffb300">${c.pending||0}</span><span style="color:${rc2};font-weight:700">${c.hitRate||0}%</span><span><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)" style="padding:2px 8px;font-size:9px">Copy</button></span></div>`;
+      return `<div style="display:grid;grid-template-columns:80px 50px 40px 40px 40px 40px 50px 1fr;gap:4px;align-items:center;font-size:11px;padding:4px 12px;border-bottom:1px solid rgba(255,255,255,.03)"><span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games||0}</span><span style="color:#00c853">${c.won||0}</span><span style="color:#e53935">${c.lost||0}</span><span style="color:#ffb300">${c.pending||0}</span><span style="color:${rc2};font-weight:700">${c.hitRate||0}%</span><span style="display:flex;gap:4px"><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)" style="padding:2px 8px;font-size:9px">Copy</button><button class="btn-sm" onclick="event.stopPropagation();scanCodeInline(this,'${esc(c.code)}')" style="padding:2px 8px;font-size:9px;border-color:rgba(33,150,243,.3);color:#2196f3">Scan</button></span></div>`;
     }).join('');
 
     return `<div style="background:#111811;border:1px solid #1e2e1e;border-radius:8px;margin-bottom:6px;overflow:hidden" id="${id}">
@@ -523,7 +523,7 @@ function renderCodes() {
     (codes||[]).filter(c => c && c.code).forEach(c => {
       count++;
       const oddsStr = c.odds >= 1e6 ? (c.odds/1e6).toFixed(1)+'M' : c.odds >= 1000 ? Math.round(c.odds/1000)+'K' : Math.round(c.odds);
-      html += `<div class="gen-grid"><span style="color:#8a9e8a">${labels[key]||key}</span><span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${c.code}</span><span>${c.games}g</span><span style="color:#ffb300;font-weight:700">${oddsStr}x</span><span class="gen-actions"><button class="btn-sm" onclick="navigator.clipboard.writeText('${c.code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button><a href="https://www.sportybet.com/ng/?shareCode=${c.code}" target="_blank">Load &#8599;</a></span></div>`;
+      html += `<div class="gen-grid"><span style="color:#8a9e8a">${labels[key]||key}</span><span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${c.code}</span><span>${c.games}g</span><span style="color:#ffb300;font-weight:700">${oddsStr}x</span><span class="gen-actions"><button class="btn-sm" onclick="navigator.clipboard.writeText('${c.code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button><button class="btn-sm" onclick="scanCodeInline(this,'${c.code}')" style="border-color:rgba(33,150,243,.3);color:#2196f3">Scan</button><a href="https://www.sportybet.com/ng/?shareCode=${c.code}" target="_blank">Load &#8599;</a></span></div>`;
     });
   }
   if (!count) html += '<p style="color:#8a9e8a;padding:12px 0">No codes generated yet.</p>';
@@ -648,6 +648,21 @@ async function loadVisitors() {
     document.getElementById('visRefs').innerHTML = (j.topRefs || []).map(([ref, count]) => `<div>${esc(ref.slice(0, 50))} — <strong>${count}</strong></div>`).join('') || '<div>No referrers today</div>';
     document.getElementById('visRecent').innerHTML = (j.recent || []).map(v => `<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)">${v.time?.slice(11,19)||''} ${v.path} ${v.ref?.slice(0,30)||''}</div>`).join('') || '<div>No visitors yet</div>';
   } catch {}
+}
+
+// ── INLINE SCAN ──
+
+async function scanCodeInline(btn, code) {
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch('/api/scan/' + encodeURIComponent(code));
+    const j = await r.json();
+    if (j.error) { btn.textContent = 'Err'; btn.style.color = '#e53935'; return; }
+    btn.textContent = j.won + 'W/' + j.lost + 'L/' + j.pending + 'P';
+    btn.style.color = j.lost === 0 ? '#00c853' : '#ffb300';
+    btn.style.borderColor = btn.style.color;
+    btn.disabled = false;
+  } catch(e) { btn.textContent = 'Err'; btn.style.color = '#e53935'; }
 }
 
 // ── SOCIAL LINKS ──

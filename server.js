@@ -1599,7 +1599,22 @@ app.get("/api/leaderboard", (req, res) => {
   }
 
   list.forEach(p => { p.badges = badges[p.punter] || []; });
-  res.json({ leaderboard: list, total: list.length });
+
+  // Auto-remove AI/Generated codes with 10+ losses
+  for (const p of list) {
+    if (p.isAI || p.punter === "Generated" || p.punter.startsWith("AI (") || p.punter === "SlipPilot") {
+      if (p.codes) p.codes = p.codes.filter(c => (c.lost || 0) < 10);
+    }
+  }
+  // Remove AI entries with zero remaining codes
+  const final = list.filter(p => {
+    if (p.isAI || p.punter === "Generated" || p.punter.startsWith("AI (") || p.punter === "SlipPilot") {
+      return (p.codes || []).length > 0;
+    }
+    return true;
+  });
+
+  res.json({ leaderboard: final, total: final.length });
 });
 
 app.get("/api/code-history", requireAdmin, (req, res) => {
