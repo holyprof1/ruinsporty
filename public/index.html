@@ -22,7 +22,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=99" />
+  <style>html,body{background:#0a0f0a!important}</style>
+  <link rel="stylesheet" href="/style.css?v=100" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#00c853" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -37,7 +38,12 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"SlipPilot","url":"https://slippilot.com.ng","logo":"https://slippilot.com.ng/icon-512.png","sameAs":["https://x.com/slippilot"],"description":"Nigeria's #1 SportyBet slip optimizer. Free tools to filter, convert, merge, split and optimize betting slips."}</script>
 <script>fetch('/api/header-inject').then(r=>r.text()).then(t=>{if(t){const s=document.createElement('div');s.innerHTML=t;document.head.append(...s.childNodes);}}).catch(()=>{});</script>
 </head>
-<body>
+<body style="background:#0a0f0a">
+<style>body{background:#0a0f0a!important}#splashLoader{position:fixed;inset:0;background:#0a0f0a;z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;transition:opacity .3s}#splashLoader svg{animation:pulse 1.5s ease-in-out infinite}@keyframes pulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}</style>
+<div id="splashLoader"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#00c853" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span style="color:#00c853;font-weight:800;font-size:18px;font-family:system-ui">SlipPilot</span></div>
+<script>
+  window.addEventListener('load', function(){ var s=document.getElementById('splashLoader'); if(s){s.style.opacity='0';setTimeout(function(){s.remove()},300);} });
+</script>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function(registrations) {
