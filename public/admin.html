@@ -312,23 +312,20 @@ function setLBPeriod(period, btn) {
 function filterCodesByPeriod(codes, todayCode) {
   if (lbPeriod === 'all' || !codes?.length) return codes;
   if (lbPeriod === 'today') {
-    // "Today" = the active code from punter-codes.json, regardless of scan date
-    if (todayCode) return codes.filter(c => c.code === todayCode);
-    const today = new Date().toISOString().slice(0, 10);
-    return codes.filter(c => c.date === today);
+    // Show active code if it has pending games, otherwise show newest code
+    if (todayCode) {
+      const tc = codes.filter(c => c.code === todayCode);
+      if (tc.length) return tc;
+    }
+    // Fallback: show the most recent code (first in array)
+    return codes.slice(0, 1);
   }
   const now = new Date();
   const cutoff = new Date();
   if (lbPeriod === '24h') cutoff.setTime(now.getTime() - 86400000);
   else if (lbPeriod === 'week') cutoff.setTime(now.getTime() - 7 * 86400000);
   const cutStr = cutoff.toISOString().slice(0, 10);
-  let filtered = codes.filter(c => c.date >= cutStr);
-  // Always include today's active code in 24h/week
-  if (todayCode && !filtered.some(c => c.code === todayCode)) {
-    const tc = codes.find(c => c.code === todayCode);
-    if (tc) filtered.unshift(tc);
-  }
-  return filtered;
+  return codes.filter(c => c.date >= cutStr);
 }
 
 function sortLB(method, btn) {
