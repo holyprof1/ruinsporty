@@ -1581,7 +1581,12 @@ app.get("/api/leaderboard", (req, res) => {
     hitRate: (a, b) => ((a.hitRate || 0) - (b.hitRate || 0)) * dir,
     wins: (a, b) => ((a.won || 0) - (b.won || 0)) * dir,
   };
-  if (sortFns[sort]) list.sort(sortFns[sort]);
+  // Split humans and AI, sort humans, AI always at bottom
+  const isAIPunter = (p) => p.isAI || p.punter === "Generated" || p.punter.startsWith("AI (") || p.punter === "SlipPilot";
+  let humans = list.filter(p => !isAIPunter(p));
+  let ais = list.filter(p => isAIPunter(p));
+  if (sortFns[sort]) { humans.sort(sortFns[sort]); ais.sort(sortFns[sort]); }
+  list = [...humans, ...ais];
 
   // Compute badges
   const badges = {};
@@ -1599,14 +1604,6 @@ app.get("/api/leaderboard", (req, res) => {
   }
 
   list.forEach(p => { p.badges = badges[p.punter] || []; });
-
-  // Sort AI/Generated to bottom always
-  list.sort((a, b) => {
-    const aIsAI = a.isAI || a.punter === "Generated" || a.punter.startsWith("AI (") || a.punter === "SlipPilot";
-    const bIsAI = b.isAI || b.punter === "Generated" || b.punter.startsWith("AI (") || b.punter === "SlipPilot";
-    if (aIsAI !== bIsAI) return aIsAI ? 1 : -1;
-    return 0;
-  });
 
   // Auto-remove AI/Generated codes with 10+ losses
   for (const p of list) {
@@ -1663,6 +1660,50 @@ app.post("/api/code-history/update-status", requireAdmin, (req, res) => {
 
 app.get("/api/weak-matches", requireAdmin, (req, res) => {
   res.json(loadWeakMatches());
+});
+
+// ── Scan Single Code + Update Leaderboard ──
+
+app.post("/api/admin/scan-code", requireAdmin, async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: "code required" });
+  try {
+    const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code.trim().toUpperCase())}`;
+    const json = await fetchJSON(url);
+    if (!json || json.bizCode !== 10000 || !json.data) return res.status(404).json({ error: "Code not found" });
+    const outcomes = json.data.outcomes || [];
+    const ticketSels = json.data.ticket?.selections || [];
+    const selections = mapOutcomes(outcomes, ticketSels);
+    const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+    const won = results.filter(r => r.verdict === "WON").length;
+    const lost = results.filter(r => r.verdict === "LOST").length;
+    const voided = results.filter(r => r.verdict === "VOID").length;
+    const pending = results.filter(r => r.verdict === "PENDING").length;
+    const settled = won + lost;
+    const hitRate = settled > 0 ? Math.round(won / settled * 100) : 0;
+
+    // Update leaderboard.json — find this code in any punter's codes array
+    try {
+      const lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8"));
+      for (const entry of lb) {
+        if (!entry.codes) continue;
+        const ce = entry.codes.find(c => c.code === code.trim().toUpperCase());
+        if (ce) {
+          ce.games = results.length; ce.won = won; ce.lost = lost; ce.void = voided; ce.pending = pending; ce.hitRate = hitRate;
+          // Recalculate punter totals
+          const sc = entry.codes.filter(c => (c.won + c.lost) > 0);
+          entry.won = sc.reduce((a, c) => a + c.won, 0);
+          entry.lost = sc.reduce((a, c) => a + c.lost, 0);
+          entry.totalGames = sc.reduce((a, c) => a + c.games, 0);
+          const ts = entry.won + entry.lost;
+          entry.hitRate = ts > 0 ? Math.round(entry.won / ts * 100) : 0;
+        }
+      }
+      fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
+    } catch {}
+
+    res.json({ success: true, won, lost, void: voided, pending, hitRate, total: results.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Auto-Rescan All Punter Codes ──

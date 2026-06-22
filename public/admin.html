@@ -655,18 +655,23 @@ async function loadVisitors() {
 async function scanCodeInline(btn, code) {
   btn.disabled = true; btn.textContent = '...';
   try {
-    const r = await fetch('/api/scan/' + encodeURIComponent(code));
+    const r = await fetch('/api/admin/scan-code', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code})});
+    if (!r.ok) {
+      // Fallback to read-only scan if endpoint missing
+      const r2 = await fetch('/api/scan/' + encodeURIComponent(code));
+      const j = await r2.json();
+      btn.textContent = j.won + 'W/' + j.lost + 'L/' + j.pending + 'P';
+      btn.style.color = j.lost === 0 ? '#00c853' : '#ffb300';
+      btn.disabled = false;
+      return;
+    }
     const j = await r.json();
-    if (j.error) { btn.textContent = 'Err'; btn.style.color = '#e53935'; return; }
-    // Update the code entry via add-code to persist results, then refresh
-    try {
-      await fetch('/api/code-history/update-status', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code, status: j.pending > 0 ? 'pending' : j.lost > 0 ? 'lost' : 'won'})});
-    } catch {}
-    btn.textContent = j.won + 'W/' + j.lost + 'L';
+    if (j.error) { btn.textContent = 'Err'; btn.style.color = '#e53935'; btn.disabled = false; return; }
+    btn.textContent = j.won + 'W/' + j.lost + 'L/' + j.pending + 'P';
     btn.style.color = j.lost === 0 && j.pending === 0 ? '#00c853' : '#ffb300';
-    // Refresh leaderboard to show updated numbers
-    setTimeout(() => loadLB(), 500);
-  } catch(e) { btn.textContent = 'Err'; btn.style.color = '#e53935'; }
+    btn.disabled = false;
+    loadLB();
+  } catch(e) { btn.textContent = 'Err'; btn.style.color = '#e53935'; btn.disabled = false; }
 }
 
 // ── SOCIAL LINKS ──
