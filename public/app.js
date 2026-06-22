@@ -1540,7 +1540,13 @@ async function loadConvert() {
     const now = Date.now();
     const future = j.selections.filter(s => s.kickoff && new Date(s.kickoff).getTime() > now);
     const started = j.selections.length - future.length;
-    if (!future.length) throw new Error("All matches in this code have already started or ended");
+    if (!future.length) {
+      $("scanCode").value = code;
+      activateTab("scanner");
+      showToast("This slip has already played. Showing results.", "info");
+      scanSlip();
+      return;
+    }
     if (started > 0) showToast(started + " started match" + (started > 1 ? "es" : "") + " removed", "info");
     convertOriginal = future.map(s => ({...s}));
     convertResult = future.map(s => ({...s}));

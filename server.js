@@ -1447,7 +1447,28 @@ const LEADERBOARD_FILE = path.join(DATA_DIR, "leaderboard.json");
 const CODE_HISTORY_FILE = path.join(DATA_DIR, "code-history.json");
 const WEAK_MATCHES_FILE = path.join(DATA_DIR, "weak-matches.json");
 
-function loadLeaderboard() { try { return JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8")); } catch { return []; } }
+function loadLeaderboard() {
+  let lb = [];
+  try { lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8")); } catch {}
+  // Auto-merge from punter-profiles.json if leaderboard is missing trust/win data
+  try {
+    const profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, "utf-8"));
+    const lbMap = new Map(lb.map(p => [p.punter, p]));
+    for (const [name, prof] of Object.entries(profiles)) {
+      let entry = lbMap.get(name);
+      if (!entry) { entry = { punter: name }; lb.push(entry); lbMap.set(name, entry); }
+      if (!entry.trustScore && prof.trustScore) entry.trustScore = prof.trustScore;
+      if (!entry.won && prof.won) entry.won = prof.won;
+      if (!entry.lost && prof.lost) entry.lost = prof.lost;
+      if (!entry.hitRate && prof.hitRate) entry.hitRate = prof.hitRate;
+      if (!entry.handle && prof.handle) entry.handle = prof.handle;
+      if (!entry.consistency && prof.consistency) entry.consistency = prof.consistency;
+      if ((!entry.codes || !entry.codes.length) && prof.codes && prof.codes.length) entry.codes = prof.codes;
+      if (!entry.tier && prof.tier) entry.tier = prof.tier;
+    }
+  } catch {}
+  return lb;
+}
 function loadCodeHistory() { try { return JSON.parse(fs.readFileSync(CODE_HISTORY_FILE, "utf-8")); } catch { return []; } }
 function loadWeakMatches() { try { return JSON.parse(fs.readFileSync(WEAK_MATCHES_FILE, "utf-8")); } catch { return {}; } }
 
