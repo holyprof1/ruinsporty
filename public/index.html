@@ -228,6 +228,11 @@
           <button class="btn-sm" style="pointer-events:none">Remove</button>
         </div>
 
+        <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')">
+          <div><strong>Generate 3 codes</strong><span>Conservative, Balanced, and High Odds versions</span></div>
+          <div class="tgl" id="tgl3Codes"></div>
+        </div>
+
         <div class="opt-row"><h4>GAME LIMITS</h4>
           <div style="display:flex;gap:16px;flex-wrap:wrap">
             <div class="game-limit"><span>Per league</span><button onclick="adjLimit(this,-1)">−</button><span class="gl-val" id="glLeague">Off</span><button onclick="adjLimit(this,1)">+</button></div>

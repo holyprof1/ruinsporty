@@ -861,40 +861,51 @@ async function genOneCode(sels) {
 
 $("generateBtn").addEventListener("click", async () => {
   const kept = filtered.filter(s=>!s.removed && !excluded.has(s.eventId)); if (!kept.length) return;
-  $("generateBtn").disabled = true; $("generateBtn").textContent = "Generating codes...";
+  $("generateBtn").disabled = true;
   $("generateResult").classList.add("hidden"); $("codeCard").classList.add("hidden"); $("tripleCards").classList.add("hidden");
 
-  const variants = {
-    ultrasafe: buildVariant(kept, "ultrasafe"),
-    safe: buildVariant(kept, "safe"),
-    balanced: buildVariant(kept, "balanced"),
-    value: buildVariant(kept, "value"),
-    aggressive: buildVariant(kept, "aggressive"),
-  };
+  const advancedOn = $("tgl3Codes")?.classList.contains("on");
 
-  try {
-    const results = await Promise.all(Object.values(variants).map(v => genOneCode(v)));
-    const keys = Object.keys(variants);
-    keys.forEach((k,i) => { tripleCodeResults[k] = results[i]; });
-
-    const labels = { ultrasafe: "Ultra Safe", safe: "Safe", balanced: "Balanced", value: "Value", aggressive: "Aggressive" };
-    const classes = { ultrasafe: "safe", safe: "safe", balanced: "balanced", value: "value", aggressive: "value" };
-
-    const card = (key, res, sels) => {
-      if (!res.success) return `<div class="triple-card"><div class="triple-card-label ${classes[key]}">${labels[key]}</div><div style="color:var(--red);font-size:12px">Failed</div></div>`;
-      const odds = sels.reduce((a,s) => a*s.odds, 1);
-      return `<div class="triple-card"><div class="triple-card-label ${classes[key]}">${labels[key]}</div><div class="triple-card-code mono">${esc(res.shareCode)}</div><div class="triple-card-meta"><strong>${sels.length}</strong> games &middot; <strong>${odds.toFixed(1)}x</strong></div><button class="btn btn-green" onclick="copyToClipboard(${jsArg(res.shareCode)},this)">Copy</button></div>`;
+  if (advancedOn) {
+    // Advanced: 3 codes — conservative, balanced, high odds
+    $("generateBtn").textContent = "Generating 3 codes...";
+    const variants = {
+      conservative: buildVariant(kept, "safe"),
+      balanced: buildVariant(kept, "balanced"),
+      highOdds: buildVariant(kept, "value"),
     };
+    try {
+      const results = await Promise.all(Object.values(variants).map(v => genOneCode(v)));
+      const keys = Object.keys(variants);
+      const labels = { conservative: "Conservative", balanced: "Balanced", highOdds: "High Odds" };
+      const classes = { conservative: "safe", balanced: "balanced", highOdds: "value" };
+      keys.forEach((k,i) => { tripleCodeResults[k] = results[i]; });
+      const card = (key, res, sels) => {
+        if (!res.success) return `<div class="triple-card"><div class="triple-card-label ${classes[key]}">${labels[key]}</div><div style="color:var(--red);font-size:12px">Failed</div></div>`;
+        const odds = sels.reduce((a,s) => a*s.odds, 1);
+        return `<div class="triple-card"><div class="triple-card-label ${classes[key]}">${labels[key]}</div><div class="triple-card-code mono">${esc(res.shareCode)}</div><div class="triple-card-meta"><strong>${sels.length}</strong> games · <strong>${odds.toFixed(1)}x</strong></div><button class="btn btn-green" onclick="copyToClipboard(${jsArg(res.shareCode)},this)">Copy</button><button class="btn btn-ghost" onclick="shareSlipPilot(${jsArg(res.shareCode)})" style="margin-left:4px">Share</button></div>`;
+      };
+      $("tripleCards").innerHTML = keys.map(k => card(k, tripleCodeResults[k], variants[k])).join("");
+      $("tripleCards").classList.remove("hidden");
+      showToast("3 codes generated", "success");
+    } catch(e) {
+      $("generateResult").classList.remove("hidden");
+      $("generateResult").innerHTML = `<div class="gen-error"><div class="gen-error-msg">${esc(e.message)}</div></div>`;
+    }
+  } else {
+    // Default: 1 code only
+    $("generateBtn").textContent = "Generating...";
+    try {
+      const res = await genOneCode(kept);
+      renderGenResult("generateResult", res, kept);
+    } catch(e) {
+      $("generateResult").classList.remove("hidden");
+      $("generateResult").innerHTML = `<div class="gen-error"><div class="gen-error-msg">${esc(e.message)}</div></div>`;
+    }
+  }
 
-    $("tripleCards").innerHTML = keys.map(k => card(k, tripleCodeResults[k], variants[k])).join("");
-    $("tripleCards").classList.remove("hidden");
-    $("notSatisfiedHint").classList.remove("hidden");
-    $("generateBtn").classList.add("hidden");
-    showToast("5 codes generated", "success");
-  } catch(e) {
-    $("generateResult").classList.remove("hidden");
-    $("generateResult").innerHTML = `<div class="gen-error"><div class="gen-error-msg">${esc(e.message)}</div></div>`;
-  } finally { $("generateBtn").disabled = false; $("generateBtn").textContent = "Generate Codes"; }
+  $("notSatisfiedHint")?.classList.remove("hidden");
+  $("generateBtn").disabled = false; $("generateBtn").textContent = "Generate Code";
 });
 
 // ── Per-pick Optimize ──
