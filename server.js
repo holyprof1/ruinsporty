@@ -42,7 +42,14 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+
+// Block direct access to sensitive files
+app.use((req, res, next) => {
+  const blocked = ["/data/", "/.env", "/server.js", "/session-engine.js", "/package.json"];
+  if (blocked.some(b => req.path.startsWith(b) || req.path === b)) return res.status(403).json({ error: "Forbidden" });
+  next();
+});
 app.set("trust proxy", 1);
 app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
 
@@ -290,7 +297,20 @@ app.get("/api/booking/:code", checkBookingRate, async (req, res) => {
 
 // ── Generate ──
 
-app.post("/api/generate", async (req, res) => {
+// Rate limiter for generate: 20 req/min per IP
+const generateRateMap = new Map();
+function checkGenerateRate(req, res, next) {
+  const ip = req.ip || req.connection?.remoteAddress || "unknown";
+  const now = Date.now();
+  const entry = generateRateMap.get(ip) || { count: 0, reset: now + 60000 };
+  if (now > entry.reset) { entry.count = 0; entry.reset = now + 60000; }
+  entry.count++;
+  generateRateMap.set(ip, entry);
+  if (entry.count > 20) return res.status(429).json({ error: "Too many requests. Try again in a minute." });
+  next();
+}
+
+app.post("/api/generate", checkGenerateRate, async (req, res) => {
   const { selections } = req.body;
   if (!selections || !Array.isArray(selections) || selections.length === 0) {
     return res.status(400).json({ error: "No selections provided" });
@@ -1486,6 +1506,24 @@ function loadLeaderboard() {
       if (!entry.consistency && prof.consistency) entry.consistency = prof.consistency;
       if ((!entry.codes || !entry.codes.length) && prof.codes && prof.codes.length) entry.codes = prof.codes;
       if (!entry.tier && prof.tier) entry.tier = prof.tier;
+    }
+  } catch {}
+  // Attach today's active code from punter-codes.json
+  try {
+    const todayCodes = loadPunterCodes();
+    const today = new Date().toISOString().slice(0, 10);
+    const lbMap2 = new Map(lb.map(p => [p.punter, p]));
+    for (const [name, code] of Object.entries(todayCodes)) {
+      if (!code) continue;
+      let entry = lbMap2.get(name);
+      if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0 }; lb.push(entry); lbMap2.set(name, entry); }
+      entry.todayCode = code;
+      if (!entry.codes) entry.codes = [];
+      // Add today's code to the codes list if not already there (as pending)
+      const codeStr = typeof code === "string" ? code : (Array.isArray(code) ? code[0] : "");
+      if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
+        entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0, status: "active" });
+      }
     }
   } catch {}
   return lb;
