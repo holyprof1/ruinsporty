@@ -159,6 +159,16 @@ input:focus{border-color:#00c853}
       <div id="visRecent" style="font-size:11px;color:#8a9e8a;max-height:200px;overflow-y:auto"></div>
     </div>
     <div class="card">
+      <h2>User Submissions</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:8px">Codes submitted by users with punter attribution.</p>
+      <div class="qs-bar" style="padding:0;margin-bottom:12px">
+        <div class="qs-item"><div class="qs-val" id="subTotal">0</div><div class="qs-lbl">Total</div></div>
+        <div class="qs-item"><div class="qs-val" id="subToday">0</div><div class="qs-lbl">Today</div></div>
+      </div>
+      <div id="subTopPunters" style="font-size:12px;color:#8a9e8a;margin-bottom:8px"></div>
+      <div id="subRecent" style="font-size:11px;color:#8a9e8a;max-height:150px;overflow-y:auto"></div>
+    </div>
+    <div class="card">
       <h2>Page Locks</h2>
       <p style="font-size:11px;color:#8a9e8a;margin-bottom:12px">Lock any tab. Full = shows "Coming Soon" page. Preview = shows content but nothing works.</p>
       <div id="pageLocksList"></div>
@@ -247,6 +257,7 @@ async function loadAll() {
   try { loadTickets(); } catch(e) { console.error('loadTickets:', e); }
   try { loadPunterCodes(); } catch(e) { console.error('loadPunterCodes:', e); }
   try { loadVisitors(); } catch(e) { console.error('loadVisitors:', e); }
+  try { loadSubmissions(); } catch(e) { console.error('loadSubmissions:', e); }
   try { loadHeaderCode(); } catch(e) { console.error('loadHeaderCode:', e); }
   try { loadPageLocks(); } catch(e) { console.error('loadPageLocks:', e); }
   try { updateQuickStats(); } catch(e) { console.error('updateQuickStats:', e); }
@@ -298,7 +309,6 @@ function renderLB(list) {
 
   const badgeColors = { 'Top Winner':'#ffb300', 'Highest Odds':'#a371f7', 'Most Consistent':'#00c853', 'Most Active':'#2196f3', 'Best ROI':'#e91e63' };
 
-  // Also update quick stats from leaderboard data
   try {
     const humans = list.filter(p => !p.isAI && !p.punter.startsWith('AI (') && p.punter !== 'SlipPilot');
     document.getElementById('qsPunters').textContent = humans.length;
@@ -307,45 +317,76 @@ function renderLB(list) {
   } catch {}
 
   el.innerHTML = list.map((p, i) => {
+    const id = 'lb_' + i;
     const rc = i===0 ? 'rank-1' : i===1 ? 'rank-2' : i===2 ? 'rank-3' : 'rank-n';
     const isAI = p.isAI || p.punter.startsWith('AI (') || p.punter === 'SlipPilot';
-    const icon = isAI ? '<span style="font-size:11px">AI</span> ' : '';
+    const icon = isAI ? '<span style="font-size:10px;background:rgba(163,113,247,.15);color:#a371f7;padding:1px 6px;border-radius:4px;margin-right:4px">AI</span>' : '';
     const badgesHtml = (p.badges || []).map(b => `<span style="background:${badgeColors[b]||'#8a9e8a'}22;color:${badgeColors[b]||'#8a9e8a'};font-size:9px;padding:2px 8px;border-radius:100px;font-weight:700">${b}</span>`).join(' ');
 
     const trust = p.trustScore || 0;
     const ringBg = trust >= 80 ? 'rgba(0,200,83,.12)' : trust >= 60 ? 'rgba(255,179,0,.1)' : trust > 0 ? 'rgba(229,57,53,.1)' : 'rgba(138,158,138,.06)';
     const ringC = trust >= 80 ? '#00c853' : trust >= 60 ? '#ffb300' : trust > 0 ? '#e53935' : '#8a9e8a';
+    const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
 
     const codes = (p.codes || []).filter(c => c && c.games > 0);
-    const codeRows = codes.slice(0, 8).map(c => {
+    const codeRows = codes.slice(0, 10).map(c => {
       const d = c.date ? new Date(c.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '-';
       const rc2 = (c.hitRate||0) >= 75 ? '#00c853' : (c.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
       return `<div class="code-grid"><span class="code-val">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games||0}</span><span style="color:#00c853">${c.won||0}</span><span style="color:#e53935">${c.lost||0}</span><span>${c.void||0}</span><span style="color:${rc2};font-weight:700">${c.hitRate||0}%</span><span><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button></span></div>`;
     }).join('');
 
-    return `<div class="punter-card">
-      <div class="punter-header" onclick="this.parentElement.querySelector('.code-section')?.classList.toggle('collapsed')">
+    return `<div class="punter-card" id="${id}">
+      <div class="punter-header" onclick="toggleLBCard('${id}')">
         <div class="rank-badge ${rc}">${i+1}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:14px">${icon}${esc(p.punter)} ${badgesHtml}</div>
+          <div style="font-weight:800;font-size:14px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">${icon}${esc(p.punter)} ${badgesHtml}</div>
           <div style="font-size:11px;color:#8a9e8a;margin-top:2px">${esc(p.handle||'')} ${p.todayCode ? '· <span style="color:#00c853;font-family:monospace;font-weight:700">'+esc(p.todayCode)+'</span>' : ''}</div>
         </div>
         <div class="trust-ring" style="background:${ringBg};border:2px solid ${ringC};color:${ringC}">${trust||'-'}</div>
       </div>
-      <div class="punter-stats">
-        <div><div class="ps-val">${p.totalGames||0}</div><div class="ps-lbl">Games</div></div>
-        <div><div class="ps-val" style="color:#00c853">${p.won||0}</div><div class="ps-lbl">Won</div></div>
-        <div><div class="ps-val" style="color:#e53935">${p.lost||0}</div><div class="ps-lbl">Lost</div></div>
+      <div class="punter-stats" style="grid-template-columns:repeat(5,1fr)">
+        <div><div class="ps-val" style="color:#00c853">${p.won||0}<span style="color:#e53935">/${p.lost||0}</span></div><div class="ps-lbl">W / L</div></div>
         <div><div class="ps-val" style="color:#00c853">${p.hitRate||0}%</div><div class="ps-lbl">Hit Rate</div></div>
         <div><div class="ps-val">${p.consensusRate||0}%</div><div class="ps-lbl">Consensus</div></div>
-        <div><div class="ps-val">${p.daysActive||0}d</div><div class="ps-lbl">Active</div></div>
+        <div><div class="ps-val">${p.conversionRate||0}%</div><div class="ps-lbl">Converted</div></div>
+        <div><div class="ps-val" style="color:${riskC};text-transform:capitalize;font-size:13px">${p.riskProfile||'-'}</div><div class="ps-lbl">${p.daysActive||0}d active</div></div>
       </div>
-      ${codes.length ? `<div class="code-section">
-        <div class="code-grid hdr"><span>CODE</span><span>DATE</span><span>GAMES</span><span>WON</span><span>LOST</span><span>VOID</span><span>RATE</span><span></span></div>
-        ${codeRows}
-      </div>` : ''}
+      <div class="code-section" style="display:none">
+        ${codes.length ? `<div class="code-grid hdr"><span>CODE</span><span>DATE</span><span>GAMES</span><span>WON</span><span>LOST</span><span>VOID</span><span>RATE</span><span></span></div>${codeRows}` : '<p style="color:#8a9e8a;font-size:12px;padding:4px 0">No code history yet.</p>'}
+        <div class="add-form">
+          <input type="text" placeholder="Add code" id="ac_${id}" style="max-width:120px" />
+          <input type="date" value="${new Date().toISOString().slice(0,10)}" id="ad_${id}" />
+          <button class="btn-sm" onclick="addCodeLB('${esc(p.punter)}','${id}')">Add</button>
+          <span id="am_${id}" style="font-size:11px;color:#8a9e8a"></span>
+        </div>
+      </div>
     </div>`;
   }).join('');
+}
+
+function toggleLBCard(id) {
+  const card = document.getElementById(id);
+  if (!card) return;
+  const section = card.querySelector('.code-section');
+  if (!section) return;
+  const isOpen = section.style.display !== 'none';
+  // Close all others first
+  document.querySelectorAll('#lbCards .code-section').forEach(s => s.style.display = 'none');
+  section.style.display = isOpen ? 'none' : 'block';
+}
+
+async function addCodeLB(name, id) {
+  const code = document.getElementById('ac_'+id)?.value.trim().toUpperCase();
+  const date = document.getElementById('ad_'+id)?.value;
+  const msg = document.getElementById('am_'+id);
+  if (!code || !msg) return;
+  msg.textContent = 'Scanning...'; msg.style.color = '#8a9e8a';
+  try {
+    const r = await fetch('/api/punters/'+encodeURIComponent(name)+'/add-code', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code,date})});
+    const j = await r.json();
+    if (j.success) { msg.textContent = j.won+'W/'+j.lost+'L/'+j.void+'V ('+j.hitRate+'%)'; msg.style.color='#00c853'; setTimeout(()=>loadAll(), 1500); }
+    else { msg.textContent = j.error || 'Failed'; msg.style.color='#e53935'; }
+  } catch(e) { msg.textContent = e.message; msg.style.color='#e53935'; }
 }
 
 // ── GENERATED CODES ──
@@ -489,6 +530,19 @@ async function loadVisitors() {
     document.getElementById('visTotal').textContent = j.total || 0;
     document.getElementById('visRefs').innerHTML = (j.topRefs || []).map(([ref, count]) => `<div>${esc(ref.slice(0, 50))} — <strong>${count}</strong></div>`).join('') || '<div>No referrers today</div>';
     document.getElementById('visRecent').innerHTML = (j.recent || []).map(v => `<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)">${v.time?.slice(11,19)||''} ${v.path} ${v.ref?.slice(0,30)||''}</div>`).join('') || '<div>No visitors yet</div>';
+  } catch {}
+}
+
+// ── SUBMISSIONS ──
+
+async function loadSubmissions() {
+  try {
+    const r = await fetch('/api/admin/submissions', {headers:{'x-admin-password':adminPw}});
+    const j = await r.json();
+    document.getElementById('subTotal').textContent = j.total || 0;
+    document.getElementById('subToday').textContent = j.today || 0;
+    document.getElementById('subTopPunters').innerHTML = (j.topPunters || []).slice(0, 8).map(([name, count]) => `<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 10px;border-radius:100px;border:1px solid #1e2e1e;font-size:11px"><strong>${esc(name)}</strong> ${count}</span>`).join('') || 'No submissions yet';
+    document.getElementById('subRecent').innerHTML = (j.recent || []).map(s => `<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">${s.timestamp?.slice(0,16)||''} <strong style="color:#00c853">${esc(s.code)}</strong> → ${esc(s.punter)}</div>`).join('') || 'No recent submissions';
   } catch {}
 }
 

@@ -1246,6 +1246,35 @@ app.post("/api/punters/:name/add-code", requireAdmin, async (req, res) => {
       fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
     } catch {}
 
+    // Also update leaderboard.json
+    try {
+      const lb = JSON.parse(fs.readFileSync(path.join(DATA_DIR, "leaderboard.json"), "utf-8"));
+      let entry = lb.find(l => l.punter === name);
+      if (!entry) { entry = { punter: name, daysActive: 0, totalGames: 0, won: 0, lost: 0, hitRate: 0, trustScore: 0, codes: [], consensusRate: 0, conversionRate: 0, riskProfile: "medium", lastActive: "" }; lb.push(entry); }
+      if (!entry.codes) entry.codes = [];
+      if (!entry.codes.some(c => c.code === slip.code)) {
+        entry.codes.unshift({ code: slip.code, date: date || new Date().toISOString().slice(0, 10), games: results.length, won, lost, void: voided, pending, hitRate });
+      }
+      const settled_codes = entry.codes.filter(c => (c.won + c.lost) > 0);
+      entry.won = settled_codes.reduce((a, c) => a + c.won, 0);
+      entry.lost = settled_codes.reduce((a, c) => a + c.lost, 0);
+      entry.totalGames = settled_codes.reduce((a, c) => a + c.games, 0);
+      const ts = entry.won + entry.lost;
+      entry.hitRate = ts > 0 ? Math.round(entry.won / ts * 100) : 0;
+      const rates = settled_codes.map(c => c.hitRate);
+      const avg = rates.length ? rates.reduce((a, r) => a + r, 0) / rates.length : 0;
+      const variance = rates.length > 1 ? Math.sqrt(rates.reduce((a, r) => a + Math.pow(r - avg, 2), 0) / rates.length) : 0;
+      entry.consistency = Math.round(100 - variance);
+      let trust = entry.hitRate;
+      if (rates.length >= 3 && variance < 15) trust += 10;
+      if (rates.some(r => r >= 80)) trust += 10;
+      if (rates.some(r => r < 40)) trust -= 10;
+      entry.trustScore = Math.max(0, Math.min(100, trust));
+      entry.lastActive = date || new Date().toISOString().slice(0, 10);
+      entry.daysActive = new Set(entry.codes.map(c => c.date)).size;
+      fs.writeFileSync(path.join(DATA_DIR, "leaderboard.json"), JSON.stringify(lb, null, 2));
+    } catch {}
+
     res.json({ success: true, won, lost, void: voided, pending, hitRate, total: results.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1381,6 +1410,35 @@ app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
   const updated = { ...current, ...req.body };
   fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(updated, null, 2));
   res.json({ success: true, codes: updated });
+});
+
+// ── User Submissions ──
+
+const SUBMISSIONS_FILE = path.join(DATA_DIR, "user-submissions.json");
+
+app.post("/api/submit-code", (req, res) => {
+  const { code, punter } = req.body;
+  if (!code) return res.status(400).json({ error: "code required" });
+  try {
+    let subs = [];
+    try { subs = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8")); } catch {}
+    subs.push({ code: code.trim().toUpperCase(), punter: punter || "Unknown", timestamp: new Date().toISOString(), source: "user-submission" });
+    if (subs.length > 1000) subs = subs.slice(-1000);
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(subs, null, 2));
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/admin/submissions", requireAdmin, (req, res) => {
+  try {
+    const subs = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+    const punterCounts = {};
+    for (const s of subs) { punterCounts[s.punter || "Unknown"] = (punterCounts[s.punter || "Unknown"] || 0) + 1; }
+    const topPunters = Object.entries(punterCounts).sort((a, b) => b[1] - a[1]);
+    const today = new Date().toISOString().slice(0, 10);
+    const todayCount = subs.filter(s => s.timestamp?.startsWith(today)).length;
+    res.json({ total: subs.length, today: todayCount, topPunters, recent: subs.slice(-20).reverse() });
+  } catch { res.json({ total: 0, today: 0, topPunters: [], recent: [] }); }
 });
 
 // ── Enhanced Leaderboard API ──
