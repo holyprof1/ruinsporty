@@ -108,10 +108,11 @@ input:focus{border-color:#00c853}
         <input type="text" id="lbSearch" placeholder="Search punter..." style="max-width:180px;padding:6px 12px;font-size:12px" oninput="loadLB()" />
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px" id="sortPills">
-        <button class="pill active" onclick="sortLB('consistency',this)">Consistency</button>
+        <button class="pill active" onclick="sortLB('trust',this)">Trust</button>
+        <button class="pill" onclick="sortLB('hitRate',this)">Hit Rate</button>
+        <button class="pill" onclick="sortLB('wins',this)">Wins</button>
         <button class="pill" onclick="sortLB('consensus',this)">Consensus</button>
         <button class="pill" onclick="sortLB('totalBets',this)">Games</button>
-        <button class="pill" onclick="sortLB('avgOdds',this)">Avg Odds</button>
         <button class="pill" onclick="sortLB('active',this)">Active</button>
         <button class="pill" onclick="sortLB('risk',this)">Risk</button>
         <button class="pill" onclick="sortLB('conversion',this)">Conversion</button>
@@ -199,6 +200,11 @@ input:focus{border-color:#00c853}
       <div id="sessionLogBox" style="font-family:monospace;font-size:11px;color:#8a9e8a;max-height:350px;overflow-y:auto;white-space:pre-wrap;background:#0a0f0a;padding:12px;border-radius:8px;border:1px solid #1e2e1e"></div>
     </div>
 
+    <div class="card" id="sessionHistoryCard">
+      <h2>Session History</h2>
+      <div id="sessionHistoryList"><p style="color:#8a9e8a">Loading...</p></div>
+    </div>
+
     <div class="card" id="sessionResultCard" style="display:none">
       <h2>Generated Codes</h2>
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
@@ -237,14 +243,17 @@ async function loadAll() {
   const h = {'x-admin-password': adminPw};
   try { const r = await fetch('/api/punter-profiles', {headers:h}); if (r.ok) profiles = await r.json(); } catch {}
   try { const r = await fetch('/api/generated-codes', {headers:h}); if (r.ok) generatedCodes = await r.json(); } catch {}
-  renderPunters();
-  renderCodes();
-  loadTickets();
-  loadPunterCodes();
-  loadVisitors();
-  loadHeaderCode();
-  loadPageLocks();
-  updateQuickStats();
+  try { renderCodes(); } catch(e) { console.error('renderCodes:', e); }
+  try { loadTickets(); } catch(e) { console.error('loadTickets:', e); }
+  try { loadPunterCodes(); } catch(e) { console.error('loadPunterCodes:', e); }
+  try { loadVisitors(); } catch(e) { console.error('loadVisitors:', e); }
+  try { loadHeaderCode(); } catch(e) { console.error('loadHeaderCode:', e); }
+  try { loadPageLocks(); } catch(e) { console.error('loadPageLocks:', e); }
+  try { updateQuickStats(); } catch(e) { console.error('updateQuickStats:', e); }
+  try { loadLB(); } catch(e) { console.error('loadLB:', e); }
+  try { loadSessionPunters(); } catch(e) { console.error('loadSessionPunters:', e); }
+  try { loadSessionResult(); } catch(e) { console.error('loadSessionResult:', e); }
+  try { loadSessionHistory(); } catch(e) { console.error('loadSessionHistory:', e); }
 }
 
 function updateQuickStats() {
@@ -258,7 +267,7 @@ function updateQuickStats() {
 
 // ── LEADERBOARD (enhanced) ──
 
-let lbSort = 'consistency', lbOrder = 'desc';
+let lbSort = 'trust', lbOrder = 'desc';
 
 function sortLB(method, btn) {
   lbSort = method;
@@ -289,32 +298,52 @@ function renderLB(list) {
 
   const badgeColors = { 'Top Winner':'#ffb300', 'Highest Odds':'#a371f7', 'Most Consistent':'#00c853', 'Most Active':'#2196f3', 'Best ROI':'#e91e63' };
 
+  // Also update quick stats from leaderboard data
+  try {
+    const humans = list.filter(p => !p.isAI && !p.punter.startsWith('AI (') && p.punter !== 'SlipPilot');
+    document.getElementById('qsPunters').textContent = humans.length;
+    const best = [...list].sort((a,b) => (b.trustScore||0) - (a.trustScore||0))[0];
+    if (best && best.trustScore) document.getElementById('qsBest').textContent = best.punter + ' ' + best.trustScore;
+  } catch {}
+
   el.innerHTML = list.map((p, i) => {
     const rc = i===0 ? 'rank-1' : i===1 ? 'rank-2' : i===2 ? 'rank-3' : 'rank-n';
-    const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
     const isAI = p.isAI || p.punter.startsWith('AI (') || p.punter === 'SlipPilot';
-    const icon = isAI ? '🤖 ' : '';
+    const icon = isAI ? '<span style="font-size:11px">AI</span> ' : '';
     const badgesHtml = (p.badges || []).map(b => `<span style="background:${badgeColors[b]||'#8a9e8a'}22;color:${badgeColors[b]||'#8a9e8a'};font-size:9px;padding:2px 8px;border-radius:100px;font-weight:700">${b}</span>`).join(' ');
 
+    const trust = p.trustScore || 0;
+    const ringBg = trust >= 80 ? 'rgba(0,200,83,.12)' : trust >= 60 ? 'rgba(255,179,0,.1)' : trust > 0 ? 'rgba(229,57,53,.1)' : 'rgba(138,158,138,.06)';
+    const ringC = trust >= 80 ? '#00c853' : trust >= 60 ? '#ffb300' : trust > 0 ? '#e53935' : '#8a9e8a';
+
+    const codes = (p.codes || []).filter(c => c && c.games > 0);
+    const codeRows = codes.slice(0, 8).map(c => {
+      const d = c.date ? new Date(c.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '-';
+      const rc2 = (c.hitRate||0) >= 75 ? '#00c853' : (c.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
+      return `<div class="code-grid"><span class="code-val">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games||0}</span><span style="color:#00c853">${c.won||0}</span><span style="color:#e53935">${c.lost||0}</span><span>${c.void||0}</span><span style="color:${rc2};font-weight:700">${c.hitRate||0}%</span><span><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button></span></div>`;
+    }).join('');
+
     return `<div class="punter-card">
-      <div class="punter-header">
+      <div class="punter-header" onclick="this.parentElement.querySelector('.code-section')?.classList.toggle('collapsed')">
         <div class="rank-badge ${rc}">${i+1}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:14px">${icon}${esc(p.punter)} ${badgesHtml}</div>
-          <div style="font-size:11px;color:#8a9e8a;margin-top:2px">${esc(p.handle||'')} ${p.todayCode ? '• Today: <span style="color:#00c853;font-weight:700;font-family:monospace">'+esc(p.todayCode)+'</span>' : ''}</div>
+          <div style="font-size:11px;color:#8a9e8a;margin-top:2px">${esc(p.handle||'')} ${p.todayCode ? '· <span style="color:#00c853;font-family:monospace;font-weight:700">'+esc(p.todayCode)+'</span>' : ''}</div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:18px;font-weight:900;color:${riskC}">${p.consensusRate||0}%</div>
-          <div style="font-size:9px;color:#8a9e8a">CONSENSUS</div>
-        </div>
+        <div class="trust-ring" style="background:${ringBg};border:2px solid ${ringC};color:${ringC}">${trust||'-'}</div>
       </div>
-      <div class="punter-stats" style="grid-template-columns:repeat(5,1fr)">
+      <div class="punter-stats">
         <div><div class="ps-val">${p.totalGames||0}</div><div class="ps-lbl">Games</div></div>
-        <div><div class="ps-val">${p.daysActive||0}</div><div class="ps-lbl">Days</div></div>
-        <div><div class="ps-val">${p.avgOdds||'-'}</div><div class="ps-lbl">Avg Odds</div></div>
-        <div><div class="ps-val">${p.conversionRate||0}%</div><div class="ps-lbl">Converted</div></div>
-        <div><div class="ps-val" style="color:${riskC};text-transform:capitalize">${p.riskProfile||'-'}</div><div class="ps-lbl">Risk</div></div>
+        <div><div class="ps-val" style="color:#00c853">${p.won||0}</div><div class="ps-lbl">Won</div></div>
+        <div><div class="ps-val" style="color:#e53935">${p.lost||0}</div><div class="ps-lbl">Lost</div></div>
+        <div><div class="ps-val" style="color:#00c853">${p.hitRate||0}%</div><div class="ps-lbl">Hit Rate</div></div>
+        <div><div class="ps-val">${p.consensusRate||0}%</div><div class="ps-lbl">Consensus</div></div>
+        <div><div class="ps-val">${p.daysActive||0}d</div><div class="ps-lbl">Active</div></div>
       </div>
+      ${codes.length ? `<div class="code-section">
+        <div class="code-grid hdr"><span>CODE</span><span>DATE</span><span>GAMES</span><span>WON</span><span>LOST</span><span>VOID</span><span>RATE</span><span></span></div>
+        ${codeRows}
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -639,14 +668,22 @@ async function resetSession() {
   } catch(e) { alert('Reset failed: ' + e.message); }
 }
 
-// Hook into loadAll — safe wrapper
-const _origLoadAll = loadAll;
-loadAll = async function() {
-  try { await _origLoadAll(); } catch(e) { console.error('loadAll base error:', e); }
-  try { loadLB(); } catch(e) { console.error('loadLB error:', e); }
-  try { loadSessionPunters(); } catch(e) { console.error('loadSessionPunters error:', e); }
-  try { loadSessionResult(); } catch(e) { console.error('loadSessionResult error:', e); }
-};
+
+async function loadSessionHistory() {
+  try {
+    const r = await fetch('/api/session/history', {headers:{'x-admin-password':adminPw}});
+    const j = await r.json();
+    const el = document.getElementById('sessionHistoryList');
+    if (!j.history || !j.history.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No past sessions yet. Run generation, then reset to archive.</p>'; return; }
+    el.innerHTML = j.history.map(s => {
+      const grps = Object.entries(s.groups||{}).map(([g,n])=> g+':'+n).join(' ');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px">
+        <div><strong style="color:#00c853">${s.date}</strong> <span style="color:#8a9e8a">· ${s.punters} punters · ${s.pool} matches · ${s.codes} codes</span></div>
+        <div style="color:#8a9e8a;font-size:10px">${grps}</div>
+      </div>`;
+    }).join('');
+  } catch { document.getElementById('sessionHistoryList').innerHTML = '<p style="color:#8a9e8a">Could not load history.</p>'; }
+}
 
 // Ctrl+Shift+A → instant admin access
 document.addEventListener('keydown', function(e) {

@@ -1550,13 +1550,26 @@ const deepScanCache = {};
 
 function toggleDeepScan() {
   if (!deepScanEnabled && !localStorage.getItem("deepScanConsented")) {
-    if (!confirm("Deep Scan\n\nBefore converting your slip, Deep Scan analyzes each game using real match data including:\n\n• Last 10 H2H meetings between the teams\n• Current team form and recent results\n• Goals scored and conceded trends\n\nThis gives you data-backed conversions instead of generic rules. It may take up to 60 seconds for large slips.\n\nEnable Deep Scan?")) return;
-    localStorage.setItem("deepScanConsented", "true");
+    showDeepScanModal();
+    return;
   }
   deepScanEnabled = !deepScanEnabled;
   const tgl = $("tglDeepScan");
   if (tgl) tgl.classList.toggle("on", deepScanEnabled);
   if (deepScanEnabled) showToast("Deep Scan enabled", "success");
+}
+
+function showDeepScanModal() {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  overlay.innerHTML = `<div style="background:#111811;border:1px solid #1e2e1e;border-radius:16px;max-width:420px;width:100%;padding:32px 28px;text-align:center">
+    <div style="font-size:32px;margin-bottom:12px">&#128274;</div>
+    <h3 style="font-size:18px;font-weight:800;color:#fff;margin-bottom:8px">Deep Scan — Admin Only</h3>
+    <p style="font-size:13px;color:#8a9e8a;line-height:1.6;margin-bottom:20px">This feature is currently limited to administrators because of the large amount of processing power, external requests, and operating costs involved.<br><br>We are working on making it available to all users soon.</p>
+    <button style="padding:10px 32px;border-radius:100px;border:none;background:#00c853;color:#fff;font-weight:600;cursor:pointer;font-size:14px" onclick="this.closest('div[style*=fixed]').remove()">Got it</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 }
 
 async function getDeepScanData(s) {

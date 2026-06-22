@@ -1416,13 +1416,16 @@ app.get("/api/leaderboard", (req, res) => {
     lastActive: (a, b) => ((a.lastActive || "").localeCompare(b.lastActive || "")) * dir,
     consistency: (a, b) => ((a.consistency || 0) - (b.consistency || 0)) * dir,
     avgOdds: (a, b) => ((a.avgOdds || 0) - (b.avgOdds || 0)) * dir,
+    trust: (a, b) => ((a.trustScore || 0) - (b.trustScore || 0)) * dir,
+    hitRate: (a, b) => ((a.hitRate || 0) - (b.hitRate || 0)) * dir,
+    wins: (a, b) => ((a.won || 0) - (b.won || 0)) * dir,
   };
   if (sortFns[sort]) list.sort(sortFns[sort]);
 
   // Compute badges
   const badges = {};
   if (lb.length) {
-    const byWins = [...lb].sort((a, b) => (b.wins || 0) - (a.wins || 0));
+    const byWins = [...lb].sort((a, b) => (b.won || b.wins || 0) - (a.won || a.wins || 0));
     const byCons = [...lb].sort((a, b) => (b.consistency || 0) - (a.consistency || 0));
     const byActive = [...lb].sort((a, b) => (b.daysActive || 0) - (a.daysActive || 0));
     const byOdds = [...lb].sort((a, b) => (b.avgOdds || 0) - (a.avgOdds || 0));
@@ -1482,6 +1485,23 @@ app.get("/api/weak-matches", requireAdmin, (req, res) => {
 
 const sessionEngine = require("./session-engine");
 const SESSION_TODAY_FILE = path.join(DATA_DIR, "session-today.json");
+
+app.get("/api/session/history", requireAdmin, (req, res) => {
+  const HISTORY_FILE = path.join(DATA_DIR, "session-history.json");
+  try {
+    const history = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
+    const summary = history.map(s => ({
+      date: s.date, archivedAt: s.archivedAt,
+      punters: Object.keys(s.punters || {}).length,
+      pool: s.masterPool?.total || 0,
+      consensus: s.masterPool?.consensus || 0,
+      conversions: s.conversions || 0,
+      groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, slips]) => [g, slips.length])),
+      codes: Object.values(s.groups || {}).flat().filter(c => c.code && c.code !== "FAILED").length,
+    }));
+    res.json({ history: summary.reverse(), total: summary.length });
+  } catch { res.json({ history: [], total: 0 }); }
+});
 
 app.get("/api/session/today", requireAdmin, (req, res) => {
   try { res.json(JSON.parse(fs.readFileSync(SESSION_TODAY_FILE, "utf-8"))); }
