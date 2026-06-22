@@ -1014,6 +1014,7 @@ app.get("/scanner", (req, res) => res.redirect("/#scanner"));
 app.get("/convert", (req, res) => res.redirect("/#convert"));
 app.get("/merger", (req, res) => res.redirect("/#merger"));
 app.get("/optimize-sportybet-slip", (req, res) => res.sendFile(path.join(__dirname, "public", "optimize-sportybet-slip.html")));
+app.get("/sportybet-booking-code-converter", (req, res) => res.sendFile(path.join(__dirname, "public", "sportybet-booking-code-converter.html")));
 
 // ── Admin Panel ──
 

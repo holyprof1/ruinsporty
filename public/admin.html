@@ -119,8 +119,13 @@ input:focus{border-color:#00c853}
         <button class="pill" onclick="sortLB('risk',this)">Risk</button>
         <button class="pill" onclick="sortLB('conversion',this)">Conversion</button>
       </div>
-      <div style="display:flex;gap:4px;margin-bottom:12px">
+      <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap">
         <button class="btn-sm" id="lbOrderBtn" onclick="toggleLBOrder()" style="font-size:10px">▼ Desc</button>
+        <span style="color:#1e2e1e;margin:0 4px">|</span>
+        <button class="pill active" onclick="setLBPeriod('all',this)" style="font-size:10px;padding:4px 10px">All Time</button>
+        <button class="pill" onclick="setLBPeriod('today',this)" style="font-size:10px;padding:4px 10px">Today</button>
+        <button class="pill" onclick="setLBPeriod('24h',this)" style="font-size:10px;padding:4px 10px">24h</button>
+        <button class="pill" onclick="setLBPeriod('week',this)" style="font-size:10px;padding:4px 10px">7 Days</button>
       </div>
       <div id="lbCards"></div>
     </div>
@@ -295,7 +300,25 @@ function updateQuickStats() {
 
 // ── LEADERBOARD (enhanced) ──
 
-let lbSort = 'trust', lbOrder = 'desc';
+let lbSort = 'trust', lbOrder = 'desc', lbPeriod = 'all';
+
+function setLBPeriod(period, btn) {
+  lbPeriod = period;
+  btn.parentElement.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  loadLB();
+}
+
+function filterCodesByPeriod(codes) {
+  if (lbPeriod === 'all' || !codes?.length) return codes;
+  const now = new Date();
+  const cutoff = new Date();
+  if (lbPeriod === 'today') cutoff.setHours(0, 0, 0, 0);
+  else if (lbPeriod === '24h') cutoff.setTime(now.getTime() - 86400000);
+  else if (lbPeriod === 'week') cutoff.setTime(now.getTime() - 7 * 86400000);
+  const cutStr = cutoff.toISOString().slice(0, 10);
+  return codes.filter(c => c.date >= cutStr);
+}
 
 function sortLB(method, btn) {
   lbSort = method;
@@ -370,8 +393,16 @@ function renderLB(list) {
     const ringC = trust >= 80 ? '#00c853' : trust >= 60 ? '#ffb300' : trust > 0 ? '#e53935' : '#8a9e8a';
     const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
 
-    const codes = (p.codes || []).filter(c => c && c.games > 0);
+    const allCodes = (p.codes || []).filter(c => c && (c.games > 0 || c.status === 'active'));
+    const codes = filterCodesByPeriod(allCodes);
+    const periodWon = codes.reduce((a, c) => a + (c.won || 0), 0);
+    const periodLost = codes.reduce((a, c) => a + (c.lost || 0), 0);
     const pending = codes.reduce((a, c) => a + (c.pending || 0), 0);
+    const periodSettled = periodWon + periodLost;
+    const periodHR = periodSettled > 0 ? Math.round(periodWon / periodSettled * 100) : (p.hitRate || 0);
+    const showWon = lbPeriod === 'all' ? (p.won || 0) : periodWon;
+    const showLost = lbPeriod === 'all' ? (p.lost || 0) : periodLost;
+    const showHR = lbPeriod === 'all' ? (p.hitRate || 0) : periodHR;
     const codeRows = codes.slice(0, 10).map(c => {
       const d = c.date ? new Date(c.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '-';
       const rc2 = (c.hitRate||0) >= 75 ? '#00c853' : (c.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
@@ -388,11 +419,11 @@ function renderLB(list) {
         <div class="trust-ring" style="background:${ringBg};border:2px solid ${ringC};color:${ringC}">${trust||'-'}</div>
       </div>
       <div class="punter-stats" style="grid-template-columns:repeat(6,1fr)">
-        <div><div class="ps-val" style="color:#00c853">${p.won||0}</div><div class="ps-lbl">Won</div></div>
-        <div><div class="ps-val" style="color:#e53935">${p.lost||0}</div><div class="ps-lbl">Lost</div></div>
+        <div><div class="ps-val" style="color:#00c853">${showWon}</div><div class="ps-lbl">Won</div></div>
+        <div><div class="ps-val" style="color:#e53935">${showLost}</div><div class="ps-lbl">Lost</div></div>
         <div><div class="ps-val" style="color:#ffb300">${pending}</div><div class="ps-lbl">Pending</div></div>
-        <div><div class="ps-val" style="color:#00c853">${p.hitRate||0}%</div><div class="ps-lbl">Hit Rate</div></div>
-        <div><div class="ps-val">${p.consensusRate||0}%</div><div class="ps-lbl">Consensus</div></div>
+        <div><div class="ps-val" style="color:${showHR>=70?'#00c853':showHR>=55?'#ffb300':'#e53935'}">${showHR}%</div><div class="ps-lbl">Hit Rate</div></div>
+        <div><div class="ps-val">${codes.length}</div><div class="ps-lbl">Codes</div></div>
         <div><div class="ps-val" style="color:${riskC};text-transform:capitalize;font-size:13px">${p.riskProfile||'-'}</div><div class="ps-lbl">${p.daysActive||0}d</div></div>
       </div>
       <div class="code-section" style="display:none">
@@ -421,26 +452,27 @@ function toggleLBCard(id) {
 
 async function rescanAll(btn) {
   btn.disabled = true; btn.textContent = 'Scanning...';
-  document.getElementById('rescanMsg').textContent = 'Rescanning all codes with pending games...';
+  const msg = document.getElementById('rescanMsg');
+  msg.textContent = 'Rescanning all codes...'; msg.style.color = '#ffb300';
   try {
     const r = await fetch('/api/admin/rescan-all', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}});
+    if (!r.ok) { const txt = await r.text(); msg.textContent = 'Server needs redeployment — endpoint missing'; msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; return; }
     const j = await r.json();
-    if (j.error) { document.getElementById('rescanMsg').textContent = j.error; return; }
-    // Poll until done
+    if (j.error) { msg.textContent = j.error; msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; return; }
     const poll = setInterval(async () => {
       try {
         const s = await fetch('/api/admin/rescan-status', {headers:{'x-admin-password':adminPw}});
+        if (!s.ok) return;
         const sj = await s.json();
         if (!sj.running) {
           clearInterval(poll);
           btn.disabled = false; btn.textContent = 'Rescan All Codes';
-          document.getElementById('rescanMsg').textContent = 'Done! Refreshing...';
-          document.getElementById('rescanMsg').style.color = '#00c853';
-          setTimeout(() => { loadLB(); document.getElementById('rescanMsg').textContent = ''; }, 1000);
+          msg.textContent = 'Done!'; msg.style.color = '#00c853';
+          setTimeout(() => { loadLB(); msg.textContent = ''; }, 1000);
         }
       } catch { clearInterval(poll); btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
     }, 3000);
-  } catch(e) { document.getElementById('rescanMsg').textContent = 'Error: ' + e.message; btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
+  } catch(e) { msg.textContent = 'Deploy new server.js first'; msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
 }
 
 async function addCodeLB(name, id) {
