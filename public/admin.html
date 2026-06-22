@@ -329,6 +329,7 @@ function renderLB(list) {
     const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
 
     const codes = (p.codes || []).filter(c => c && c.games > 0);
+    const pending = codes.reduce((a, c) => a + (c.pending || 0), 0);
     const codeRows = codes.slice(0, 10).map(c => {
       const d = c.date ? new Date(c.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '-';
       const rc2 = (c.hitRate||0) >= 75 ? '#00c853' : (c.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
@@ -344,12 +345,13 @@ function renderLB(list) {
         </div>
         <div class="trust-ring" style="background:${ringBg};border:2px solid ${ringC};color:${ringC}">${trust||'-'}</div>
       </div>
-      <div class="punter-stats" style="grid-template-columns:repeat(5,1fr)">
-        <div><div class="ps-val" style="color:#00c853">${p.won||0}<span style="color:#e53935">/${p.lost||0}</span></div><div class="ps-lbl">W / L</div></div>
+      <div class="punter-stats" style="grid-template-columns:repeat(6,1fr)">
+        <div><div class="ps-val" style="color:#00c853">${p.won||0}</div><div class="ps-lbl">Won</div></div>
+        <div><div class="ps-val" style="color:#e53935">${p.lost||0}</div><div class="ps-lbl">Lost</div></div>
+        <div><div class="ps-val" style="color:#ffb300">${pending}</div><div class="ps-lbl">Pending</div></div>
         <div><div class="ps-val" style="color:#00c853">${p.hitRate||0}%</div><div class="ps-lbl">Hit Rate</div></div>
         <div><div class="ps-val">${p.consensusRate||0}%</div><div class="ps-lbl">Consensus</div></div>
-        <div><div class="ps-val">${p.conversionRate||0}%</div><div class="ps-lbl">Converted</div></div>
-        <div><div class="ps-val" style="color:${riskC};text-transform:capitalize;font-size:13px">${p.riskProfile||'-'}</div><div class="ps-lbl">${p.daysActive||0}d active</div></div>
+        <div><div class="ps-val" style="color:${riskC};text-transform:capitalize;font-size:13px">${p.riskProfile||'-'}</div><div class="ps-lbl">${p.daysActive||0}d</div></div>
       </div>
       <div class="code-section" style="display:none">
         ${codes.length ? `<div class="code-grid hdr"><span>CODE</span><span>DATE</span><span>GAMES</span><span>WON</span><span>LOST</span><span>VOID</span><span>RATE</span><span></span></div>${codeRows}` : '<p style="color:#8a9e8a;font-size:12px;padding:4px 0">No code history yet.</p>'}

@@ -581,6 +581,15 @@ async function run(punterMap, onLog) {
   writeJSON(SESSION_FILE, session);
   writeJSON(GENERATED_FILE, session);
 
+  // Also write generated-codes.json in the format the admin Codes tab expects
+  const GEN_CODES_FILE = path.join(DATA, "generated-codes.json");
+  const adminCodes = {};
+  for (const [g, slips] of Object.entries(allSlips)) {
+    if (g === "_ai") continue;
+    adminCodes[g] = slips.map(s => ({ code: s.code || null, games: s.games, odds: s.odds, topPicks: [] }));
+  }
+  writeJSON(GEN_CODES_FILE, adminCodes);
+
   // codes-today.txt
   const lines = [];
   lines.push("SLIPPILOT DAILY INTELLIGENCE — " + date);

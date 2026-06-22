@@ -1537,8 +1537,13 @@ async function loadConvert() {
   try {
     const r = await fetch(`/api/booking/${encodeURIComponent(code)}`); const j = await r.json();
     if (!r.ok) throw new Error(j.error); if (!j.selections?.length) throw new Error("No selections");
-    convertOriginal = j.selections.map(s => ({...s}));
-    convertResult = j.selections.map(s => ({...s}));
+    const now = Date.now();
+    const future = j.selections.filter(s => s.kickoff && new Date(s.kickoff).getTime() > now);
+    const started = j.selections.length - future.length;
+    if (!future.length) throw new Error("All matches in this code have already started or ended");
+    if (started > 0) showToast(started + " started match" + (started > 1 ? "es" : "") + " removed", "info");
+    convertOriginal = future.map(s => ({...s}));
+    convertResult = future.map(s => ({...s}));
     $("convertResults").classList.remove("hidden");
     renderConvert();
   } catch(e) { showErr("convertError", e.message); }
