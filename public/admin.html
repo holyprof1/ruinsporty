@@ -311,10 +311,9 @@ function setLBPeriod(period, btn) {
 
 function filterCodesByPeriod(codes, todayCode) {
   if (lbPeriod === 'all' || !codes?.length) return codes;
+  const today = new Date().toISOString().slice(0, 10);
   if (lbPeriod === 'today') {
-    // Only codes with pending > 0 (active games) or today's active code
-    const active = codes.filter(c => c.pending > 0 || (todayCode && c.code === todayCode));
-    return active;
+    return codes.filter(c => c.date === today);
   }
   const now = new Date();
   const cutoff = new Date();
@@ -385,15 +384,16 @@ function renderLB(list) {
     if (best && best.trustScore) document.getElementById('qsBest').textContent = best.punter + ' ' + best.trustScore;
   } catch {}
 
-  // Pre-filter: when "Today" is selected, hide punters with no active games
+  // Pre-filter: hide punters with zero codes for selected period
   let filtered = list;
-  if (lbPeriod === 'today') {
+  if (lbPeriod !== 'all') {
     filtered = list.filter(p => {
       const codes = (p.codes || []).filter(c => c && (c.games > 0 || c.status === 'active'));
-      return codes.some(c => c.pending > 0) || (p.todayCode && codes.some(c => c.code === p.todayCode));
+      const periodCodes = filterCodesByPeriod(codes, p.todayCode);
+      return periodCodes.length > 0;
     });
   }
-  if (!filtered.length && lbPeriod !== 'all') { el.innerHTML = '<p style="color:#8a9e8a">No active punters for this period.</p>'; return; }
+  if (!filtered.length && lbPeriod !== 'all') { el.innerHTML = '<p style="color:#8a9e8a">No punters with codes for this period.</p>'; return; }
 
   el.innerHTML = filtered.map((p, i) => {
     const id = 'lb_' + i;

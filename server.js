@@ -1525,14 +1525,10 @@ function loadLeaderboard() {
       if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
         entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0, status: "active" });
       }
-      // Show todayCode badge: either the active code has pending, or any code has pending
+      // Badge = today's code ONLY if it has pending games or hasn't been scanned yet
       const codeEntry = entry.codes.find(c => c.code === codeStr);
-      const anyPending = entry.codes.some(c => c.pending > 0 || c.games === 0);
-      if (codeEntry && (codeEntry.pending > 0 || codeEntry.games === 0)) {
+      if (codeEntry && (codeEntry.pending > 0 || codeEntry.games === 0) && codeEntry.date === today) {
         entry.todayCode = code;
-      } else if (anyPending) {
-        const pendingCode = entry.codes.find(c => c.pending > 0);
-        entry.todayCode = pendingCode ? pendingCode.code : "";
       } else {
         entry.todayCode = "";
       }
