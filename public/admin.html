@@ -309,15 +309,26 @@ function setLBPeriod(period, btn) {
   loadLB();
 }
 
-function filterCodesByPeriod(codes) {
+function filterCodesByPeriod(codes, todayCode) {
   if (lbPeriod === 'all' || !codes?.length) return codes;
+  if (lbPeriod === 'today') {
+    // "Today" = the active code from punter-codes.json, regardless of scan date
+    if (todayCode) return codes.filter(c => c.code === todayCode);
+    const today = new Date().toISOString().slice(0, 10);
+    return codes.filter(c => c.date === today);
+  }
   const now = new Date();
   const cutoff = new Date();
-  if (lbPeriod === 'today') cutoff.setHours(0, 0, 0, 0);
-  else if (lbPeriod === '24h') cutoff.setTime(now.getTime() - 86400000);
+  if (lbPeriod === '24h') cutoff.setTime(now.getTime() - 86400000);
   else if (lbPeriod === 'week') cutoff.setTime(now.getTime() - 7 * 86400000);
   const cutStr = cutoff.toISOString().slice(0, 10);
-  return codes.filter(c => c.date >= cutStr);
+  let filtered = codes.filter(c => c.date >= cutStr);
+  // Always include today's active code in 24h/week
+  if (todayCode && !filtered.some(c => c.code === todayCode)) {
+    const tc = codes.find(c => c.code === todayCode);
+    if (tc) filtered.unshift(tc);
+  }
+  return filtered;
 }
 
 function sortLB(method, btn) {
@@ -394,7 +405,7 @@ function renderLB(list) {
     const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
 
     const allCodes = (p.codes || []).filter(c => c && (c.games > 0 || c.status === 'active'));
-    const codes = filterCodesByPeriod(allCodes);
+    const codes = filterCodesByPeriod(allCodes, p.todayCode);
     const periodWon = codes.reduce((a, c) => a + (c.won || 0), 0);
     const periodLost = codes.reduce((a, c) => a + (c.lost || 0), 0);
     const pending = codes.reduce((a, c) => a + (c.pending || 0), 0);

@@ -1520,11 +1520,14 @@ function loadLeaderboard() {
       let entry = lbMap2.get(name);
       if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0 }; lb.push(entry); lbMap2.set(name, entry); }
       entry.todayCode = code;
+      entry.lastActive = today;
       if (!entry.codes) entry.codes = [];
       const codeStr = typeof code === "string" ? code : (Array.isArray(code) ? code[0] : "");
       if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
         entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0, status: "active" });
       }
+      // Recount daysActive including today
+      entry.daysActive = new Set([...(entry.codes||[]).map(c => c.date), today].filter(Boolean)).size;
     }
   } catch {}
   // Attach generated codes from code-history to AI/SlipPilot/Generated entries
