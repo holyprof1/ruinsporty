@@ -1600,6 +1600,14 @@ app.get("/api/leaderboard", (req, res) => {
 
   list.forEach(p => { p.badges = badges[p.punter] || []; });
 
+  // Sort AI/Generated to bottom always
+  list.sort((a, b) => {
+    const aIsAI = a.isAI || a.punter === "Generated" || a.punter.startsWith("AI (") || a.punter === "SlipPilot";
+    const bIsAI = b.isAI || b.punter === "Generated" || b.punter.startsWith("AI (") || b.punter === "SlipPilot";
+    if (aIsAI !== bIsAI) return aIsAI ? 1 : -1;
+    return 0;
+  });
+
   // Auto-remove AI/Generated codes with 10+ losses
   for (const p of list) {
     if (p.isAI || p.punter === "Generated" || p.punter.startsWith("AI (") || p.punter === "SlipPilot") {

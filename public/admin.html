@@ -597,7 +597,7 @@ function renderPunterCodesEditor() {
   if (!names.length) { el.innerHTML = '<p style="color:#8a9e8a">No punters configured.</p>'; return; }
   el.innerHTML = names.map(name => {
     const code = punterCodes[name] || '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:100px;font-size:12px;font-weight:600">${esc(name)}</span><input type="text" value="${esc(code)}" id="pc_${name.replace(/\s/g,'_')}" style="flex:1;max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px;font-size:12px" placeholder="CODE" /><button class="btn-sm" onclick="this.previousElementSibling.value='';this.previousElementSibling.focus()" style="padding:2px 8px;font-size:9px;color:#e53935;border-color:#e53935">Clear</button></div>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:100px;font-size:12px;font-weight:600">${esc(name)}</span><input type="text" value="${esc(code)}" id="pc_${name.replace(/\s/g,'_')}" style="flex:1;max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px;font-size:12px" placeholder="CODE" /><button class="btn-sm" onclick="this.previousElementSibling.value='';this.previousElementSibling.focus()" style="padding:2px 8px;font-size:9px;color:#e53935;border-color:#e53935">X</button></div>`;
   }).join('');
 }
 
@@ -658,10 +658,14 @@ async function scanCodeInline(btn, code) {
     const r = await fetch('/api/scan/' + encodeURIComponent(code));
     const j = await r.json();
     if (j.error) { btn.textContent = 'Err'; btn.style.color = '#e53935'; return; }
-    btn.textContent = j.won + 'W/' + j.lost + 'L/' + j.pending + 'P';
-    btn.style.color = j.lost === 0 ? '#00c853' : '#ffb300';
-    btn.style.borderColor = btn.style.color;
-    btn.disabled = false;
+    // Update the code entry via add-code to persist results, then refresh
+    try {
+      await fetch('/api/code-history/update-status', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code, status: j.pending > 0 ? 'pending' : j.lost > 0 ? 'lost' : 'won'})});
+    } catch {}
+    btn.textContent = j.won + 'W/' + j.lost + 'L';
+    btn.style.color = j.lost === 0 && j.pending === 0 ? '#00c853' : '#ffb300';
+    // Refresh leaderboard to show updated numbers
+    setTimeout(() => loadLB(), 500);
   } catch(e) { btn.textContent = 'Err'; btn.style.color = '#e53935'; }
 }
 
