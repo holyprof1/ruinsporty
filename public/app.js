@@ -137,12 +137,11 @@ function setOddsMode(mode) {
 function updateDualRange() {
   const mn = $("minOdds"), mx = $("maxOdds");
   if (!mn || !mx) return;
-  let lo = parseInt(mn.value), hi = parseInt(mx.value), total = parseInt(mx.max) || 1000;
+  let lo = parseInt(mn.value), hi = parseInt(mx.value);
   if (lo > hi) { mn.value = hi; lo = hi; }
-  const rm = $("rangeMin"), rmx = $("rangeMax"), fill = $("rangeFill");
+  const rm = $("rangeMin"), rmx = $("rangeMax");
   if (rm) rm.textContent = lo;
   if (rmx) rmx.textContent = hi;
-  if (fill) { fill.style.left = (lo/total*100)+"%"; fill.style.width = ((hi-lo)/total*100)+"%"; }
 }
 
 // Leg count mode toggle
@@ -156,12 +155,11 @@ function setLegMode(mode) {
 function updateLegRange() {
   const mn = $("topN"), mx = $("topNMax");
   if (!mn || !mx) return;
-  let lo = parseInt(mn.value), hi = parseInt(mx.value), total = parseInt(mx.max) || 50;
+  let lo = parseInt(mn.value), hi = parseInt(mx.value);
   if (lo > hi) { mn.value = hi; lo = hi; }
-  const lm = $("legMin"), lmx = $("legMax2"), fill = $("legFill");
+  const lm = $("legMin"), lmx = $("legMax2");
   if (lm) lm.textContent = lo;
   if (lmx) lmx.textContent = hi;
-  if (fill) { fill.style.left = (lo/total*100)+"%"; fill.style.width = ((hi-lo)/total*100)+"%"; }
 }
 
 // Game limit +/- buttons
@@ -222,7 +220,6 @@ document.querySelectorAll(".opt-goal,.opt-style,.opt-adjust").forEach(b => b.add
 }));
 
 function runOptimize() {
-  // Must set folds or odds target
   const oddsMode = document.querySelector('[data-target].active')?.dataset?.target || "off";
   const legMode = document.querySelector('[data-legs].active')?.dataset?.legs || "auto";
   if (oddsMode === "off" && legMode === "auto") {
@@ -232,43 +229,64 @@ function runOptimize() {
 
   applyFilters();
 
-  // After filters, enforce odds target — remove highest-odds games to bring total down
+  // Smart optimizer: find the best combination of games that fits both leg count AND odds target
+  const pool = filtered.filter(s => !s.removed);
+  const bankerPool = pool.filter(s => bankers.has(s.eventId));
+  const flexPool = pool.filter(s => !bankers.has(s.eventId)).sort((a, b) => a.odds - b.odds);
+
+  // Determine targets
+  let minLegs = 1, maxLegs = pool.length;
+  if (legMode === "fixed") {
+    minLegs = parseInt($("topN")?.value) || 1;
+    maxLegs = parseInt($("topNMax")?.value) || minLegs;
+  }
+
+  let oddsLo = 0, oddsHi = Infinity;
   if (oddsMode === "exact") {
-    const target = parseFloat($('stanceTargetOdds').value) || 0;
-    if (target > 0) {
-      let kept = filtered.filter(s => !s.removed);
-      let totalOdds = kept.reduce((a, s) => a * s.odds, 1);
-      while (totalOdds > target * 1.15 && kept.length > 3) {
-        const removable = kept.filter(s => !bankers.has(s.eventId)).sort((a, b) => b.odds - a.odds);
-        if (!removable.length) break;
-        const worst = removable[0];
-        const newOdds = totalOdds / worst.odds;
-        if (newOdds < target * 0.5 && kept.length <= 5) break;
-        const idx = filtered.findIndex(f => f.eventId === worst.eventId);
-        if (idx !== -1) filtered[idx] = { ...filtered[idx], removed: true };
-        kept = filtered.filter(s => !s.removed);
-        totalOdds = kept.reduce((a, s) => a * s.odds, 1);
-      }
+    const t = parseFloat($("stanceTargetOdds")?.value) || 0;
+    if (t > 0) { oddsLo = t * 0.7; oddsHi = t * 1.3; }
+  } else if (oddsMode === "range") {
+    oddsLo = parseInt($("minOdds")?.value) || 0;
+    oddsHi = parseInt($("maxOdds")?.value) || Infinity;
+  }
+
+  // Try combinations: start from maxLegs down to minLegs, find best fit
+  let bestCombo = null, bestScore = -Infinity;
+
+  for (let n = maxLegs; n >= minLegs; n--) {
+    const flexNeeded = n - bankerPool.length;
+    if (flexNeeded < 0) continue;
+    if (flexNeeded > flexPool.length) continue;
+
+    // Try multiple random subsets + sorted subsets
+    const candidates = [];
+
+    // Sorted by lowest odds (safest)
+    candidates.push([...bankerPool, ...flexPool.slice(0, flexNeeded)]);
+    // Sorted by highest odds (riskiest)
+    candidates.push([...bankerPool, ...flexPool.slice(-flexNeeded)]);
+    // Middle odds
+    const mid = Math.max(0, Math.floor((flexPool.length - flexNeeded) / 2));
+    candidates.push([...bankerPool, ...flexPool.slice(mid, mid + flexNeeded)]);
+    // Random shuffles
+    for (let r = 0; r < Math.min(10, flexPool.length); r++) {
+      const shuffled = [...flexPool].sort(() => Math.random() - 0.5);
+      candidates.push([...bankerPool, ...shuffled.slice(0, flexNeeded)]);
+    }
+
+    for (const combo of candidates) {
+      const odds = combo.reduce((a, s) => a * s.odds, 1);
+      const inRange = odds >= oddsLo && odds <= oddsHi;
+      const dist = inRange ? 0 : Math.min(Math.abs(odds - oddsLo), Math.abs(odds - oddsHi));
+      const score = inRange ? 1000 - dist : -dist;
+      if (score > bestScore) { bestScore = score; bestCombo = combo; }
     }
   }
 
-  if (oddsMode === "range") {
-    const lo = parseInt($("minOdds")?.value) || 0;
-    const hi = parseInt($("maxOdds")?.value) || 999999;
-    if (lo > 0 || hi < 999999) {
-      let kept = filtered.filter(s => !s.removed);
-      let totalOdds = kept.reduce((a, s) => a * s.odds, 1);
-      while (totalOdds > hi && kept.length > 3) {
-        const removable = kept.filter(s => !bankers.has(s.eventId)).sort((a, b) => b.odds - a.odds);
-        if (!removable.length) break;
-        const worst = removable[0];
-        if (totalOdds / worst.odds < lo * 0.5 && kept.length <= 5) break;
-        const idx = filtered.findIndex(f => f.eventId === worst.eventId);
-        if (idx !== -1) filtered[idx] = { ...filtered[idx], removed: true };
-        kept = filtered.filter(s => !s.removed);
-        totalOdds = kept.reduce((a, s) => a * s.odds, 1);
-      }
-    }
+  // Apply the best combination
+  if (bestCombo) {
+    const keepIds = new Set(bestCombo.map(s => s.eventId));
+    filtered = filtered.map(s => ({ ...s, removed: !keepIds.has(s.eventId) }));
   }
 
   wizGo('opt', 3);
