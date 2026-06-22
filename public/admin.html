@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>SlipPilot Admin</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -87,6 +87,7 @@ input:focus{border-color:#00c853}
 
   <div class="tab-row">
     <button class="tab-btn active" data-tab="punters" onclick="switchAdminTab('punters')">Leaderboard</button>
+    <button class="tab-btn" data-tab="session" onclick="switchAdminTab('session')">Daily Session</button>
     <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">Codes</button>
     <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
     <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">Settings</button>
@@ -102,14 +103,23 @@ input:focus{border-color:#00c853}
       <span id="saveCodesMsg" style="font-size:12px;color:#00c853;margin-left:8px"></span>
     </div>
     <div class="card">
-      <h2>Punter Network</h2>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px" id="sortPills">
-        <button class="pill active" onclick="sortBy('consistency',this)">Consistency</button>
-        <button class="pill" onclick="sortBy('trust',this)">Trust</button>
-        <button class="pill" onclick="sortBy('hitrate',this)">Hit Rate</button>
-        <button class="pill" onclick="sortBy('games',this)">Games</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <h2 style="margin:0">Leaderboard</h2>
+        <input type="text" id="lbSearch" placeholder="Search punter..." style="max-width:180px;padding:6px 12px;font-size:12px" oninput="loadLB()" />
       </div>
-      <div id="punterCards"></div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px" id="sortPills">
+        <button class="pill active" onclick="sortLB('consistency',this)">Consistency</button>
+        <button class="pill" onclick="sortLB('consensus',this)">Consensus</button>
+        <button class="pill" onclick="sortLB('totalBets',this)">Games</button>
+        <button class="pill" onclick="sortLB('avgOdds',this)">Avg Odds</button>
+        <button class="pill" onclick="sortLB('active',this)">Active</button>
+        <button class="pill" onclick="sortLB('risk',this)">Risk</button>
+        <button class="pill" onclick="sortLB('conversion',this)">Conversion</button>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:12px">
+        <button class="btn-sm" id="lbOrderBtn" onclick="toggleLBOrder()" style="font-size:10px">▼ Desc</button>
+      </div>
+      <div id="lbCards"></div>
     </div>
   </div>
 
@@ -163,6 +173,42 @@ input:focus{border-color:#00c853}
     </div>
   </div>
 
+  <!-- DAILY SESSION -->
+  <div class="tab-content" id="tab-session">
+    <div class="card">
+      <h2>Daily Session Control</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:16px">Manage today's punter codes, run the optimizer engine, and generate 50 diversified booking codes.</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn" onclick="runSession()" id="runBtn">▶ Run Generation</button>
+        <button class="btn" style="background:#e53935" onclick="resetSession()" id="resetBtn">↻ Reset Session</button>
+        <span id="sessionStatus" style="font-size:12px;color:#8a9e8a;align-self:center"></span>
+      </div>
+
+      <h3 style="margin-bottom:8px;font-size:14px">Punter Codes</h3>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:8px">Enter codes. Use commas for multiple codes per punter.</p>
+      <div id="sessionPunterEditor"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        <input type="text" id="newPunterName" placeholder="New punter name" style="max-width:160px" />
+        <button class="btn-sm" onclick="addSessionPunter()">+ Add Punter</button>
+      </div>
+    </div>
+
+    <div class="card" id="sessionLogCard" style="display:none">
+      <h2>Engine Log</h2>
+      <div id="sessionLogBox" style="font-family:monospace;font-size:11px;color:#8a9e8a;max-height:350px;overflow-y:auto;white-space:pre-wrap;background:#0a0f0a;padding:12px;border-radius:8px;border:1px solid #1e2e1e"></div>
+    </div>
+
+    <div class="card" id="sessionResultCard" style="display:none">
+      <h2>Generated Codes</h2>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="copySessionCodes()">Copy All Codes</button>
+        <button class="btn-sm" onclick="exportSessionCodes()">Export .txt</button>
+      </div>
+      <div id="sessionCodesOutput"></div>
+    </div>
+  </div>
+
   <!-- TICKETS -->
   <div class="tab-content" id="tab-tickets">
     <div class="card">
@@ -210,78 +256,67 @@ function updateQuickStats() {
   if (best) document.getElementById('qsBest').textContent = best.name + ' ' + best.trustScore;
 }
 
-// ── LEADERBOARD ──
+// ── LEADERBOARD (enhanced) ──
 
-function sortBy(method, btn) {
-  currentSort = method;
+let lbSort = 'consistency', lbOrder = 'desc';
+
+function sortLB(method, btn) {
+  lbSort = method;
   document.querySelectorAll('#sortPills .pill').forEach(p => p.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  renderPunters();
+  loadLB();
 }
 
-function getSorted() {
-  let list = Object.values(profiles);
-  switch (currentSort) {
-    case 'trust': list.sort((a,b) => b.trustScore - a.trustScore); break;
-    case 'hitrate': list.sort((a,b) => b.hitRate - a.hitRate); break;
-    case 'games': list.sort((a,b) => b.totalGames - a.totalGames); break;
-    case 'consistency': default: list.sort((a,b) => (b.consistency||0) - (a.consistency||0)); break;
-  }
-  return list;
+function toggleLBOrder() {
+  lbOrder = lbOrder === 'desc' ? 'asc' : 'desc';
+  document.getElementById('lbOrderBtn').textContent = lbOrder === 'desc' ? '▼ Desc' : '▲ Asc';
+  loadLB();
 }
 
-function renderPunters() {
-  const sorted = getSorted();
-  if (!sorted.length) { document.getElementById('punterCards').innerHTML = '<p style="color:#8a9e8a">No punter profiles loaded.</p>'; return; }
-  document.getElementById('punterCards').innerHTML = sorted.map((p, i) => {
+async function loadLB() {
+  const search = (document.getElementById('lbSearch')?.value || '').trim();
+  const url = `/api/leaderboard?sort=${lbSort}&order=${lbOrder}${search ? '&search=' + encodeURIComponent(search) : ''}`;
+  try {
+    const r = await fetch(url);
+    const j = await r.json();
+    renderLB(j.leaderboard || []);
+  } catch { renderLB([]); }
+}
+
+function renderLB(list) {
+  const el = document.getElementById('lbCards');
+  if (!list.length) { el.innerHTML = '<p style="color:#8a9e8a">No punters found.</p>'; return; }
+
+  const badgeColors = { 'Top Winner':'#ffb300', 'Highest Odds':'#a371f7', 'Most Consistent':'#00c853', 'Most Active':'#2196f3', 'Best ROI':'#e91e63' };
+
+  el.innerHTML = list.map((p, i) => {
     const rc = i===0 ? 'rank-1' : i===1 ? 'rank-2' : i===2 ? 'rank-3' : 'rank-n';
-    const ringBg = p.trustScore >= 80 ? 'rgba(0,200,83,.12)' : p.trustScore >= 60 ? 'rgba(255,179,0,.1)' : 'rgba(229,57,53,.1)';
-    const ringC = p.trustScore >= 80 ? '#00c853' : p.trustScore >= 60 ? '#ffb300' : '#e53935';
-    const codes = (p.codes || []).filter(c => c.games > 0);
+    const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
+    const isAI = p.isAI || p.punter.startsWith('AI (') || p.punter === 'SlipPilot';
+    const icon = isAI ? '🤖 ' : '';
+    const badgesHtml = (p.badges || []).map(b => `<span style="background:${badgeColors[b]||'#8a9e8a'}22;color:${badgeColors[b]||'#8a9e8a'};font-size:9px;padding:2px 8px;border-radius:100px;font-weight:700">${b}</span>`).join(' ');
+
     return `<div class="punter-card">
-      <div class="punter-header" onclick="this.parentElement.querySelector('.code-section').classList.toggle('collapsed')">
+      <div class="punter-header">
         <div class="rank-badge ${rc}">${i+1}</div>
-        <div><div style="font-weight:800;font-size:15px">${esc(p.name)}</div><div style="font-size:12px;color:#8a9e8a">${esc(p.handle||'')}</div></div>
-        <div class="trust-ring" style="background:${ringBg};border:2px solid ${ringC};color:${ringC}">${p.trustScore}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:14px">${icon}${esc(p.punter)} ${badgesHtml}</div>
+          <div style="font-size:11px;color:#8a9e8a;margin-top:2px">${esc(p.handle||'')} ${p.todayCode ? '• Today: <span style="color:#00c853;font-weight:700;font-family:monospace">'+esc(p.todayCode)+'</span>' : ''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:18px;font-weight:900;color:${riskC}">${p.consensusRate||0}%</div>
+          <div style="font-size:9px;color:#8a9e8a">CONSENSUS</div>
+        </div>
       </div>
-      <div class="punter-stats">
-        <div><div class="ps-val">${codes.length}</div><div class="ps-lbl">Slips</div></div>
-        <div><div class="ps-val">${p.totalGames}</div><div class="ps-lbl">Games</div></div>
-        <div><div class="ps-val" style="color:#00c853">${p.won||0}</div><div class="ps-lbl">Won</div></div>
-        <div><div class="ps-val" style="color:#e53935">${p.lost||0}</div><div class="ps-lbl">Lost</div></div>
-        <div><div class="ps-val">${p.void||0}</div><div class="ps-lbl">Void</div></div>
-        <div><div class="ps-val" style="color:#00c853">${p.hitRate}%</div><div class="ps-lbl">Hit Rate</div></div>
-      </div>
-      <div class="code-section">
-        <div class="code-grid hdr"><span>CODE</span><span>DATE</span><span>GAMES</span><span>WON</span><span>LOST</span><span>VOID</span><span>RATE</span><span></span></div>
-        ${codes.map(c => {
-          const d = c.date ? new Date(c.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '-';
-          const rc = c.hitRate >= 75 ? '#00c853' : c.hitRate >= 60 ? '#ffb300' : '#e53935';
-          return `<div class="code-grid"><span class="code-val">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games}</span><span style="color:#00c853">${c.won}</span><span style="color:#e53935">${c.lost}</span><span>${c.void||0}</span><span style="color:${rc};font-weight:700">${c.hitRate}%</span><span><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button></span></div>`;
-        }).join('')}
-      </div>
-      <div class="add-form">
-        <input type="text" placeholder="Add code" id="ac_${i}" />
-        <input type="date" value="${new Date().toISOString().slice(0,10)}" id="ad_${i}" />
-        <button class="btn-sm" onclick="addCode('${esc(p.name)}',${i})">Add</button>
-        <span id="am_${i}" style="font-size:11px;color:#8a9e8a"></span>
+      <div class="punter-stats" style="grid-template-columns:repeat(5,1fr)">
+        <div><div class="ps-val">${p.totalGames||0}</div><div class="ps-lbl">Games</div></div>
+        <div><div class="ps-val">${p.daysActive||0}</div><div class="ps-lbl">Days</div></div>
+        <div><div class="ps-val">${p.avgOdds||'-'}</div><div class="ps-lbl">Avg Odds</div></div>
+        <div><div class="ps-val">${p.conversionRate||0}%</div><div class="ps-lbl">Converted</div></div>
+        <div><div class="ps-val" style="color:${riskC};text-transform:capitalize">${p.riskProfile||'-'}</div><div class="ps-lbl">Risk</div></div>
       </div>
     </div>`;
   }).join('');
-}
-
-async function addCode(name, idx) {
-  const code = document.getElementById('ac_'+idx).value.trim().toUpperCase();
-  const date = document.getElementById('ad_'+idx).value;
-  const msg = document.getElementById('am_'+idx);
-  if (!code) return;
-  msg.textContent = 'Scanning...';
-  try {
-    const r = await fetch('/api/punters/'+encodeURIComponent(name)+'/add-code', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code,date})});
-    const j = await r.json();
-    if (j.success) { msg.textContent = j.won+'W/'+j.lost+'L/'+j.void+'V ('+j.hitRate+'%)'; msg.style.color='#00c853'; setTimeout(()=>loadAll(), 1000); }
-    else { msg.textContent = j.error || 'Failed'; msg.style.color='#e53935'; }
-  } catch(e) { msg.textContent = e.message; msg.style.color='#e53935'; }
 }
 
 // ── GENERATED CODES ──
@@ -448,6 +483,185 @@ async function saveHeaderCode() {
 }
 
 function esc(s) { const e = document.createElement('span'); e.textContent = s || ''; return e.innerHTML; }
+
+// ── DAILY SESSION ──
+
+let sessionPunters = {};
+
+async function loadSessionPunters() {
+  try { const r = await fetch('/api/admin/punter-codes', {headers:{'x-admin-password':adminPw}}); if (r.ok) sessionPunters = await r.json(); } catch {}
+  renderSessionPunterEditor();
+}
+
+function renderSessionPunterEditor() {
+  const el = document.getElementById('sessionPunterEditor');
+  const names = Object.keys(sessionPunters);
+  if (!names.length) { el.innerHTML = '<p style="color:#8a9e8a">No punters. Add one below.</p>'; return; }
+  el.innerHTML = names.map(name =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <span style="min-width:110px;font-size:13px;font-weight:600">${esc(name)}</span>
+      <input type="text" value="${esc(sessionPunters[name]||'')}" id="sp_${name.replace(/[^a-zA-Z0-9]/g,'_')}" style="flex:1;max-width:240px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px" placeholder="CODE1, CODE2" />
+      <button class="btn-sm" onclick="removeSessionPunter('${esc(name)}')" style="color:#e53935;border-color:#e53935">✕</button>
+    </div>`
+  ).join('');
+}
+
+function addSessionPunter() {
+  const name = document.getElementById('newPunterName').value.trim();
+  if (!name) return;
+  sessionPunters[name] = '';
+  renderSessionPunterEditor();
+  document.getElementById('newPunterName').value = '';
+}
+
+function removeSessionPunter(name) {
+  if (!confirm('Remove ' + name + '?')) return;
+  delete sessionPunters[name];
+  renderSessionPunterEditor();
+}
+
+function getSessionPunterMap() {
+  const map = {};
+  for (const name of Object.keys(sessionPunters)) {
+    const el = document.getElementById('sp_' + name.replace(/[^a-zA-Z0-9]/g,'_'));
+    const val = el ? el.value.trim().toUpperCase() : '';
+    if (val) map[name] = val;
+  }
+  return map;
+}
+
+async function runSession() {
+  const btn = document.getElementById('runBtn');
+  const status = document.getElementById('sessionStatus');
+  btn.disabled = true; btn.textContent = '⏳ Running...';
+  status.textContent = '';
+
+  // Save codes first
+  const map = getSessionPunterMap();
+  try { await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(map)}); } catch {}
+
+  // Start generation
+  document.getElementById('sessionLogCard').style.display = 'block';
+  document.getElementById('sessionResultCard').style.display = 'none';
+  const logBox = document.getElementById('sessionLogBox');
+  logBox.textContent = 'Starting engine...\n';
+
+  try {
+    const r = await fetch('/api/session/run', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({punters:map})});
+    const j = await r.json();
+    if (j.error) { status.textContent = j.error; status.style.color='#e53935'; btn.disabled=false; btn.textContent='▶ Run Generation'; return; }
+  } catch(e) { status.textContent = 'Error: '+e.message; btn.disabled=false; btn.textContent='▶ Run Generation'; return; }
+
+  // Poll logs
+  let logIdx = 0;
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch('/api/session/logs?since='+logIdx, {headers:{'x-admin-password':adminPw}});
+      const j = await r.json();
+      if (j.logs && j.logs.length) {
+        for (const line of j.logs) logBox.textContent += line + '\n';
+        logBox.scrollTop = logBox.scrollHeight;
+        logIdx = j.total;
+      }
+      if (!j.running) {
+        clearInterval(poll);
+        btn.disabled = false; btn.textContent = '▶ Run Generation';
+        status.textContent = '✓ Complete'; status.style.color = '#00c853';
+        loadSessionResult();
+        loadAll();
+      }
+    } catch { clearInterval(poll); btn.disabled = false; btn.textContent = '▶ Run Generation'; }
+  }, 1500);
+}
+
+async function loadSessionResult() {
+  try {
+    const r = await fetch('/api/session/today', {headers:{'x-admin-password':adminPw}});
+    const session = await r.json();
+    if (!session.groups || Object.keys(session.groups).length === 0) return;
+
+    document.getElementById('sessionResultCard').style.display = 'block';
+    const labels = {A:'Consensus Bankers',B:'Safety First',C:'Balanced',D:'Aggressive',E:'Moonshot'};
+    let html = '';
+
+    for (const [g, slips] of Object.entries(session.groups)) {
+      html += `<div style="margin-bottom:16px"><div style="font-weight:700;color:#00c853;margin-bottom:6px">Group ${g} — ${labels[g]||g}</div>`;
+      html += `<div class="gen-grid hdr"><span>CODE</span><span>GAMES</span><span>ODDS</span><span>SAFETY</span><span></span></div>`;
+      for (const s of slips) {
+        const odds = s.odds >= 1e6 ? (s.odds/1e6).toFixed(1)+'M' : s.odds >= 1000 ? Math.round(s.odds/1000)+'K' : Math.round(s.odds);
+        const code = s.code || 'FAIL';
+        html += `<div class="gen-grid">
+          <span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${code}</span>
+          <span>${s.games}g</span>
+          <span style="color:#ffb300;font-weight:700">${odds}x</span>
+          <span>${s.avgScore}</span>
+          <span class="gen-actions"><button class="btn-sm" onclick="navigator.clipboard.writeText('${code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)">Copy</button><a href="https://www.sportybet.com/ng/?shareCode=${code}" target="_blank">Load ↗</a></span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+    document.getElementById('sessionCodesOutput').innerHTML = html;
+  } catch {}
+}
+
+function copySessionCodes() {
+  const codes = document.querySelectorAll('#sessionCodesOutput .gen-grid:not(.hdr) span:first-child');
+  const list = [...codes].map(s => s.textContent.trim()).filter(c => c && c !== 'FAIL');
+  navigator.clipboard.writeText(list.join('\n'));
+  alert(list.length + ' codes copied');
+}
+
+async function exportSessionCodes() {
+  try {
+    const r = await fetch('/api/session/today', {headers:{'x-admin-password':adminPw}});
+    const session = await r.json();
+    const labels = {A:'Consensus Bankers',B:'Safety First',C:'Balanced',D:'Aggressive',E:'Moonshot'};
+    let text = 'SLIPPILOT — ' + (session.date||'today') + '\n\n';
+    for (const [g, slips] of Object.entries(session.groups || {})) {
+      text += 'GROUP ' + g + ' — ' + (labels[g]||g) + '\n';
+      for (const s of slips) text += s.code + '\n';
+      text += '\n';
+    }
+    const blob = new Blob([text],{type:'text/plain'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'codes-' + (session.date||'today') + '.txt'; a.click();
+  } catch(e) { alert('Export failed: ' + e.message); }
+}
+
+async function resetSession() {
+  if (!confirm('Reset today session? Current data will be archived to history.')) return;
+  try {
+    const r = await fetch('/api/session/reset', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}});
+    const j = await r.json();
+    document.getElementById('sessionStatus').textContent = j.message || 'Reset done';
+    document.getElementById('sessionStatus').style.color = '#00c853';
+    document.getElementById('sessionResultCard').style.display = 'none';
+    document.getElementById('sessionLogCard').style.display = 'none';
+  } catch(e) { alert('Reset failed: ' + e.message); }
+}
+
+// Hook into loadAll — safe wrapper
+const _origLoadAll = loadAll;
+loadAll = async function() {
+  try { await _origLoadAll(); } catch(e) { console.error('loadAll base error:', e); }
+  try { loadLB(); } catch(e) { console.error('loadLB error:', e); }
+  try { loadSessionPunters(); } catch(e) { console.error('loadSessionPunters error:', e); }
+  try { loadSessionResult(); } catch(e) { console.error('loadSessionResult error:', e); }
+};
+
+// Ctrl+Shift+A → instant admin access
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+    e.preventDefault();
+    const loginDiv = document.getElementById('login');
+    if (loginDiv.style.display !== 'none') {
+      const pwInput = document.getElementById('pw');
+      pwInput.focus();
+      pwInput.select();
+      // If password is already typed, auto-submit
+      if (pwInput.value.length > 0) doLogin();
+    }
+  }
+});
 </script>
 </body>
 </html>

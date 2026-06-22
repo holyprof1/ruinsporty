@@ -12,7 +12,7 @@ fs.mkdirSync(path.join(stageDir, "public"), { recursive: true });
 fs.mkdirSync(path.join(stageDir, "data"), { recursive: true });
 
 // Root files
-const rootFiles = ["server.js", "package.json", "package-lock.json", ".htaccess", "DEPLOY.md", "AGENTS.md", "create-deploy-zip.js"];
+const rootFiles = ["server.js", "session-engine.js", "package.json", "package-lock.json", ".htaccess", "DEPLOY.md", "AGENTS.md", "create-deploy-zip.js"];
 rootFiles.forEach(f => { if (fs.existsSync(path.join(__dirname, f))) fs.copyFileSync(path.join(__dirname, f), path.join(stageDir, f)); });
 
 // .env.production → .env on server

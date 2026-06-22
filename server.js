@@ -1383,6 +1383,164 @@ app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
   res.json({ success: true, codes: updated });
 });
 
+// ── Enhanced Leaderboard API ──
+
+const LEADERBOARD_FILE = path.join(DATA_DIR, "leaderboard.json");
+const CODE_HISTORY_FILE = path.join(DATA_DIR, "code-history.json");
+const WEAK_MATCHES_FILE = path.join(DATA_DIR, "weak-matches.json");
+
+function loadLeaderboard() { try { return JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8")); } catch { return []; } }
+function loadCodeHistory() { try { return JSON.parse(fs.readFileSync(CODE_HISTORY_FILE, "utf-8")); } catch { return []; } }
+function loadWeakMatches() { try { return JSON.parse(fs.readFileSync(WEAK_MATCHES_FILE, "utf-8")); } catch { return {}; } }
+
+app.get("/api/leaderboard", (req, res) => {
+  const lb = loadLeaderboard();
+  const { sort, order, search } = req.query;
+  let list = [...lb];
+
+  if (search) {
+    const q = search.toLowerCase();
+    list = list.filter(p => (p.punter || "").toLowerCase().includes(q) || (p.handle || "").toLowerCase().includes(q));
+  }
+
+  const dir = order === "asc" ? 1 : -1;
+  const sortFns = {
+    wins: (a, b) => ((a.wins || 0) - (b.wins || 0)) * dir,
+    winPct: (a, b) => ((a.consensusRate || 0) - (b.consensusRate || 0)) * dir,
+    totalBets: (a, b) => ((a.totalGames || 0) - (b.totalGames || 0)) * dir,
+    roi: (a, b) => ((a.roi || 0) - (b.roi || 0)) * dir,
+    consensus: (a, b) => ((a.consensusRate || 0) - (b.consensusRate || 0)) * dir,
+    conversion: (a, b) => ((a.conversionRate || 0) - (b.conversionRate || 0)) * dir,
+    risk: (a, b) => (({ low: 1, medium: 2, high: 3 }[a.riskProfile] || 0) - ({ low: 1, medium: 2, high: 3 }[b.riskProfile] || 0)) * dir,
+    active: (a, b) => ((a.daysActive || 0) - (b.daysActive || 0)) * dir,
+    lastActive: (a, b) => ((a.lastActive || "").localeCompare(b.lastActive || "")) * dir,
+    consistency: (a, b) => ((a.consistency || 0) - (b.consistency || 0)) * dir,
+    avgOdds: (a, b) => ((a.avgOdds || 0) - (b.avgOdds || 0)) * dir,
+  };
+  if (sortFns[sort]) list.sort(sortFns[sort]);
+
+  // Compute badges
+  const badges = {};
+  if (lb.length) {
+    const byWins = [...lb].sort((a, b) => (b.wins || 0) - (a.wins || 0));
+    const byCons = [...lb].sort((a, b) => (b.consistency || 0) - (a.consistency || 0));
+    const byActive = [...lb].sort((a, b) => (b.daysActive || 0) - (a.daysActive || 0));
+    const byOdds = [...lb].sort((a, b) => (b.avgOdds || 0) - (a.avgOdds || 0));
+    const byROI = [...lb].sort((a, b) => (b.roi || 0) - (a.roi || 0));
+    if (byWins[0]) badges[byWins[0].punter] = [...(badges[byWins[0].punter] || []), "Top Winner"];
+    if (byOdds[0]) badges[byOdds[0].punter] = [...(badges[byOdds[0].punter] || []), "Highest Odds"];
+    if (byCons[0]) badges[byCons[0].punter] = [...(badges[byCons[0].punter] || []), "Most Consistent"];
+    if (byActive[0]) badges[byActive[0].punter] = [...(badges[byActive[0].punter] || []), "Most Active"];
+    if (byROI[0] && (byROI[0].roi || 0) > 0) badges[byROI[0].punter] = [...(badges[byROI[0].punter] || []), "Best ROI"];
+  }
+
+  list.forEach(p => { p.badges = badges[p.punter] || []; });
+  res.json({ leaderboard: list, total: list.length });
+});
+
+app.get("/api/code-history", requireAdmin, (req, res) => {
+  const history = loadCodeHistory();
+  const { punter, group, status } = req.query;
+  let list = [...history];
+  if (punter) list = list.filter(c => c.punter === punter);
+  if (group) list = list.filter(c => c.group === group);
+  if (status) list = list.filter(c => c.status === status);
+  res.json({ codes: list.slice(-200), total: list.length });
+});
+
+app.post("/api/code-history/update-status", requireAdmin, (req, res) => {
+  const { code, status } = req.body;
+  if (!code || !status) return res.status(400).json({ error: "code and status required" });
+  const history = loadCodeHistory();
+  const entry = history.find(c => c.code === code);
+  if (!entry) return res.status(404).json({ error: "code not found" });
+  entry.status = status;
+  entry.updatedAt = new Date().toISOString();
+  fs.writeFileSync(CODE_HISTORY_FILE, JSON.stringify(history, null, 2));
+
+  // Update weak matches if status is "lost"
+  if (status === "lost" && entry.picks) {
+    const weak = loadWeakMatches();
+    for (const pick of entry.picks) {
+      const eid = pick.eventId || pick.event;
+      if (!eid) continue;
+      if (!weak[eid]) weak[eid] = { eventId: eid, match: pick.home || pick.match || "", appearances: 0, losses: 0, failureRate: 0 };
+      weak[eid].losses++;
+      weak[eid].failureRate = weak[eid].appearances > 0 ? Math.round(weak[eid].losses / weak[eid].appearances * 100) : 0;
+    }
+    fs.writeFileSync(WEAK_MATCHES_FILE, JSON.stringify(weak, null, 2));
+  }
+
+  res.json({ success: true });
+});
+
+app.get("/api/weak-matches", requireAdmin, (req, res) => {
+  res.json(loadWeakMatches());
+});
+
+// ── Daily Session Intelligence ──
+
+const sessionEngine = require("./session-engine");
+const SESSION_TODAY_FILE = path.join(DATA_DIR, "session-today.json");
+
+app.get("/api/session/today", requireAdmin, (req, res) => {
+  try { res.json(JSON.parse(fs.readFileSync(SESSION_TODAY_FILE, "utf-8"))); }
+  catch { res.json({ date: new Date().toISOString().slice(0, 10), status: "empty", punters: {}, groups: {}, pool: [] }); }
+});
+
+app.post("/api/session/reset", requireAdmin, (req, res) => {
+  try {
+    const result = sessionEngine.resetSession();
+    res.json({ success: true, archived: result.archived, message: result.archived ? "Session archived and reset" : "Fresh session created" });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+let sessionRunning = false;
+let sessionLogs = [];
+
+app.post("/api/session/run", requireAdmin, async (req, res) => {
+  if (sessionRunning) return res.status(409).json({ error: "Session already running" });
+  sessionRunning = true;
+  sessionLogs = [];
+
+  // Build punter map: merge admin punter-codes with any request overrides
+  const stored = loadPunterCodes();
+  const overrides = req.body?.punters || {};
+  const punterMap = {};
+  for (const [name, code] of Object.entries({ ...stored, ...overrides })) {
+    if (code) punterMap[name] = code;
+  }
+  // Support comma-separated multi-codes
+  for (const [name, val] of Object.entries(punterMap)) {
+    if (typeof val === "string" && val.includes(",")) {
+      punterMap[name] = val.split(",").map(c => c.trim()).filter(Boolean);
+    }
+  }
+
+  res.json({ success: true, message: "Generation started", punters: Object.keys(punterMap).length });
+
+  try {
+    await sessionEngine.run(punterMap, (msg) => {
+      sessionLogs.push(msg);
+      console.log("[SESSION]", msg);
+    });
+  } catch (e) {
+    sessionLogs.push("FATAL: " + e.message);
+    console.error("[SESSION FATAL]", e);
+  } finally {
+    sessionRunning = false;
+  }
+});
+
+app.get("/api/session/status", requireAdmin, (req, res) => {
+  res.json({ running: sessionRunning, logCount: sessionLogs.length, logs: sessionLogs.slice(-80) });
+});
+
+app.get("/api/session/logs", requireAdmin, (req, res) => {
+  const since = parseInt(req.query.since) || 0;
+  res.json({ running: sessionRunning, logs: sessionLogs.slice(since), total: sessionLogs.length });
+});
+
 // ── Global error handler (must be last middleware) ──
 
 app.use((err, req, res, next) => {

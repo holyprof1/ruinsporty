@@ -451,7 +451,7 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
 .support-fab:hover{transform:scale(1.1);background:#1ed760}
 
 /* Mobile Bottom Nav */
-.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);z-index:900;padding:6px 0 env(safe-area-inset-bottom,6px);justify-content:space-around}
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);z-index:900;padding:8px 0 calc(env(safe-area-inset-bottom, 6px) + 4px);justify-content:space-around}
 .bnav-item{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--text3);font-family:inherit;font-size:9px;font-weight:600;cursor:pointer;padding:6px 8px;transition:.15s;min-width:0}
 .bnav-item svg{flex-shrink:0}
 .bnav-item.active{color:var(--green)}
@@ -540,5 +540,15 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
   .bottom-nav{display:flex}
   .tab-nav{display:none}
   .support-fab{display:none}
-  body{padding-bottom:72px}
+  body{padding-bottom:calc(72px + env(safe-area-inset-bottom, 0px))}
+}
+
+/* Hide scrollbars in app views, keep scroll */
+.tab-page,.card,.punter-card,.code-section{scrollbar-width:none;-ms-overflow-style:none}
+.tab-page::-webkit-scrollbar,.card::-webkit-scrollbar{display:none}
+
+/* Safe area for standalone PWA */
+@supports(padding: max(0px)) {
+  .topbar-inner{padding-left:max(20px, env(safe-area-inset-left));padding-right:max(20px, env(safe-area-inset-right))}
+  .bottom-nav{padding-bottom:max(10px, env(safe-area-inset-bottom))}
 }
