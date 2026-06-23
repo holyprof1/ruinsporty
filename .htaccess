@@ -1,21 +1,11 @@
-# Block access to sensitive files
-<FilesMatch "^\.env">
-  Require all denied
-</FilesMatch>
+DirectoryIndex disabled
 
-<FilesMatch "\.(json|txt)$">
-  <If "%{REQUEST_URI} =~ m#^/data/#">
-    Require all denied
-  </If>
-</FilesMatch>
-
-# Block direct access to server files
-<FilesMatch "^(server|session-engine|generate|analyze|verify|create-deploy).*\.js$">
-  Require all denied
-</FilesMatch>
-
-# Proxy to Node.js
 RewriteEngine On
+
+# Block .env file
+RewriteRule ^\.env$ - [F,L]
+
+# Proxy everything to Node.js
 RewriteRule ^$ http://127.0.0.1:3000/ [P,L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

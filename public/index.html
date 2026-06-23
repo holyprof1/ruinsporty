@@ -664,7 +664,7 @@
     <div class="modal-backdrop" onclick="$('supportModal').classList.add('hidden')"></div>
     <div class="modal-content modal-sm">
       <div class="modal-header"><h3>Contact Us</h3><button class="modal-close-btn" onclick="$('supportModal').classList.add('hidden')">&times;</button></div>
-      <div style="padding:20px">
+      <div style="padding:20px;overflow-y:auto;max-height:70vh">
         <input type="text" id="supName" class="field wiz-field" placeholder="Your name" />
         <input type="email" id="supEmail" class="field wiz-field" placeholder="Your email (required)" />
         <select id="supType" class="field wiz-field">
