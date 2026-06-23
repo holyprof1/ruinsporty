@@ -131,7 +131,17 @@ function setOddsMode(mode) {
   const ex = $("oddsExactPanel"), rn = $("oddsRangePanel");
   if (ex) ex.classList.toggle("hidden", mode !== "exact");
   if (rn) rn.classList.toggle("hidden", mode !== "range");
-  if (mode === "range") updateDualRange();
+  if (mode === "range") {
+    // Set sensible defaults: 20% to 80% of the slip's total odds
+    const mn = $("minOdds"), mx = $("maxOdds");
+    if (mn && mx) {
+      const slipMax = parseInt(mx.max) || 1000;
+      const lo = Math.max(1, Math.round(slipMax * 0.2));
+      const hi = Math.round(slipMax * 0.8);
+      mn.value = lo; mx.value = hi;
+    }
+    updateDualRange();
+  }
 }
 
 function updateDualRange() {
@@ -330,21 +340,42 @@ function runOptimize() {
   });
   pool.sort((a, b) => b._score - a._score);
 
-  // BUG4 FIX: Auto leg count = chase odds target, remove lowest-score games until in range
+  // AUTO LEG COUNT: chase odds target as primary goal
   if (legMode === "auto" && (oddsLo > 0 || oddsHi < Infinity)) {
     let current = [...pool];
     let totalOdds = current.reduce((a, s) => a * s.odds, 1);
-    // If above target max, remove lowest-score games one by one
-    while (totalOdds > oddsHi && current.length > 1) {
-      current.pop(); // remove lowest scored game (already sorted high→low)
-      totalOdds = current.reduce((a, s) => a * s.odds, 1);
+
+    if (totalOdds > oddsHi) {
+      // Above max — need to remove games. Remove by HIGHEST ODDS first (brings total down fastest)
+      // but weighted by stance score (prefer removing low-score high-odds games)
+      while (totalOdds > oddsHi && current.length > 1) {
+        // Find the game whose removal brings us CLOSEST to the target range
+        let bestIdx = -1, bestAfter = 0, bestDist = Infinity;
+        for (let i = 0; i < current.length; i++) {
+          if (bankers.has(current[i].eventId)) continue;
+          const after = totalOdds / current[i].odds;
+          const dist = after >= oddsLo && after <= oddsHi ? 0 : Math.min(Math.abs(after - oddsLo), Math.abs(after - oddsHi));
+          // Tiebreak: prefer removing lower-scored games
+          const adjustedDist = dist - current[i]._score * 0.01;
+          if (adjustedDist < bestDist) { bestDist = adjustedDist; bestIdx = i; bestAfter = after; }
+        }
+        if (bestIdx === -1) break;
+        current[bestIdx].removeReason = "Removed to hit odds target";
+        current.splice(bestIdx, 1);
+        totalOdds = current.reduce((a, s) => a * s.odds, 1);
+        // Stop if we've entered the range
+        if (totalOdds >= oddsLo && totalOdds <= oddsHi) break;
+        // Stop if we've dropped below minimum — don't overshoot
+        if (totalOdds < oddsLo) break;
+      }
     }
+    // If below min: nothing to do, keep all, will warn
+
     pool = current;
-    // Apply removals
     const keepIds = new Set(pool.map(s => s.eventId));
     filtered = filtered.map(s => {
       if (keepIds.has(s.eventId)) return { ...s, removed: false };
-      if (!s.removed) return { ...s, removed: true, removeReason: "Removed to hit odds target" };
+      if (!s.removed) return { ...s, removed: true, removeReason: s.removeReason || "Removed to hit odds target" };
       return s;
     });
   } else if (legMode === "fixed") {
