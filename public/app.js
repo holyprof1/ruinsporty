@@ -781,81 +781,24 @@ function applyFilters() {
   const doTopN = n => { const k = filtered.filter(s=>!s.removed).sort((a,b)=>a.odds-b.odds); if (k.length > n) { const keep = new Set(k.slice(0,n).map(s=>s.eventId)); filtered = filtered.map(s => (!s.removed && !keep.has(s.eventId)) ? {...s, removed:true} : s); } };
   [5,10,15,20].forEach(n => { if (presets.has(`top-${n}`)) doTopN(n); });
 
-  // Stance-based risk scoring
-  const activeStance = document.querySelector(".stance-card.active")?.dataset?.stance || "manual";
-
-  function riskScore(s) {
-    let risk = 0;
-    const mkt = (s.market || "").toLowerCase();
-    const out = (s.outcome || "").toLowerCase();
-    const league = (s.league || "") + " " + (s.category || "");
-    // High risk markets
-    if (/correct score|exact goals/i.test(mkt)) risk += 4;
-    if (/both halves/i.test(mkt)) risk += 3;
-    if (/asian handicap/i.test(mkt) && /[-]1\.5|[-]2/i.test(s.specifier || "")) risk += 3;
-    // Risky outcomes
-    if (/^over [3-9]/i.test(out)) risk += 3;
-    if (/^over 2\.5/i.test(out)) risk += 1;
-    if (out === "away" && mkt === "1x2") risk += 2;
-    if (out === "draw" && mkt === "1x2") risk += 2;
-    // Weak leagues
-    if (/reserve|u1[0-9]|u2[0-1]|youth|junior|women|female|friendly|amateur/i.test(league)) risk += 2;
-    // High odds = higher risk
-    if (s.odds > 3.0) risk += 2;
-    else if (s.odds > 2.0) risk += 1;
-    return risk;
-  }
-
-  if (activeStance === "safe") {
-    // Conservative: remove risky markets + games over 3.0 odds
-    filtered = filtered.map(s => {
-      if (bankers.has(s.eventId) || s.removed) return s;
-      if (s.odds > 3.0) return { ...s, removed: true };
-      if (riskScore(s) >= 4) return { ...s, removed: true };
-      return s;
-    });
-  } else if (activeStance === "manual") {
-    // Balanced: remove only the most dangerous (risk 6+), keep everything moderate
-    filtered = filtered.map(s => {
-      if (bankers.has(s.eventId) || s.removed) return s;
-      return riskScore(s) >= 6 ? { ...s, removed: true } : s;
-    });
-  } else if (activeStance === "value") {
-    // Aggressive: keep ALL games, no removals
-    filtered = filtered.map(s => ({ ...s, removed: false }));
-  }
-
-  // NEVER show 0 games — always keep at least 3
-  const MIN_GAMES = 3;
-  let keptNow = filtered.filter(s => !s.removed);
-  if (keptNow.length < MIN_GAMES && allSelections.length >= MIN_GAMES) {
-    const allSorted = [...allSelections].sort((a,b) => a.odds - b.odds);
-    const forceKeep = new Set(allSorted.slice(0, MIN_GAMES).map(s => s.eventId));
-    filtered = filtered.map(s => forceKeep.has(s.eventId) ? {...s, removed: false} : s);
-    const noticeEl = $("optNotice");
-    if (noticeEl) { noticeEl.textContent = "Some filters were relaxed to keep enough games for a valid slip"; noticeEl.classList.remove("hidden"); }
-  } else if (keptNow.length === 0 && allSelections.length > 0) {
-    filtered = filtered.map(s => ({...s, removed: false}));
-    const noticeEl = $("optNotice");
-    if (noticeEl) { noticeEl.textContent = "Filters would remove all games. Showing full slip instead."; noticeEl.classList.remove("hidden"); }
-  }
+  // Stance-based scoring is handled by runOptimize, NOT here.
+  // applyFilters only handles explicit user filters (leagues, markets, time, presets).
+  // Do NOT remove games based on stance here — that causes the "3 games" bug.
 
   // Intelligence filters — async, uses safety scores
   const hasIntel = ["intel-strong","intel-no-risky","intel-top10","intel-confidence"].some(a => presets.has(a));
   if (hasIntel) {
-    applyIntelFilter(presets, afterTime, beforeTime, rmM, rmL, maxO, minO, topN);
+    applyIntelFilter(presets, afterTime, beforeTime, rmM, rmL, null, null, null);
     return;
   }
 
   const kept = filtered.filter(s=>!s.removed), removed = filtered.filter(s=>s.removed);
   renderOpt(kept, removed);
-  renderActiveChips(presets, afterTime, beforeTime, rmM, rmL, maxO, minO, topN);
+  renderActiveChips(presets, afterTime, beforeTime, rmM, rmL, null, null, null);
 
-  // Safe stance: async convert risky picks
-  if (activeStance === "safe" && kept.length > 0) applyStanceConversions(kept);
 }
 
-async function applyIntelFilter(presets, afterTime, beforeTime, rmM, rmL, maxO, minO, topN) {
+async function applyIntelFilter(presets, afterTime, beforeTime, rmM, rmL, _a, _b, _c) {
   showToast("Calculating safety scores...", "info");
   const remaining = filtered.filter(s => !s.removed);
   await Promise.all(remaining.slice(0, 20).map(s => fetchSafetyScore(s)));
@@ -891,7 +834,7 @@ async function applyIntelFilter(presets, afterTime, beforeTime, rmM, rmL, maxO, 
 
   const kept = filtered.filter(s => !s.removed), removed = filtered.filter(s => s.removed);
   renderOpt(kept, removed);
-  renderActiveChips(presets, afterTime, beforeTime, rmM, rmL, maxO, minO, topN);
+  renderActiveChips(presets, afterTime, beforeTime, rmM, rmL, null, null, null);
 }
 
 async function applyStanceConversions(kept) {
@@ -972,7 +915,7 @@ function renderOpt(kept, removed) {
   const rg = $("resultGames"); if (rg) rg.textContent = kept.length;
 }
 
-function renderActiveChips(presets, after, before, mks, lgs, maxO, minO, topN) {
+function renderActiveChips(presets, after, before, mks, lgs, _a, _b, _c) {
   const chips = [];
   const add = (label, action) => chips.push(`<span class="active-chip">${esc(label)}<button onclick="removeFilter(${jsArg(action)})">&times;</button></span>`);
   presets.forEach(p => add(p.replace("market-","").replace("league-","").replace("after-","After ").replace("top-","Top "), p));
