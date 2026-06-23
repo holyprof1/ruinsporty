@@ -446,20 +446,21 @@ function runOptimize() {
 
   wizGo('opt', 3);
 
-  // BUG2 FIX: Remove old report, we'll inject it AFTER renderOpt
+  // Remove old report
   const resultStep = document.querySelector('[data-wiz="opt-3"]');
   let existingReport = resultStep?.querySelector('.opt-report');
   if (existingReport) existingReport.remove();
 
+  // Re-render the result view with CORRECT kept/removed counts and odds
   const removed = filtered.filter(s => s.removed);
-  const rg = $('resultGames'); if (rg) rg.textContent = kept.length;
+  renderOpt(kept, removed);
 
   const targetEl = $('oddsTargetIndicator');
   if (targetEl) targetEl.classList.add('hidden');
   $('generateBtn').classList.remove('hidden');
   $('codeCard').classList.add('hidden');
 
-  // Inject report BELOW the generate button area (inside results)
+  // Inject report BEFORE Generate button
   if (reportHtml) {
     const reportDiv = document.createElement('div');
     reportDiv.className = 'opt-report';
