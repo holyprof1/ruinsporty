@@ -23,10 +23,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <style>html,body{background:#0a0f0a!important}
-.range-dual{position:relative;height:36px;margin:4px 0}
-.range-dual input[type=range]{position:absolute;width:100%;top:8px;height:6px;background:transparent;-webkit-appearance:none;appearance:none;pointer-events:none;z-index:2}
-.range-dual input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#00c853;cursor:pointer;pointer-events:auto;border:2px solid #0a0f0a;box-shadow:0 0 4px rgba(0,200,83,.4)}
-.range-dual input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#00c853;cursor:pointer;pointer-events:auto;border:2px solid #0a0f0a}
+.range-dual{position:relative;height:36px;margin:4px 0;--fill-left:0%;--fill-right:0%}
+.range-dual::before{content:'';position:absolute;top:14px;left:0;right:0;height:6px;background:#1e2e1e;border-radius:3px}
+.range-dual::after{content:'';position:absolute;top:14px;left:var(--fill-left);right:var(--fill-right);height:6px;background:#00c853;border-radius:3px}
+.range-dual input[type=range]{position:absolute;width:100%;top:8px;height:6px;background:transparent;-webkit-appearance:none;appearance:none;pointer-events:none;z-index:3;margin:0}
+.range-dual input[type=range]::-webkit-slider-runnable-track{height:6px;background:transparent}
+.range-dual input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#00c853;cursor:pointer;pointer-events:auto;border:3px solid #0a0f0a;box-shadow:0 0 6px rgba(0,200,83,.5);margin-top:-8px}
+.range-dual input[type=range]::-moz-range-track{height:6px;background:transparent}
+.range-dual input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#00c853;cursor:pointer;pointer-events:auto;border:3px solid #0a0f0a}
 .range-dual input[type=range]::-webkit-slider-runnable-track{height:6px;background:#1e2e1e;border-radius:3px}
 .range-dual input[type=range]::-moz-range-track{height:6px;background:#1e2e1e;border-radius:3px}
 </style>

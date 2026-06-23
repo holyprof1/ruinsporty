@@ -142,6 +142,17 @@ function updateDualRange() {
   const rm = $("rangeMin"), rmx = $("rangeMax");
   if (rm) rm.textContent = lo;
   if (rmx) rmx.textContent = hi;
+  paintDualFill("rangeDual", mn, mx);
+}
+function paintDualFill(containerId, mnEl, mxEl) {
+  const c = $(containerId); if (!c) return;
+  const min = parseFloat(mnEl.min), max = parseFloat(mnEl.max);
+  const lo = parseFloat(mnEl.value), hi = parseFloat(mxEl.value);
+  const range = max - min || 1;
+  const leftPct = ((lo - min) / range * 100).toFixed(1);
+  const rightPct = (100 - (hi - min) / range * 100).toFixed(1);
+  c.style.setProperty("--fill-left", leftPct + "%");
+  c.style.setProperty("--fill-right", rightPct + "%");
 }
 
 // Leg count mode toggle
@@ -160,6 +171,7 @@ function updateLegRange() {
   const lm = $("legMin"), lmx = $("legMax2");
   if (lm) lm.textContent = lo;
   if (lmx) lmx.textContent = hi;
+  paintDualFill("legDual", mn, mx);
 }
 
 function updatePerLeg() {
@@ -229,19 +241,30 @@ function runOptimize() {
   const oddsMode = document.querySelector('[data-target].active')?.dataset?.target || "off";
   const legMode = document.querySelector('[data-legs].active')?.dataset?.legs || "auto";
   const stance = document.querySelector('.stance-card.active')?.dataset?.stance || "manual";
+  const warnings = [];
 
   applyFilters();
 
-  // Per-leg odds filter (from Advanced settings)
+  // BUG5 FIX: Per-leg odds filter — ONLY if user explicitly changed the sliders from defaults
   const perLegMinEl = $("perLegMin"), perLegMaxEl = $("perLegMax");
-  const perLegMin = perLegMinEl ? parseFloat(perLegMinEl.value) : 1.0;
-  const perLegMax = perLegMaxEl ? parseFloat(perLegMaxEl.value) : 5.0;
-  if (perLegMin > 1.0 || perLegMax < 5.0) {
+  const perLegMinVal = perLegMinEl ? parseFloat(perLegMinEl.value) : 1.0;
+  const perLegMaxVal = perLegMaxEl ? parseFloat(perLegMaxEl.value) : 5.0;
+  const perLegActive = perLegMinVal > 1.05 || perLegMaxVal < 4.95;
+  if (perLegActive) {
+    let removedByPerLeg = 0;
     filtered = filtered.map(s => {
       if (s.removed || bankers.has(s.eventId)) return s;
-      if (s.odds < perLegMin || s.odds > perLegMax) return { ...s, removed: true, removeReason: "Per-leg odds " + s.odds.toFixed(2) + "x outside " + perLegMin + "-" + perLegMax };
+      if (s.odds < perLegMinVal || s.odds > perLegMaxVal) { removedByPerLeg++; return { ...s, removed: true, removeReason: "Per-leg odds " + s.odds.toFixed(2) + "x" }; }
       return s;
     });
+    // BUG1 FIX: If per-leg filter killed everything, undo it partially
+    const remaining = filtered.filter(s => !s.removed);
+    if (remaining.length === 0) {
+      filtered = filtered.map(s => ({ ...s, removed: false, removeReason: undefined }));
+      warnings.push("Per-leg odds filter would remove all games — filter skipped");
+    } else if (removedByPerLeg > 0) {
+      warnings.push(removedByPerLeg + " games outside per-leg odds range (" + perLegMinVal.toFixed(2) + "–" + perLegMaxVal.toFixed(2) + ")");
+    }
   }
 
   // "Remove risky games" toggle
@@ -249,32 +272,28 @@ function runOptimize() {
     filtered = filtered.map(s => {
       if (s.removed || bankers.has(s.eventId)) return s;
       const lg = ((s.league||"") + " " + (s.category||"")).toLowerCase();
-      if (lg.includes("women") || lg.includes("u21") || lg.includes("u20") || lg.includes("u19") || lg.includes("reserve")) return { ...s, removed: true, removeReason: "Women's/youth/reserve league" };
-      if (s.odds > 3.5) return { ...s, removed: true, removeReason: "Odds too high (" + s.odds + "x)" };
-      return s;
-    });
-  }
-
-  // "Make 1X2 safer" toggle
-  if ($("tglSafer1x2")?.classList.contains("on")) {
-    filtered = filtered.map(s => {
-      if (s.removed) return s;
-      const m = (s.market || "").toLowerCase();
-      if (m === "1x2" || (m.includes("1x2") && !m.includes("&"))) {
-        return { ...s, _needs1x2Swap: true };
-      }
+      if (lg.includes("women") || lg.includes("u21") || lg.includes("u20") || lg.includes("u19") || lg.includes("reserve")) return { ...s, removed: true, removeReason: "Women/youth/reserve" };
+      if (s.odds > 3.5) return { ...s, removed: true, removeReason: "Odds > 3.5x" };
       return s;
     });
   }
 
   let pool = filtered.filter(s => !s.removed);
-  const removedGames = filtered.filter(s => s.removed);
+
+  // BUG1 FIX: Never have 0 games — if all removed, restore all
+  if (pool.length === 0) {
+    filtered = filtered.map(s => ({ ...s, removed: false, removeReason: undefined }));
+    pool = filtered.filter(s => !s.removed);
+    warnings.push("All games were removed by filters — restored all games");
+  }
 
   // Determine leg targets
   let minLegs = 1, maxLegs = pool.length;
   if (legMode === "fixed") {
     minLegs = parseInt($("topN")?.value) || 1;
     maxLegs = parseInt($("topNMax")?.value) || minLegs;
+    if (maxLegs > pool.length) maxLegs = pool.length;
+    if (minLegs > pool.length) { warnings.push("Not enough games for fold target (" + pool.length + " available, need " + minLegs + ")"); minLegs = pool.length; }
   }
 
   // Determine odds targets
@@ -293,7 +312,6 @@ function runOptimize() {
     const lg = ((s.league||"")+" "+(s.category||"")).toLowerCase();
     const isMajor = /premier|la liga|serie a|bundesliga|ligue 1|champions|europa/i.test(lg);
     const isWomen = /women|female/i.test(lg);
-
     if (stance === "safe") {
       if (isMajor) score += 20;
       if (isWomen) score -= 15;
@@ -310,94 +328,114 @@ function runOptimize() {
     }
     s._score = score;
   });
-
-  // Sort by score (highest = keep)
   pool.sort((a, b) => b._score - a._score);
 
-  // Find best combination within leg range that hits odds target
-  let bestCombo = null, bestDist = Infinity;
-
-  for (let n = maxLegs; n >= minLegs; n--) {
-    if (n > pool.length) continue;
-
-    // Try top-N by score
-    const topN = pool.slice(0, n);
-    const topOdds = topN.reduce((a, s) => a * s.odds, 1);
-    const topDist = (topOdds >= oddsLo && topOdds <= oddsHi) ? 0 : Math.min(Math.abs(topOdds - oddsLo), Math.abs(topOdds - oddsHi));
-
-    if (topDist < bestDist) { bestDist = topDist; bestCombo = topN; }
-    if (topDist === 0) break;
-
-    // Try random shuffles
-    for (let r = 0; r < 15; r++) {
-      const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, n);
-      const odds = shuffled.reduce((a, s) => a * s.odds, 1);
-      const dist = (odds >= oddsLo && odds <= oddsHi) ? 0 : Math.min(Math.abs(odds - oddsLo), Math.abs(odds - oddsHi));
-      if (dist < bestDist) { bestDist = dist; bestCombo = shuffled; }
-      if (dist === 0) break;
+  // BUG4 FIX: Auto leg count = chase odds target, remove lowest-score games until in range
+  if (legMode === "auto" && (oddsLo > 0 || oddsHi < Infinity)) {
+    let current = [...pool];
+    let totalOdds = current.reduce((a, s) => a * s.odds, 1);
+    // If above target max, remove lowest-score games one by one
+    while (totalOdds > oddsHi && current.length > 1) {
+      current.pop(); // remove lowest scored game (already sorted high→low)
+      totalOdds = current.reduce((a, s) => a * s.odds, 1);
     }
-    if (bestDist === 0) break;
+    pool = current;
+    // Apply removals
+    const keepIds = new Set(pool.map(s => s.eventId));
+    filtered = filtered.map(s => {
+      if (keepIds.has(s.eventId)) return { ...s, removed: false };
+      if (!s.removed) return { ...s, removed: true, removeReason: "Removed to hit odds target" };
+      return s;
+    });
+  } else if (legMode === "fixed") {
+    // Fixed mode: find best combo within leg range
+    let bestCombo = null, bestDist = Infinity;
+    for (let n = maxLegs; n >= minLegs; n--) {
+      if (n > pool.length) continue;
+      const topN = pool.slice(0, n);
+      const topOdds = topN.reduce((a, s) => a * s.odds, 1);
+      const topDist = (topOdds >= oddsLo && topOdds <= oddsHi) ? 0 : Math.min(Math.abs(topOdds - oddsLo), Math.abs(topOdds - oddsHi));
+      if (topDist < bestDist) { bestDist = topDist; bestCombo = topN; }
+      if (topDist === 0) break;
+      for (let r = 0; r < 20; r++) {
+        const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, n);
+        const odds = shuffled.reduce((a, s) => a * s.odds, 1);
+        const dist = (odds >= oddsLo && odds <= oddsHi) ? 0 : Math.min(Math.abs(odds - oddsLo), Math.abs(odds - oddsHi));
+        if (dist < bestDist) { bestDist = dist; bestCombo = shuffled; }
+        if (dist === 0) break;
+      }
+      if (bestDist === 0) break;
+    }
+    if (!bestCombo) bestCombo = pool.slice(0, Math.min(maxLegs, pool.length));
+    const keepIds = new Set(bestCombo.map(s => s.eventId));
+    filtered = filtered.map(s => {
+      if (keepIds.has(s.eventId)) return { ...s, removed: false };
+      if (!s.removed) return { ...s, removed: true, removeReason: "Outside fold target" };
+      return s;
+    });
   }
+  // If both are off/auto with no target: keep everything as-is
 
-  // SACRED: if no combo found that meets leg target, use all pool games up to maxLegs
-  if (!bestCombo) bestCombo = pool.slice(0, maxLegs);
-
-  // Apply
-  const keepIds = new Set(bestCombo.map(s => s.eventId));
-  filtered = filtered.map(s => {
-    if (keepIds.has(s.eventId)) return { ...s, removed: false };
-    if (!s.removed) return { ...s, removed: true, removeReason: "Didn't fit target" };
-    return s;
-  });
-
-  // Build optimization report
   const kept = filtered.filter(s => !s.removed);
   const allRemoved = filtered.filter(s => s.removed);
-  const totalOdds = kept.reduce((a, s) => a * s.odds, 1);
-  const inRange = totalOdds >= oddsLo && totalOdds <= oddsHi;
+  const totalOdds = kept.length > 0 ? kept.reduce((a, s) => a * s.odds, 1) : 0;
+  const inRange = oddsLo > 0 || oddsHi < Infinity ? (totalOdds >= oddsLo && totalOdds <= oddsHi) : true;
 
-  let reportHtml = '<div style="background:rgba(255,179,0,.08);border:1px solid rgba(255,179,0,.2);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:12px">';
-  reportHtml += '<div style="font-weight:700;color:#ffb300;margin-bottom:6px">Optimization Report</div>';
-  if (allRemoved.length) {
-    const reasons = allRemoved.slice(0, 5).map(s => (s.homeTeam||"?") + " vs " + (s.awayTeam||"?") + (s.removeReason ? " (" + s.removeReason + ")" : ""));
-    reportHtml += '<div style="color:#ccc">Removed ' + allRemoved.length + ' games: ' + reasons.join(", ") + '</div>';
+  // BUG1 FIX: If still 0 games somehow, show error not success
+  if (kept.length === 0) {
+    wizGo('opt', 3);
+    const resultStep = document.querySelector('[data-wiz="opt-3"]');
+    let existingReport = resultStep?.querySelector('.opt-report');
+    if (existingReport) existingReport.remove();
+    const errDiv = document.createElement('div');
+    errDiv.className = 'opt-report';
+    errDiv.innerHTML = '<div style="background:rgba(229,57,53,.1);border:1px solid rgba(229,57,53,.3);border-radius:8px;padding:16px;text-align:center;font-size:14px;color:#e53935;font-weight:700">No games remain after filtering. Try relaxing your settings or loading more games.</div>';
+    resultStep?.insertBefore(errDiv, resultStep.firstChild);
+    const rg = $('resultGames'); if (rg) rg.textContent = 0;
+    return;
   }
-  reportHtml += '<div style="color:#ccc;margin-top:4px">' + kept.length + ' games remain · ' + kept.length + '-fold · Total odds: ' + totalOdds.toFixed(1) + 'x';
-  if (inRange) reportHtml += ' <span style="color:#00c853">OK</span>';
-  else if (oddsLo > 0 || oddsHi < Infinity) reportHtml += ' <span style="color:#e53935">(target: ' + oddsLo.toFixed(0) + 'x-' + oddsHi.toFixed(0) + 'x)</span>';
-  reportHtml += '</div></div>';
+
+  // BUG2 FIX: Build report — will be placed INSIDE results, not above
+  if (!inRange && (oddsLo > 0 || oddsHi < Infinity)) {
+    warnings.push("Best available: " + totalOdds.toFixed(1) + "x (target was " + oddsLo.toFixed(0) + "x–" + (oddsHi === Infinity ? "∞" : oddsHi.toFixed(0)) + "x)");
+  }
+
+  let reportHtml = '';
+  if (allRemoved.length > 0 || warnings.length > 0) {
+    reportHtml = '<div style="background:rgba(255,179,0,.06);border:1px solid rgba(255,179,0,.15);border-radius:8px;padding:10px 14px;margin-top:12px;font-size:11px">';
+    reportHtml += '<div style="font-weight:700;color:#ffb300;margin-bottom:4px">Optimization Report</div>';
+    if (allRemoved.length) {
+      const reasons = allRemoved.slice(0, 4).map(s => (s.homeTeam||"") + " vs " + (s.awayTeam||"") + (s.removeReason ? " — " + s.removeReason : ""));
+      reportHtml += '<div style="color:#8a9e8a">Removed ' + allRemoved.length + ': ' + reasons.join("; ") + '</div>';
+    }
+    for (const w of warnings) reportHtml += '<div style="color:#ffb300;margin-top:2px">' + w + '</div>';
+    reportHtml += '<div style="color:#ccc;margin-top:4px;font-weight:600">' + kept.length + ' games · ' + kept.length + '-fold · ' + totalOdds.toFixed(1) + 'x' + (inRange ? ' <span style="color:#00c853">✓</span>' : '') + '</div>';
+    reportHtml += '</div>';
+  }
 
   wizGo('opt', 3);
-  // Insert report at top of results
+
+  // BUG2 FIX: Remove old report, we'll inject it AFTER renderOpt
   const resultStep = document.querySelector('[data-wiz="opt-3"]');
   let existingReport = resultStep?.querySelector('.opt-report');
   if (existingReport) existingReport.remove();
-  const reportDiv = document.createElement('div');
-  reportDiv.className = 'opt-report';
-  reportDiv.innerHTML = reportHtml;
-  resultStep?.insertBefore(reportDiv, resultStep.firstChild);
 
   const removed = filtered.filter(s => s.removed);
   const rg = $('resultGames'); if (rg) rg.textContent = kept.length;
 
-  // Show target indicator
   const targetEl = $('oddsTargetIndicator');
-  const noticeEl = $('optNotice');
-  if (noticeEl) noticeEl.classList.add('hidden');
-  if (targetEl && kept.length > 0) {
-    const kO = kept.reduce((a, s) => a * s.odds, 1);
-    if (oddsMode === "exact") {
-      const t = parseFloat($('stanceTargetOdds').value) || 0;
-      if (t > 0) {
-        const within = kO <= t * 1.15;
-        targetEl.className = 'target-pill ' + (within ? 'target-hit' : 'target-miss');
-        targetEl.textContent = within ? 'OK ' + kO.toFixed(1) + 'x (target ' + t + 'x)' : kO.toFixed(1) + 'x - above target ' + t + 'x';
-        targetEl.classList.remove('hidden');
-      }
-    } else if (targetEl) targetEl.classList.add('hidden');
-  } else if (targetEl) targetEl.classList.add('hidden');
+  if (targetEl) targetEl.classList.add('hidden');
   $('generateBtn').classList.remove('hidden');
   $('codeCard').classList.add('hidden');
+
+  // Inject report BELOW the generate button area (inside results)
+  if (reportHtml) {
+    const reportDiv = document.createElement('div');
+    reportDiv.className = 'opt-report';
+    reportDiv.innerHTML = reportHtml;
+    const genBtn = $('generateBtn');
+    if (genBtn && genBtn.parentElement) genBtn.parentElement.insertBefore(reportDiv, genBtn);
+  }
 }
 
 // close filter dropdowns on outside click
