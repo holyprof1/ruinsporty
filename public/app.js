@@ -923,9 +923,9 @@ function renderActiveChips(presets, after, before, mks, lgs, _a, _b, _c) {
   if (before) add("Before "+fmtKickoff(before.toISOString()), "clear-before");
   mks.forEach(m => add(m, "clear-market-"+m));
   lgs.forEach(l => add(l, "clear-league-"+l));
-  if (maxO) add("Max "+maxO, "clear-maxodds");
-  if (minO) add("Min "+minO, "clear-minodds");
-  if (topN) add("Top "+topN, "clear-topn");
+  if (_a) add("Max "+_a, "clear-maxodds");
+  if (_b) add("Min "+_b, "clear-minodds");
+  if (_c) add("Top "+_c, "clear-topn");
   const el = $("activeChips");
   if (chips.length) { el.innerHTML = chips.join(""); el.classList.remove("hidden"); } else el.classList.add("hidden");
 }
