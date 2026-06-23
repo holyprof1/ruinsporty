@@ -162,6 +162,16 @@ function updateLegRange() {
   if (lmx) lmx.textContent = hi;
 }
 
+function updatePerLeg() {
+  const mn = $("perLegMin"), mx = $("perLegMax");
+  if (!mn || !mx) return;
+  let lo = parseFloat(mn.value), hi = parseFloat(mx.value);
+  if (lo > hi) { mn.value = hi; lo = hi; }
+  const lv = $("perLegMinVal"), hv = $("perLegMaxVal");
+  if (lv) lv.textContent = lo.toFixed(2);
+  if (hv) hv.textContent = hi.toFixed(2);
+}
+
 // Game limit +/- buttons
 function adjLimit(btn, delta) {
   const valEl = btn.parentElement.querySelector(".gl-val");
@@ -213,34 +223,61 @@ function showSkeleton(containerId) {
   el.innerHTML = Array.from({length:5}, () => `<div class="skeleton-card"><div class="skeleton-bar w60" style="height:14px"></div><div class="skeleton-bar w40" style="height:10px;margin-top:4px"></div><div class="skeleton-bar w20" style="height:14px;margin-left:auto"></div></div>`).join("");
 }
 
-// More Options pill groups (goal, style, adjust)
-document.querySelectorAll(".opt-goal,.opt-style,.opt-adjust").forEach(b => b.addEventListener("click", () => {
-  b.parentElement.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
-  b.classList.add("active");
-}));
+// (opt-goal, opt-style, opt-adjust removed — replaced by stance-based scoring)
 
 function runOptimize() {
   const oddsMode = document.querySelector('[data-target].active')?.dataset?.target || "off";
   const legMode = document.querySelector('[data-legs].active')?.dataset?.legs || "auto";
-  if (oddsMode === "off" && legMode === "auto") {
-    showToast("Set a Leg Count or Odds Target first", "error");
-    return;
-  }
+  const stance = document.querySelector('.stance-card.active')?.dataset?.stance || "manual";
 
   applyFilters();
 
-  // Smart optimizer: find the best combination of games that fits both leg count AND odds target
-  const pool = filtered.filter(s => !s.removed);
-  const bankerPool = pool.filter(s => bankers.has(s.eventId));
-  const flexPool = pool.filter(s => !bankers.has(s.eventId)).sort((a, b) => a.odds - b.odds);
+  // Per-leg odds filter (from Advanced settings)
+  const perLegMinEl = $("perLegMin"), perLegMaxEl = $("perLegMax");
+  const perLegMin = perLegMinEl ? parseFloat(perLegMinEl.value) : 1.0;
+  const perLegMax = perLegMaxEl ? parseFloat(perLegMaxEl.value) : 5.0;
+  if (perLegMin > 1.0 || perLegMax < 5.0) {
+    filtered = filtered.map(s => {
+      if (s.removed || bankers.has(s.eventId)) return s;
+      if (s.odds < perLegMin || s.odds > perLegMax) return { ...s, removed: true, removeReason: "Per-leg odds " + s.odds.toFixed(2) + "x outside " + perLegMin + "-" + perLegMax };
+      return s;
+    });
+  }
 
-  // Determine targets
+  // "Remove risky games" toggle
+  if ($("tglRemoveRisky")?.classList.contains("on")) {
+    filtered = filtered.map(s => {
+      if (s.removed || bankers.has(s.eventId)) return s;
+      const lg = ((s.league||"") + " " + (s.category||"")).toLowerCase();
+      if (lg.includes("women") || lg.includes("u21") || lg.includes("u20") || lg.includes("u19") || lg.includes("reserve")) return { ...s, removed: true, removeReason: "Women's/youth/reserve league" };
+      if (s.odds > 3.5) return { ...s, removed: true, removeReason: "Odds too high (" + s.odds + "x)" };
+      return s;
+    });
+  }
+
+  // "Make 1X2 safer" toggle
+  if ($("tglSafer1x2")?.classList.contains("on")) {
+    filtered = filtered.map(s => {
+      if (s.removed) return s;
+      const m = (s.market || "").toLowerCase();
+      if (m === "1x2" || (m.includes("1x2") && !m.includes("&"))) {
+        return { ...s, _needs1x2Swap: true };
+      }
+      return s;
+    });
+  }
+
+  let pool = filtered.filter(s => !s.removed);
+  const removedGames = filtered.filter(s => s.removed);
+
+  // Determine leg targets
   let minLegs = 1, maxLegs = pool.length;
   if (legMode === "fixed") {
     minLegs = parseInt($("topN")?.value) || 1;
     maxLegs = parseInt($("topNMax")?.value) || minLegs;
   }
 
+  // Determine odds targets
   let oddsLo = 0, oddsHi = Infinity;
   if (oddsMode === "exact") {
     const t = parseFloat($("stanceTargetOdds")?.value) || 0;
@@ -250,47 +287,96 @@ function runOptimize() {
     oddsHi = parseInt($("maxOdds")?.value) || Infinity;
   }
 
-  // Try combinations: start from maxLegs down to minLegs, find best fit
-  let bestCombo = null, bestScore = -Infinity;
+  // Score each game based on stance
+  pool.forEach(s => {
+    let score = 50;
+    const lg = ((s.league||"")+" "+(s.category||"")).toLowerCase();
+    const isMajor = /premier|la liga|serie a|bundesliga|ligue 1|champions|europa/i.test(lg);
+    const isWomen = /women|female/i.test(lg);
+
+    if (stance === "safe") {
+      if (isMajor) score += 20;
+      if (isWomen) score -= 15;
+      if (s.odds <= 1.8) score += 15;
+      if (s.odds > 2.5) score -= 20;
+      if (s.kickoff) { const h = new Date(s.kickoff).getUTCHours(); if (h > 18) score -= 10; }
+    } else if (stance === "value") {
+      if (s.odds >= 2.0) score += 15;
+      if (s.odds < 1.3) score -= 10;
+      score += 5;
+    } else {
+      if (s.odds >= 1.5 && s.odds <= 2.5) score += 10;
+      if (isMajor) score += 5;
+    }
+    s._score = score;
+  });
+
+  // Sort by score (highest = keep)
+  pool.sort((a, b) => b._score - a._score);
+
+  // Find best combination within leg range that hits odds target
+  let bestCombo = null, bestDist = Infinity;
 
   for (let n = maxLegs; n >= minLegs; n--) {
-    const flexNeeded = n - bankerPool.length;
-    if (flexNeeded < 0) continue;
-    if (flexNeeded > flexPool.length) continue;
+    if (n > pool.length) continue;
 
-    // Try multiple random subsets + sorted subsets
-    const candidates = [];
+    // Try top-N by score
+    const topN = pool.slice(0, n);
+    const topOdds = topN.reduce((a, s) => a * s.odds, 1);
+    const topDist = (topOdds >= oddsLo && topOdds <= oddsHi) ? 0 : Math.min(Math.abs(topOdds - oddsLo), Math.abs(topOdds - oddsHi));
 
-    // Sorted by lowest odds (safest)
-    candidates.push([...bankerPool, ...flexPool.slice(0, flexNeeded)]);
-    // Sorted by highest odds (riskiest)
-    candidates.push([...bankerPool, ...flexPool.slice(-flexNeeded)]);
-    // Middle odds
-    const mid = Math.max(0, Math.floor((flexPool.length - flexNeeded) / 2));
-    candidates.push([...bankerPool, ...flexPool.slice(mid, mid + flexNeeded)]);
-    // Random shuffles
-    for (let r = 0; r < Math.min(10, flexPool.length); r++) {
-      const shuffled = [...flexPool].sort(() => Math.random() - 0.5);
-      candidates.push([...bankerPool, ...shuffled.slice(0, flexNeeded)]);
+    if (topDist < bestDist) { bestDist = topDist; bestCombo = topN; }
+    if (topDist === 0) break;
+
+    // Try random shuffles
+    for (let r = 0; r < 15; r++) {
+      const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, n);
+      const odds = shuffled.reduce((a, s) => a * s.odds, 1);
+      const dist = (odds >= oddsLo && odds <= oddsHi) ? 0 : Math.min(Math.abs(odds - oddsLo), Math.abs(odds - oddsHi));
+      if (dist < bestDist) { bestDist = dist; bestCombo = shuffled; }
+      if (dist === 0) break;
     }
-
-    for (const combo of candidates) {
-      const odds = combo.reduce((a, s) => a * s.odds, 1);
-      const inRange = odds >= oddsLo && odds <= oddsHi;
-      const dist = inRange ? 0 : Math.min(Math.abs(odds - oddsLo), Math.abs(odds - oddsHi));
-      const score = inRange ? 1000 - dist : -dist;
-      if (score > bestScore) { bestScore = score; bestCombo = combo; }
-    }
+    if (bestDist === 0) break;
   }
 
-  // Apply the best combination
-  if (bestCombo) {
-    const keepIds = new Set(bestCombo.map(s => s.eventId));
-    filtered = filtered.map(s => ({ ...s, removed: !keepIds.has(s.eventId) }));
+  // SACRED: if no combo found that meets leg target, use all pool games up to maxLegs
+  if (!bestCombo) bestCombo = pool.slice(0, maxLegs);
+
+  // Apply
+  const keepIds = new Set(bestCombo.map(s => s.eventId));
+  filtered = filtered.map(s => {
+    if (keepIds.has(s.eventId)) return { ...s, removed: false };
+    if (!s.removed) return { ...s, removed: true, removeReason: "Didn't fit target" };
+    return s;
+  });
+
+  // Build optimization report
+  const kept = filtered.filter(s => !s.removed);
+  const allRemoved = filtered.filter(s => s.removed);
+  const totalOdds = kept.reduce((a, s) => a * s.odds, 1);
+  const inRange = totalOdds >= oddsLo && totalOdds <= oddsHi;
+
+  let reportHtml = '<div style="background:rgba(255,179,0,.08);border:1px solid rgba(255,179,0,.2);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:12px">';
+  reportHtml += '<div style="font-weight:700;color:#ffb300;margin-bottom:6px">Optimization Report</div>';
+  if (allRemoved.length) {
+    const reasons = allRemoved.slice(0, 5).map(s => (s.homeTeam||"?") + " vs " + (s.awayTeam||"?") + (s.removeReason ? " (" + s.removeReason + ")" : ""));
+    reportHtml += '<div style="color:#ccc">Removed ' + allRemoved.length + ' games: ' + reasons.join(", ") + '</div>';
   }
+  reportHtml += '<div style="color:#ccc;margin-top:4px">' + kept.length + ' games remain · ' + kept.length + '-fold · Total odds: ' + totalOdds.toFixed(1) + 'x';
+  if (inRange) reportHtml += ' <span style="color:#00c853">OK</span>';
+  else if (oddsLo > 0 || oddsHi < Infinity) reportHtml += ' <span style="color:#e53935">(target: ' + oddsLo.toFixed(0) + 'x-' + oddsHi.toFixed(0) + 'x)</span>';
+  reportHtml += '</div></div>';
 
   wizGo('opt', 3);
-  const kept = filtered.filter(s => !s.removed);
+  // Insert report at top of results
+  const resultStep = document.querySelector('[data-wiz="opt-3"]');
+  let existingReport = resultStep?.querySelector('.opt-report');
+  if (existingReport) existingReport.remove();
+  const reportDiv = document.createElement('div');
+  reportDiv.className = 'opt-report';
+  reportDiv.innerHTML = reportHtml;
+  resultStep?.insertBefore(reportDiv, resultStep.firstChild);
+
   const removed = filtered.filter(s => s.removed);
   const rg = $('resultGames'); if (rg) rg.textContent = kept.length;
 
@@ -305,7 +391,7 @@ function runOptimize() {
       if (t > 0) {
         const within = kO <= t * 1.15;
         targetEl.className = 'target-pill ' + (within ? 'target-hit' : 'target-miss');
-        targetEl.textContent = within ? '✓ ' + kO.toFixed(1) + 'x (target ' + t + 'x)' : kO.toFixed(1) + 'x — above target ' + t + 'x';
+        targetEl.textContent = within ? 'OK ' + kO.toFixed(1) + 'x (target ' + t + 'x)' : kO.toFixed(1) + 'x - above target ' + t + 'x';
         targetEl.classList.remove('hidden');
       }
     } else if (targetEl) targetEl.classList.add('hidden');
@@ -478,16 +564,22 @@ function initOptimizer(json) {
   // Exact odds slider
   const exSlider = $("stanceTargetOdds");
   if (exSlider) { exSlider.max = totalOdds; exSlider.value = Math.min(500, totalOdds); const d = $("exactOddsVal"); if (d) d.textContent = exSlider.value + "x"; const m = $("exactOddsMax"); if (m) m.textContent = totalOdds + "x"; }
-  // Range dual sliders
-  const mnS = $("minOdds"), mxS = $("maxOdds");
-  if (mnS) { mnS.max = totalOdds; mnS.value = 1; }
-  if (mxS) { mxS.max = totalOdds; mxS.value = totalOdds; }
-  const rml = $("rangeMaxLabel"); if (rml) rml.textContent = totalOdds + "x";
-  // Leg count dual sliders
-  const lgN = $("topN"), lgNM = $("topNMax");
-  if (lgN) { lgN.max = allSelections.length; lgN.value = 1; }
-  if (lgNM) { lgNM.max = allSelections.length; lgNM.value = allSelections.length; }
-  const lgMax = $("legCountMax"); if (lgMax) lgMax.textContent = allSelections.length;
+  // Folds display
+  const foldsEl = $("origFolds");
+  if (foldsEl) foldsEl.textContent = json.selections.length + " games · " + json.selections.length + "-fold";
+  // Dynamic range max = slip total odds
+  const slipTotal = Math.max(Math.round(allSelections.reduce((a,s) => a*s.odds, 1)), 10);
+  const mnS2 = $("minOdds"), mxS2 = $("maxOdds");
+  if (mnS2) { mnS2.max = slipTotal; }
+  if (mxS2) { mxS2.max = slipTotal; mxS2.value = slipTotal; }
+  const rl = $("rangeMaxLabel"); if (rl) rl.textContent = slipTotal + "x";
+  $("rangeMax").textContent = slipTotal;
+  // Leg count max = number of games
+  const tn = $("topN"), tnm = $("topNMax"), lcm = $("legCountMax");
+  if (tn) tn.max = json.selections.length;
+  if (tnm) { tnm.max = json.selections.length; tnm.value = json.selections.length; }
+  if (lcm) lcm.textContent = json.selections.length;
+  $("legMax2").textContent = json.selections.length;
   setOddsMode("off"); setLegMode("auto");
   wizGo("opt", 2);
 }

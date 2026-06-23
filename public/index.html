@@ -22,7 +22,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <style>html,body{background:#0a0f0a!important}</style>
+  <style>html,body{background:#0a0f0a!important}
+.range-dual{position:relative;height:36px;margin:4px 0}
+.range-dual input[type=range]{position:absolute;width:100%;top:8px;height:6px;background:transparent;-webkit-appearance:none;appearance:none;pointer-events:none;z-index:2}
+.range-dual input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#00c853;cursor:pointer;pointer-events:auto;border:2px solid #0a0f0a;box-shadow:0 0 4px rgba(0,200,83,.4)}
+.range-dual input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#00c853;cursor:pointer;pointer-events:auto;border:2px solid #0a0f0a}
+.range-dual input[type=range]::-webkit-slider-runnable-track{height:6px;background:#1e2e1e;border-radius:3px}
+.range-dual input[type=range]::-moz-range-track{height:6px;background:#1e2e1e;border-radius:3px}
+</style>
   <link rel="stylesheet" href="/style.css?v=100" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#00c853" />
@@ -145,11 +152,11 @@
     <!-- STEP 2: Settings -->
     <div class="wiz-step" data-wiz="opt-2">
       <button class="wiz-back" onclick="wizGo('opt',1)">&#8592; Back</button>
-      <div class="wiz-total-odds"><span class="wiz-odds-label">TOTAL ODDS</span><span class="wiz-odds-val mono" id="origOdds">0</span></div>
+      <div class="wiz-total-odds"><span class="wiz-odds-label">TOTAL ODDS</span><span class="wiz-odds-val mono" id="origOdds">0</span><span style="font-size:13px;color:#8a9e8a;display:block;margin-top:4px" id="origFolds">0 games · 0-fold</span></div>
 
       <div class="wiz-section"><h4>STANCE</h4>
         <div class="stance-selector" id="stanceSelector">
-          <div class="stance-card" data-stance="safe"><div class="stance-icon">&#128737;</div><strong>Conservative</strong><span>Plays it safe</span></div>
+          <div class="stance-card" data-stance="safe"><div class="stance-icon">&#128737;</div><strong>Safe</strong><span>Plays it safe</span></div>
           <div class="stance-card active" data-stance="manual"><div class="stance-icon">&#9878;</div><strong>Balanced</strong><span>Best of both</span></div>
           <div class="stance-card" data-stance="value"><div class="stance-icon">&#9889;</div><strong>Aggressive</strong><span>Chases value</span></div>
         </div>
@@ -167,10 +174,12 @@
           <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:11px;color:#8a9e8a">1x</span><span id="exactOddsMax" style="font-size:11px;color:#8a9e8a">1000x</span></div>
         </div>
         <div id="oddsRangePanel" class="wiz-sub-panel hidden">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#8a9e8a;font-size:13px">Odds range</span><span style="color:#00c853;font-weight:700;font-size:16px"><span id="rangeMin">1</span>x &ndash; <span id="rangeMax">1000</span>x</span></div>
-          <div style="margin:4px 0"><label style="font-size:10px;color:#8a9e8a">Min odds</label><input type="range" id="minOdds" min="1" max="1000" value="1" step="1" style="width:100%" oninput="updateDualRange()" /></div>
-          <div style="margin:4px 0"><label style="font-size:10px;color:#8a9e8a">Max odds</label><input type="range" id="maxOdds" min="1" max="1000" value="1000" step="1" style="width:100%" oninput="updateDualRange()" /></div>
-          <div style="display:flex;justify-content:space-between;margin-top:2px"><span style="font-size:11px;color:#8a9e8a">1x</span><span style="font-size:11px;color:#8a9e8a">1000x</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:#8a9e8a;font-size:13px">Between</span><span style="color:#00c853;font-weight:700;font-size:16px"><span id="rangeMin">1</span>x – <span id="rangeMax">1000</span>x</span></div>
+          <div class="range-dual" id="rangeDual">
+            <input type="range" id="minOdds" min="1" max="1000" value="1" step="1" oninput="updateDualRange()" />
+            <input type="range" id="maxOdds" min="1" max="1000" value="1000" step="1" oninput="updateDualRange()" />
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:11px;color:#8a9e8a">1x</span><span style="font-size:11px;color:#8a9e8a" id="rangeMaxLabel">1000x</span></div>
         </div>
       </div>
 
@@ -180,10 +189,12 @@
           <button class="pill" data-legs="fixed" onclick="setLegMode('fixed')">Fixed</button>
         </div>
         <div id="legFixedPanel" class="wiz-sub-panel hidden">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#8a9e8a;font-size:13px">Games to keep</span><span style="color:#00c853;font-weight:700;font-size:16px"><span id="legMin">1</span> &ndash; <span id="legMax2">50</span></span></div>
-          <div style="margin:4px 0"><label style="font-size:10px;color:#8a9e8a">Min games</label><input type="range" id="topN" min="1" max="50" value="1" step="1" style="width:100%" oninput="updateLegRange()" /></div>
-          <div style="margin:4px 0"><label style="font-size:10px;color:#8a9e8a">Max games</label><input type="range" id="topNMax" min="1" max="50" value="50" step="1" style="width:100%" oninput="updateLegRange()" /></div>
-          <div style="display:flex;justify-content:space-between;margin-top:2px"><span style="font-size:11px;color:#8a9e8a">1</span><span id="legCountMax" style="font-size:11px;color:#8a9e8a">50</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:#8a9e8a;font-size:13px">Games to keep</span><span style="color:#00c853;font-weight:700;font-size:16px"><span id="legMin">1</span> – <span id="legMax2">50</span></span></div>
+          <div class="range-dual" id="legDual">
+            <input type="range" id="topN" min="1" max="50" value="1" step="1" oninput="updateLegRange()" />
+            <input type="range" id="topNMax" min="1" max="50" value="50" step="1" oninput="updateLegRange()" />
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:11px;color:#8a9e8a">1</span><span id="legCountMax" style="font-size:11px;color:#8a9e8a">50</span></div>
         </div>
         <input type="hidden" id="stanceFixedN" />
       </div>
@@ -191,18 +202,6 @@
       <details class="wiz-more">
         <summary>More Options</summary>
 
-        <div class="opt-row"><h4>GOAL</h4>
-          <div class="pill-row"><button class="pill opt-goal active" data-goal="odds">Hit Odds</button><button class="pill opt-goal" data-goal="safe">Stay Safe</button><button class="pill opt-goal" data-goal="value">Best Value</button></div>
-        </div>
-
-        <div class="opt-row"><h4>PICK STYLE</h4>
-          <div class="pill-row"><button class="pill opt-style active" data-pstyle="safest">Safest</button><button class="pill opt-style" data-pstyle="balanced">Balanced</button><button class="pill opt-style" data-pstyle="risky">Risky</button></div>
-        </div>
-
-        <div class="opt-row"><h4>AUTO-ADJUST</h4>
-          <div class="pill-row"><button class="pill opt-adjust active" data-adj="off">Off</button><button class="pill opt-adjust" data-adj="safer">Safer</button><button class="pill opt-adjust" data-adj="boost">Boost</button><button class="pill opt-adjust" data-adj="auto">Auto</button></div>
-          <p style="font-size:11px;color:#8a9e8a;margin-top:4px">Adjust a pick to match your odds before removing a game</p>
-        </div>
 
         <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')">
           <div><strong>Make 1X2 safer</strong><span>Change shaky win picks to double chance</span></div>
@@ -220,6 +219,14 @@
         <div class="opt-toggle-row" onclick="removeLastByTime()">
           <div><strong>Remove last game by time</strong><span>Drop the game with the latest kickoff</span></div>
           <button class="btn-sm" style="pointer-events:none">Remove</button>
+        </div>
+
+        <div class="opt-row"><h4>PER GAME ODDS LIMIT</h4>
+          <div class="range-dual" id="perLegDual">
+            <input type="range" id="perLegMin" min="1.0" max="5.0" value="1.0" step="0.05" oninput="updatePerLeg()" />
+            <input type="range" id="perLegMax" min="1.0" max="5.0" value="5.0" step="0.05" oninput="updatePerLeg()" />
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:11px;color:#8a9e8a">1.0x</span><span style="color:#00c853;font-weight:600;font-size:12px"><span id="perLegMinVal">1.0</span>x – <span id="perLegMaxVal">5.0</span>x</span><span style="font-size:11px;color:#8a9e8a">5.0x</span></div>
         </div>
 
         <div class="opt-toggle-row" onclick="this.querySelector('.tgl').classList.toggle('on')">
