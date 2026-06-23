@@ -750,11 +750,11 @@ function applyFilters() {
   const beforeTime = $("removeBeforeTime").value ? new Date($("removeBeforeTime").value) : null;
   const rmM = Array.from($("removeMarket").selectedOptions).map(o=>o.value);
   const rmL = Array.from($("removeLeague").selectedOptions).map(o=>o.value);
-  const oddsMode = document.querySelector('[data-target].active')?.dataset?.target || "off";
-  const maxO = oddsMode === "range" && $("maxOdds").value ? parseFloat($("maxOdds").value) : null;
-  const minO = oddsMode === "range" && $("minOdds").value ? parseFloat($("minOdds").value) : null;
+  // NOTE: Range slider values are TOTAL odds targets, NOT per-game filters.
+  // Per-game filtering is handled separately by perLegMin/perLegMax in runOptimize.
+  // Do NOT use minOdds/maxOdds range values to filter individual games here.
   const legMode = document.querySelector('[data-legs].active')?.dataset?.legs || "auto";
-  const topN = legMode === "fixed" && $("topN").value ? parseInt($("topN").value, 10) : null;
+  const topN = null; // Leg count is now handled by runOptimize, not here
   const now = new Date();
   const t6 = new Date(now); t6.setHours(18,0,0,0);
   const t8 = new Date(now); t8.setHours(20,0,0,0);
@@ -774,13 +774,11 @@ function applyFilters() {
       if (a.startsWith("league-")) { const b = document.querySelector(`.preset[data-action="${a}"]`); if (b) { const re = new RegExp(b.dataset.pattern, b.dataset.flags); if (re.test(s.league)||re.test(s.category)) rm = true; } }
       if (a.startsWith("market-")) { if (s.market.toLowerCase().includes(a.replace("market-","").toLowerCase())) rm = true; }
     });
-    if (maxO !== null && s.odds > maxO) rm = true;
-    if (minO !== null && s.odds < minO) rm = true;
     return { ...s, removed: rm };
   });
 
+  // Preset quick-remove buttons only (e.g. "Top 5", "Top 10")
   const doTopN = n => { const k = filtered.filter(s=>!s.removed).sort((a,b)=>a.odds-b.odds); if (k.length > n) { const keep = new Set(k.slice(0,n).map(s=>s.eventId)); filtered = filtered.map(s => (!s.removed && !keep.has(s.eventId)) ? {...s, removed:true} : s); } };
-  if (topN !== null && topN > 0) doTopN(topN);
   [5,10,15,20].forEach(n => { if (presets.has(`top-${n}`)) doTopN(n); });
 
   // Stance-based risk scoring
