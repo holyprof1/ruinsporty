@@ -1417,6 +1417,11 @@ function renderScanResults() {
   const totalOdds = results.reduce((a,r) => a * (r.odds||1), 1);
   const oddsEl = $("scanTotalOdds");
   if (oddsEl) oddsEl.textContent = totalOdds >= 1e6 ? (totalOdds/1e6).toFixed(1)+"M" : totalOdds >= 1000 ? Math.round(totalOdds/1000)+"K" : totalOdds.toFixed(0);
+  // Dynamic show/hide: hide HR when pending, hide Pending when settled
+  const hrStat = $("scanHitRate")?.closest(".scan-stat");
+  const pendStat = $("scanPending")?.closest(".scan-stat");
+  if (hrStat) hrStat.style.display = pending.length > 0 ? "none" : "";
+  if (pendStat) pendStat.style.display = pending.length === 0 ? "none" : "";
   $("killersBadge").textContent=lost.length; $("safeBadge").textContent=won.length; $("scanTotalBadge").textContent=results.length;
   $("killersTable").innerHTML = lost.length ? lost.map(scanCard).join("") : '<div class="empty-state">No killers</div>';
   $("safeTable").innerHTML = won.length ? won.map(scanCard).join("") : '<div class="empty-state">No safe picks</div>';

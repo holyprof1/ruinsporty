@@ -49,11 +49,11 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"SlipPilot","url":"https://slippilot.com.ng","logo":"https://slippilot.com.ng/icon-512.png","sameAs":["https://x.com/slippilot"],"description":"Nigeria's #1 SportyBet slip optimizer. Free tools to filter, convert, merge, split and optimize betting slips."}</script>
 <script>fetch('/api/header-inject').then(r=>r.text()).then(t=>{if(t){const s=document.createElement('div');s.innerHTML=t;document.head.append(...s.childNodes);}}).catch(()=>{});</script>
 </head>
-<body style="background:#0a0f0a">
-<style>body{background:#0a0f0a!important}#splashLoader{position:fixed;inset:0;background:#0a0f0a;z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;transition:opacity .3s}#splashLoader svg{animation:pulse 1.5s ease-in-out infinite}@keyframes pulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}</style>
-<div id="splashLoader"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#00c853" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span style="color:#00c853;font-weight:800;font-size:18px;font-family:system-ui">SlipPilot</span></div>
+<body style="background:#0a0f0a;margin:0">
+<div id="splashLoader" style="position:fixed;inset:0;background:#0a0f0a;z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#00c853" stroke-width="2.4"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span style="color:#00c853;font-weight:800;font-size:18px;font-family:system-ui">SlipPilot</span></div>
 <script>
-  window.addEventListener('load', function(){ var s=document.getElementById('splashLoader'); if(s){s.style.opacity='0';setTimeout(function(){s.remove()},300);} });
+  // Remove splash after first paint + short delay (not waiting for full load)
+  requestAnimationFrame(function(){setTimeout(function(){var s=document.getElementById('splashLoader');if(s){s.style.transition='opacity .3s';s.style.opacity='0';setTimeout(function(){s.remove()},350);}},800);});
 </script>
 <script>
   if ('serviceWorker' in navigator) {
