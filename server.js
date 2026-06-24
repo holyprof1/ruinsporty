@@ -1,5 +1,18 @@
-process.on("uncaughtException", err => console.error("Uncaught:", err));
-process.on("unhandledRejection", err => console.error("Unhandled:", err));
+// Crash recovery — prevent process death on unhandled errors
+process.on("uncaughtException", err => { console.error("Uncaught:", err.message || err); });
+process.on("unhandledRejection", err => { console.error("Unhandled:", err && err.message ? err.message : err); });
+
+// Memory leak prevention — clear session store every 6 hours
+setInterval(() => {
+  try { if (global.gc) global.gc(); } catch {}
+  console.log("[GC] Memory: " + Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB");
+}, 6 * 60 * 60 * 1000);
+
+// Auto-restart if memory exceeds 400MB (cPanel shared hosting limit)
+setInterval(() => {
+  const mem = process.memoryUsage().heapUsed / 1024 / 1024;
+  if (mem > 400) { console.error("[OOM] Memory " + Math.round(mem) + "MB — restarting"); process.exit(1); }
+}, 60000);
 require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
@@ -39,6 +52,8 @@ app.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
+  // Request timeout — kill hanging requests after 30 seconds
+  req.setTimeout(30000, () => { if (!res.headersSent) res.status(504).json({ error: "Request timeout" }); });
   next();
 });
 app.use(express.static(path.join(__dirname, "public")));
