@@ -1480,7 +1480,8 @@ function renderScanResults() {
 function scanCard(r) {
   const vc={WON:"v-won",LOST:"v-lost",VOID:"v-void",PENDING:"v-pending"}[r.verdict]||"v-pending";
   const manual = r.verdict==="PENDING" ? `<button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'WON')">W</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'LOST')">L</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'VOID')">V</button>` : "";
-  return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(r.homeTeam)} vs ${esc(r.awayTeam)}</div><div class="sel-meta"><span class="sel-market">${esc(r.market)}</span> — ${esc(r.outcome)}${r.league?" · "+esc(r.league):""}</div></div><span class="scan-score">${esc(r.score||"--")}</span><span class="sel-odds">${r.odds.toFixed(2)}</span><span class="v-pill ${vc}">${r.verdict}</span>${manual}</div>`;
+  const koTime = r.kickoff ? new Date(r.kickoff).toLocaleString("en-GB", {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "";
+  return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(r.homeTeam)} vs ${esc(r.awayTeam)}</div><div class="sel-meta"><span class="sel-market">${esc(r.market)}</span> — ${esc(r.outcome)}${r.league?" · "+esc(r.league):""}${koTime?" · "+koTime:""}</div></div><span class="scan-score">${esc(r.score||"--")}</span><span class="sel-odds">${r.odds.toFixed(2)}</span><span class="v-pill ${vc}">${r.verdict}</span>${manual}</div>`;
 }
 
 window.setManual = function(eid,v) { manualOverrides[eid]=v; renderScanResults(); };

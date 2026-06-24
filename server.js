@@ -230,7 +230,7 @@ function mapOutcomes(outcomes, ticketSelections) {
       outcome: oc.desc || "",
       outcomeId: ts.outcomeId || oc.id || "",
       productId: ts.productId || mkt.product || 3,
-      odds: parseFloat(oc.odds) || 0,
+      odds: parseFloat(ts.odds) || parseFloat(oc.odds) || 0,
       kickoff: o.estimateStartTime
         ? new Date(Number(o.estimateStartTime)).toISOString()
         : "",
