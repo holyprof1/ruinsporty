@@ -1186,20 +1186,33 @@ function renderMergerConflicts() {
     return;
   }
   $("mergerConflictsBadge").textContent = mergerConflicts.length;
-  $("mergerConflicts").innerHTML = mergerConflicts.map((c, ci) => `
-    <div class="conflict-card">
-      <div class="conflict-title">${esc(c.homeTeam)} vs ${esc(c.awayTeam)}</div>
+
+  // Quick-resolve buttons
+  let html = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding:0 4px">';
+  html += '<button class="btn-sm btn-optimize" onclick="resolveAllConflicts(\'first\')">Use First Code</button>';
+  html += '<button class="btn-sm btn-optimize" onclick="resolveAllConflicts(\'low\')">Low Odds (Safer)</button>';
+  html += '<button class="btn-sm btn-optimize" onclick="resolveAllConflicts(\'high\')">High Odds</button>';
+  html += '<button class="btn-sm" style="border-color:#a371f7;color:#a371f7" onclick="resolveAllConflicts(\'smart\')">SlipPilot Decides</button>';
+  html += '</div>';
+
+  html += mergerConflicts.map((c, ci) => {
+    const sorted = [...(c.options || [])].sort((a, b) => a.odds - b.odds);
+    return `<div class="conflict-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="conflict-title">${esc(c.homeTeam)} vs ${esc(c.awayTeam)}</div>
+        <button class="btn-sm" style="color:#e53935;border-color:#e53935;padding:2px 8px;font-size:10px" onclick="removeMergerConflict(${ci})">Remove</button>
+      </div>
       <div class="conflict-options">
         ${(c.options || []).map((o, oi) => `
           <button class="conflict-option" onclick="chooseMergerConflict(${ci},${oi})">
             <span>${esc(o.market)} - ${esc(o.outcome)}</span>
             <strong>${Number(o.odds || 0).toFixed(2)}</strong>
-            <small>${esc(o.sourceCode || "")}</small>
           </button>
         `).join("")}
       </div>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
+  $("mergerConflicts").innerHTML = html;
   panel.classList.remove("hidden");
 }
 
@@ -1212,6 +1225,42 @@ window.chooseMergerConflict = function(conflictIndex, optionIndex) {
   mergerConflicts.splice(conflictIndex, 1);
   renderMergerConflicts();
   renderMergerTable();
+};
+
+window.removeMergerConflict = function(conflictIndex) {
+  mergerConflicts.splice(conflictIndex, 1);
+  renderMergerConflicts();
+  renderMergerTable();
+};
+
+window.resolveAllConflicts = function(mode) {
+  // Market HR for smart mode
+  const mktRank = {"Over/Under":88,"Both Halves Under 1.5":88,"2nd Half - Multigoals":85,"Draw No Bet":73,"1X2":70,"Goal Bounds":64,"GG/NG":61,"Double Chance":57};
+  const getMktScore = m => { for (const [k,v] of Object.entries(mktRank)) if ((m||"").includes(k)) return v; return 50; };
+
+  while (mergerConflicts.length > 0) {
+    const c = mergerConflicts[0];
+    const opts = c.options || [];
+    if (!opts.length) { mergerConflicts.shift(); continue; }
+    let pick;
+    if (mode === "first") pick = opts[0];
+    else if (mode === "low") pick = opts.reduce((a, b) => a.odds < b.odds ? a : b);
+    else if (mode === "high") pick = opts.reduce((a, b) => a.odds > b.odds ? a : b);
+    else { // smart — pick highest probability market
+      pick = opts.reduce((best, o) => {
+        const sc = getMktScore(o.market) + (o.odds >= 1.15 && o.odds <= 1.35 ? 10 : 0);
+        const bestSc = getMktScore(best.market) + (best.odds >= 1.15 && best.odds <= 1.35 ? 10 : 0);
+        return sc > bestSc ? o : best;
+      });
+    }
+    const idx = mergerSelections.findIndex(s => s.eventId === pick.eventId);
+    if (idx === -1) mergerSelections.push(pick);
+    else mergerSelections[idx] = pick;
+    mergerConflicts.shift();
+  }
+  renderMergerConflicts();
+  renderMergerTable();
+  showToast("All conflicts resolved (" + mode + ")", "success");
 };
 
 window.removeMergerGame = function(eventId) {
