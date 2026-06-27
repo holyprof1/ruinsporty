@@ -1990,6 +1990,17 @@ app.use((err, req, res, next) => {
 
 // ── Start ──
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log("SlipPilot v3 running at http://localhost:" + PORT);
+});
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.log("[START] Port " + PORT + " busy — killing old process and retrying in 3s...");
+    try {
+      require("child_process").execSync("pkill -9 -f server.js", { timeout: 5000 });
+    } catch {}
+    setTimeout(() => {
+      app.listen(PORT, () => { console.log("SlipPilot v3 running at http://localhost:" + PORT + " (retry)"); });
+    }, 3000);
+  }
 });
