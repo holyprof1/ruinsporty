@@ -395,6 +395,25 @@ function renderLB(list) {
   }
   if (!filtered.length && lbPeriod !== 'all') { el.innerHTML = '<p style="color:#8a9e8a">No punters with codes for this period.</p>'; return; }
 
+  // Re-sort by period stats when filtering by time
+  if (lbPeriod !== 'all') {
+    filtered.sort((a, b) => {
+      function periodHR(p) {
+        const codes = filterCodesByPeriod((p.codes || []).filter(c => c && (c.games > 0 || c.status === 'active')), p.todayCode);
+        const w = codes.reduce((a, c) => a + (c.won || 0), 0);
+        const l = codes.reduce((a, c) => a + (c.lost || 0), 0);
+        return w + l > 0 ? w / (w + l) : -1;
+      }
+      const key = lbSort === 'hitRate' ? 'hr' : lbSort === 'wins' ? 'w' : lbSort === 'totalBets' ? 'g' : 'hr';
+      if (key === 'hr') return periodHR(b) - periodHR(a);
+      const ca = filterCodesByPeriod((a.codes || []).filter(c => c && (c.games > 0 || c.status === 'active')), a.todayCode);
+      const cb = filterCodesByPeriod((b.codes || []).filter(c => c && (c.games > 0 || c.status === 'active')), b.todayCode);
+      if (key === 'w') return cb.reduce((s, c) => s + (c.won || 0), 0) - ca.reduce((s, c) => s + (c.won || 0), 0);
+      if (key === 'g') return cb.reduce((s, c) => s + (c.games || 0), 0) - ca.reduce((s, c) => s + (c.games || 0), 0);
+      return 0;
+    });
+  }
+
   el.innerHTML = filtered.map((p, i) => {
     const id = 'lb_' + i;
     const rc = i===0 ? 'rank-1' : i===1 ? 'rank-2' : i===2 ? 'rank-3' : 'rank-n';
@@ -408,12 +427,13 @@ function renderLB(list) {
     const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
 
     const allCodes = (p.codes || []).filter(c => c && (c.games > 0 || c.status === 'active'));
+    allCodes.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const codes = filterCodesByPeriod(allCodes, p.todayCode);
     const periodWon = codes.reduce((a, c) => a + (c.won || 0), 0);
     const periodLost = codes.reduce((a, c) => a + (c.lost || 0), 0);
     const pending = codes.reduce((a, c) => a + (c.pending || 0), 0);
     const periodSettled = periodWon + periodLost;
-    const periodHR = periodSettled > 0 ? Math.round(periodWon / periodSettled * 100) : (p.hitRate || 0);
+    const periodHR = periodSettled > 0 ? Math.round(periodWon / periodSettled * 100) : 0;
     const showWon = lbPeriod === 'all' ? (p.won || 0) : periodWon;
     const showLost = lbPeriod === 'all' ? (p.lost || 0) : periodLost;
     const showHR = lbPeriod === 'all' ? (p.hitRate || 0) : periodHR;
