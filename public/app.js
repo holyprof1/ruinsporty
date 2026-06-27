@@ -38,9 +38,7 @@ function resetTabState(tab) {
     $("permPoolCode").value = ""; $("permResults").classList.add("hidden"); $("permResults").innerHTML = "";
     wizGo("split",1);
   } else if (tab === "scanner") {
-    scanData = null; manualOverrides = {};
-    $("scanCode").value = ""; $("scanPunterName").value = "";
-    showErr("scanError",""); $("scanResults").classList.add("hidden");
+    showErr("scanError","");
   } else if (tab === "convert") {
     convertOriginal = []; convertResult = []; manualConvertEdits = {};
     $("convertCode").value = ""; showErr("convertError",""); $("convertResults").classList.add("hidden");
@@ -67,6 +65,19 @@ function activateTab(tab) {
     if (pg) pg.classList.add("active");
     currentTab = tab;
     if (tab === "leaderboard") showLeaderboardView();
+    if (tab === "scanner") {
+      if (!scanData) {
+        try {
+          const saved = sessionStorage.getItem("scanData");
+          const savedCode = sessionStorage.getItem("scanCode");
+          if (saved) { scanData = JSON.parse(saved); if (savedCode) $("scanCode").value = savedCode; }
+        } catch {}
+      }
+      if (scanData) {
+        $("scanResults").classList.remove("hidden");
+        renderScanResults();
+      }
+    }
     document.querySelectorAll(".bnav-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
     const lock = isLocked(tab);
     if (lock && !isAdmin) showLockOverlay(tab, lock);
@@ -591,7 +602,9 @@ async function loadSlip() {
   showSkeleton("originalTable");
   try {
     const res = await fetch(`/api/booking/${encodeURIComponent(code)}`);
-    const json = await res.json();
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); } catch { throw new Error("Server is restarting. Please try again in 30 seconds."); }
     if (!res.ok) throw new Error(json.error || "Failed");
     if (!json.selections?.length) throw new Error("No selections found");
 
@@ -1435,10 +1448,16 @@ async function applySmartEdits(sels) {
 
 // ── Scanner ──
 let scanData = null, manualOverrides = {};
+try {
+  const saved = sessionStorage.getItem("scanData");
+  const savedCode = sessionStorage.getItem("scanCode");
+  if (saved) { scanData = JSON.parse(saved); if (savedCode) $("scanCode").value = savedCode; }
+} catch {}
 $("scanBtn").addEventListener("click", scanSlip);
 $("scanCode").addEventListener("keydown", e => { if (e.key==="Enter") scanSlip(); });
 $("autoSaveYes").addEventListener("click", saveScanPunter);
 $("autoSaveNo").addEventListener("click", () => $("scanAutoSave").classList.add("hidden"));
+// scanData restored from sessionStorage — will render when scanner tab activates
 
 async function scanSlip() {
   const code = $("scanCode").value.trim().toUpperCase();
@@ -1446,8 +1465,10 @@ async function scanSlip() {
   showErr("scanError",""); $("scanBtn").disabled = true; $("scanBtn").textContent = "Scanning...";
   $("scanResults").classList.add("hidden"); manualOverrides = {};
   try {
-    const r = await fetch(`/api/scan/${encodeURIComponent(code)}`); const j = await r.json();
+    const r = await fetch(`/api/scan/${encodeURIComponent(code)}`);
+    const txt = await r.text(); let j; try { j = JSON.parse(txt); } catch { throw new Error("Server is restarting. Try again in 30 seconds."); }
     if (!r.ok) throw new Error(j.error); scanData = j;
+    try { sessionStorage.setItem("scanData", JSON.stringify(j)); sessionStorage.setItem("scanCode", code); } catch {}
     $("scanResults").classList.remove("hidden");
     renderScanResults();
     if ($("scanPunterName").value.trim()) $("scanAutoSave").classList.remove("hidden");
@@ -1466,11 +1487,13 @@ function renderScanResults() {
   const totalOdds = results.reduce((a,r) => a * (r.odds||1), 1);
   const oddsEl = $("scanTotalOdds");
   if (oddsEl) oddsEl.textContent = totalOdds >= 1e6 ? (totalOdds/1e6).toFixed(1)+"M" : totalOdds >= 1000 ? Math.round(totalOdds/1000)+"K" : totalOdds.toFixed(0);
-  // Dynamic show/hide: hide HR when pending, hide Pending when settled
+  // Dynamic show/hide
   const hrStat = $("scanHitRate")?.closest(".scan-stat");
   const pendStat = $("scanPending")?.closest(".scan-stat");
+  const voidStat = $("scanVoid")?.closest(".scan-stat");
   if (hrStat) hrStat.style.display = pending.length > 0 ? "none" : "";
   if (pendStat) pendStat.style.display = pending.length === 0 ? "none" : "";
+  if (voidStat) voidStat.style.display = voided.length === 0 ? "none" : "";
   $("killersBadge").textContent=lost.length; $("safeBadge").textContent=won.length; $("scanTotalBadge").textContent=results.length;
   $("killersTable").innerHTML = lost.length ? lost.map(scanCard).join("") : '<div class="empty-state">No killers</div>';
   $("safeTable").innerHTML = won.length ? won.map(scanCard).join("") : '<div class="empty-state">No safe picks</div>';
@@ -2165,7 +2188,7 @@ document.addEventListener("click", function(e) {
     secretTaps++;
     clearTimeout(secretTimer);
     secretTimer = setTimeout(() => secretTaps = 0, 2000);
-    if (secretTaps >= 5) { secretTaps = 0; window.location = "/admin"; }
+    if (secretTaps >= 2) { secretTaps = 0; window.location = "/admin"; }
   }
 });
 
