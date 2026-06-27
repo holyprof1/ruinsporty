@@ -1,5 +1,12 @@
-// Crash recovery — prevent process death on unhandled errors
-process.on("uncaughtException", err => { console.error("[CRASH] Uncaught:", err.message || err); });
+// Crash recovery — log and exit so app.js wrapper can restart
+process.on("uncaughtException", err => {
+  console.error("[CRASH] Uncaught:", err.message || err);
+  if (err.code === "EADDRINUSE") {
+    console.log("[CRASH] Port busy — exiting for wrapper restart...");
+    setTimeout(() => process.exit(1), 2000);
+  }
+  // For other errors, keep running (don't crash on minor issues)
+});
 process.on("unhandledRejection", err => { console.error("[CRASH] Unhandled:", err && err.message ? err.message : err); });
 
 // Keep-alive: ping self every 4 minutes to prevent cPanel killing idle process
@@ -1990,17 +1997,6 @@ app.use((err, req, res, next) => {
 
 // ── Start ──
 
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log("SlipPilot v3 running at http://localhost:" + PORT);
-});
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.log("[START] Port " + PORT + " busy — killing old process and retrying in 3s...");
-    try {
-      require("child_process").execSync("pkill -9 -f server.js", { timeout: 5000 });
-    } catch {}
-    setTimeout(() => {
-      app.listen(PORT, () => { console.log("SlipPilot v3 running at http://localhost:" + PORT + " (retry)"); });
-    }, 3000);
-  }
 });
