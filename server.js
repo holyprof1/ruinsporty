@@ -1,17 +1,29 @@
 // Crash recovery — prevent process death on unhandled errors
-process.on("uncaughtException", err => { console.error("Uncaught:", err.message || err); });
-process.on("unhandledRejection", err => { console.error("Unhandled:", err && err.message ? err.message : err); });
+process.on("uncaughtException", err => { console.error("[CRASH] Uncaught:", err.message || err); });
+process.on("unhandledRejection", err => { console.error("[CRASH] Unhandled:", err && err.message ? err.message : err); });
 
-// Memory leak prevention — clear session store every 6 hours
+// Keep-alive: ping self every 4 minutes to prevent cPanel killing idle process
 setInterval(() => {
-  try { if (global.gc) global.gc(); } catch {}
-  console.log("[GC] Memory: " + Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB");
-}, 6 * 60 * 60 * 1000);
+  try {
+    const http = require("http");
+    http.get("http://localhost:" + (process.env.PORT || 3000) + "/api/stats", r => {
+      let d = ""; r.on("data", c => d += c); r.on("end", () => {});
+    }).on("error", () => {});
+  } catch {}
+}, 4 * 60 * 1000);
 
-// Auto-restart if memory exceeds 400MB (cPanel shared hosting limit)
+// Memory management
 setInterval(() => {
-  const mem = process.memoryUsage().heapUsed / 1024 / 1024;
-  if (mem > 400) { console.error("[OOM] Memory " + Math.round(mem) + "MB — restarting"); process.exit(1); }
+  const mem = process.memoryUsage();
+  const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+  console.log("[MEM] Heap: " + heapMB + "MB");
+  // Clear caches if memory getting high
+  if (heapMB > 250) {
+    try { bookingCache.clear(); } catch {}
+    try { if (typeof oddsStore !== "undefined") oddsStore.clear(); } catch {}
+    console.log("[MEM] Caches cleared at " + heapMB + "MB");
+  }
+  if (heapMB > 400) { console.error("[OOM] " + heapMB + "MB — restarting"); process.exit(1); }
 }, 60000);
 require("dotenv").config();
 const express = require("express");
@@ -253,6 +265,20 @@ function evaluateVerdict(sel) {
   return "PENDING";
 }
 
+// ── Odds cache: saves original odds when code is first loaded ──
+const oddsStore = new Map(); // key: "CODE|eventId" -> odds at first load
+
+function saveOddsForCode(code, selections) {
+  for (const s of selections) {
+    const key = code + "|" + s.eventId;
+    if (!oddsStore.has(key)) oddsStore.set(key, s.odds);
+  }
+}
+
+function getOriginalOdds(code, eventId, fallback) {
+  return oddsStore.get(code + "|" + eventId) || fallback;
+}
+
 // ── Booking (with cache + rate limiting) ──
 
 const bookingCache = new Map();
@@ -296,6 +322,7 @@ app.get("/api/booking/:code", checkBookingRate, async (req, res) => {
     const totalOdds = selections.reduce((acc, s) => acc * s.odds, 1);
 
     incrementStat("slipsLoaded");
+    saveOddsForCode(code, selections);
 
     const result = {
       shareCode: json.data.shareCode || code,
@@ -448,7 +475,12 @@ app.get("/api/scan/:code", async (req, res) => {
     const outcomes = json.data.outcomes || [];
     const ticketSels = json.data.ticket?.selections || [];
     const selections = mapOutcomes(outcomes, ticketSels);
-    const results = selections.map((s) => ({ ...s, verdict: evaluateVerdict(s) }));
+    const results = selections.map((s) => {
+      const cached = getOriginalOdds(code, s.eventId, 0);
+      const odds = cached > 0 ? cached : s.odds;
+      return { ...s, odds, verdict: evaluateVerdict(s) };
+    });
+    saveOddsForCode(code, results);
 
     const won = results.filter((r) => r.verdict === "WON").length;
     const lost = results.filter((r) => r.verdict === "LOST").length;
@@ -1443,12 +1475,29 @@ app.get("/api/debug/outbound", async (req, res) => {
 const PUNTER_CODES_FILE = path.join(DATA_DIR, "punter-codes.json");
 
 function loadPunterCodes() {
-  try { return JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8")); }
-  catch { return { "39 Billion": "", "9Z": "", "Big Strategic": "", "Ayo Jordan": "", "Bayo Bets": "", "OY": "", "Princewill": "", "Sirtee": "" }; }
+  try {
+    const raw = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8"));
+    const today = new Date().toISOString().slice(0, 10);
+    if (raw._date && raw._date !== today) {
+      const cleared = { _date: today };
+      for (const k of Object.keys(raw)) { if (k !== "_date") cleared[k] = ""; }
+      fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(cleared, null, 2));
+      const c2 = { ...cleared }; delete c2._date;
+      return c2;
+    }
+    if (!raw._date) { raw._date = today; fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(raw, null, 2)); }
+    const clean = { ...raw };
+    delete clean._date;
+    return clean;
+  }
+  catch { return { _date: new Date().toISOString().slice(0, 10), "39 Billion": "", "9Z": "", "Big Strategic": "", "Ayo Jordan": "", "Bayo Bets": "", "OY": "", "Princewill": "", "Sirtee": "" }; }
 }
 
 app.get("/api/admin/punter-codes", requireAdmin, (req, res) => {
-  res.json(loadPunterCodes());
+  const codes = loadPunterCodes();
+  const clean = { ...codes };
+  delete clean._date;
+  res.json(clean);
 });
 
 app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
@@ -1540,7 +1589,7 @@ function loadLeaderboard() {
     const today = new Date().toISOString().slice(0, 10);
     const lbMap2 = new Map(lb.map(p => [p.punter, p]));
     for (const [name, code] of Object.entries(todayCodes)) {
-      if (!code) continue;
+      if (!code || name === "_date" || name.startsWith("_")) continue;
       let entry = lbMap2.get(name);
       if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0 }; lb.push(entry); lbMap2.set(name, entry); }
       entry.lastActive = today;
@@ -1559,21 +1608,32 @@ function loadLeaderboard() {
       entry.daysActive = new Set([...(entry.codes||[]).map(c => c.date), today].filter(Boolean)).size;
     }
   } catch {}
-  // Attach generated codes from code-history to AI/SlipPilot/Generated entries
+  // Attach codes from code-history (skip AI/SlipPilot/Generated)
   try {
     const ch = loadCodeHistory();
     const lbMap3 = new Map(lb.map(p => [p.punter, p]));
     for (const c of ch) {
       if (!c.punter || !c.code) continue;
-      let entry = lbMap3.get(c.punter);
-      if (!entry) { entry = { punter: c.punter, codes: [], isAI: c.punter.startsWith("AI ") || c.punter === "SlipPilot" || c.punter === "Generated" }; lb.push(entry); lbMap3.set(c.punter, entry); }
+      const n = c.punter;
+      if (n.includes("SlipPilot") || n.includes("Generated") || n.startsWith("AI") || n.includes("Independent") || n.includes("Jun2")) continue;
+      let entry = lbMap3.get(n);
+      if (!entry) continue;
       if (!entry.codes) entry.codes = [];
       if (!entry.codes.some(x => x.code === c.code)) {
         entry.codes.push({ code: c.code, date: c.date, games: c.games || 0, won: 0, lost: 0, void: 0, pending: c.games || 0, hitRate: 0, group: c.group });
       }
     }
   } catch {}
-  return lb;
+  // Final filter: remove any non-human entries
+  const final = lb.filter(p => {
+    const n = p.punter || "";
+    if (n.startsWith("_") || n === "_date") return false;
+    if (n.includes("SlipPilot") || n.includes("Generated") || n.startsWith("AI (") || n.includes("Independent")) return false;
+    return true;
+  });
+  // Persist merged data so scan-code can find new codes
+  try { fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(final, null, 2)); } catch {}
+  return final;
 }
 function loadCodeHistory() { try { return JSON.parse(fs.readFileSync(CODE_HISTORY_FILE, "utf-8")); } catch { return []; } }
 function loadWeakMatches() { try { return JSON.parse(fs.readFileSync(WEAK_MATCHES_FILE, "utf-8")); } catch { return {}; } }
@@ -1635,11 +1695,12 @@ app.get("/api/leaderboard", (req, res) => {
       if (p.codes) p.codes = p.codes.filter(c => (c.lost || 0) < 10);
     }
   }
-  // Remove AI entries with zero remaining codes
+  // Remove non-human entries
   const final = list.filter(p => {
-    if (p.isAI || p.punter === "Generated" || p.punter.startsWith("AI (") || p.punter === "SlipPilot") {
-      return (p.codes || []).length > 0;
-    }
+    const n = p.punter || "";
+    if (n.startsWith("_") || n === "_date") return false;
+    if (n.includes("SlipPilot") || n.includes("Generated") || n.startsWith("AI (") || n.includes("Independent")) return false;
+    if (p.isAI) return false;
     return true;
   });
 
@@ -1747,7 +1808,7 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
 
     // Step 1: Add today's active codes to leaderboard if not present
     for (const [name, code] of Object.entries(todayCodes)) {
-      if (!code) continue;
+      if (!code || name === "_date" || name.startsWith("_")) continue;
       let entry = lbMap.get(name);
       if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0, won: 0, lost: 0, hitRate: 0, trustScore: 0 }; lb.push(entry); lbMap.set(name, entry); }
       if (!entry.codes) entry.codes = [];
