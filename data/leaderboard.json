@@ -1,0 +1,1346 @@
+[
+  {
+    "punter": "39 Billion",
+    "totalSelections": 39,
+    "futureSelections": 36,
+    "futureFootball": 33,
+    "avgOdds": 1.396,
+    "aggressiveness": 12.8,
+    "consistency": 92,
+    "topMarkets": [
+      [
+        "Over/Under",
+        13
+      ],
+      [
+        "2nd Half - Double Chance",
+        7
+      ],
+      [
+        "Double Chance",
+        6
+      ],
+      [
+        "Draw No Bet",
+        3
+      ],
+      [
+        "Both Halves Under 1.5",
+        2
+      ]
+    ],
+    "topLeagues": [
+      [
+        "Esiliiga B",
+        3
+      ],
+      [
+        "Division 2",
+        3
+      ],
+      [
+        "Superettan",
+        3
+      ],
+      [
+        "Tercera Division, Reserves",
+        3
+      ],
+      [
+        "World Cup",
+        2
+      ]
+    ],
+    "overlapWith": {
+      "Top Boy": 22,
+      "King Eric": 2,
+      "Mr Lantern": 29,
+      "9Z": 24
+    },
+    "overlapScore": 77,
+    "rank": 4,
+    "daysActive": 13,
+    "totalGames": 504,
+    "lastActive": "2026-06-26",
+    "consensusHits": 30,
+    "consensusRate": 97,
+    "conversionRate": 0,
+    "riskProfile": "low",
+    "todaySelections": 0,
+    "trustScore": 92,
+    "won": 339,
+    "lost": 135,
+    "hitRate": 72,
+    "handle": "@39billion",
+    "tier": "primary",
+    "codes": [
+      {
+        "code": "PNBA14",
+        "date": "2026-06-24",
+        "games": 38,
+        "won": 23,
+        "lost": 12,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 66
+      },
+      {
+        "code": "YEYF3P",
+        "date": "2026-06-23",
+        "games": 39,
+        "won": 27,
+        "lost": 10,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 73
+      },
+      {
+        "code": "URGYHF",
+        "date": "2026-06-22",
+        "games": 39,
+        "won": 27,
+        "lost": 8,
+        "void": 4,
+        "pending": 0,
+        "hitRate": 77
+      },
+      {
+        "code": "HPS13S",
+        "date": "2026-06-21",
+        "games": 38,
+        "won": 27,
+        "lost": 9,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 75
+      },
+      {
+        "code": "PWFRFE",
+        "date": "2026-06-20",
+        "games": 39,
+        "won": 27,
+        "lost": 10,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 73
+      },
+      {
+        "code": "Z1B4JE",
+        "date": "2026-06-19",
+        "games": 39,
+        "won": 28,
+        "lost": 9,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 76
+      },
+      {
+        "code": "P5S61H",
+        "date": "2026-06-18",
+        "games": 38,
+        "won": 23,
+        "lost": 15,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 61
+      },
+      {
+        "code": "X62NBJ",
+        "date": "2026-06-17",
+        "games": 39,
+        "won": 31,
+        "lost": 7,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 82
+      },
+      {
+        "code": "QDZBEG",
+        "date": "2026-06-16",
+        "games": 39,
+        "won": 27,
+        "lost": 10,
+        "void": 1,
+        "pending": 1,
+        "hitRate": 73
+      },
+      {
+        "code": "M3ZNHX",
+        "date": "2026-06-15",
+        "games": 39,
+        "won": 19,
+        "lost": 15,
+        "void": 5,
+        "pending": 0,
+        "hitRate": 56
+      },
+      {
+        "code": "K8YFL4",
+        "date": "2026-06-14",
+        "games": 39,
+        "won": 29,
+        "lost": 5,
+        "void": 5,
+        "pending": 0,
+        "hitRate": 85
+      },
+      {
+        "code": "MKYUGW",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 39,
+        "won": 26,
+        "lost": 12,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 68
+      },
+      {
+        "code": "T05M9W",
+        "date": "2026-06-26",
+        "games": 39,
+        "won": 25,
+        "lost": 13,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 66,
+        "status": "active"
+      }
+    ],
+    "bestCode": "K8YFL4",
+    "worstCode": "M3ZNHX",
+    "todayCode": "T05M9W",
+    "lastCode": "MKYUGW",
+    "lastDate": "2026-06-25"
+  },
+  {
+    "punter": "ASA",
+    "handle": "",
+    "tier": "secondary",
+    "trustScore": 91,
+    "won": 283,
+    "lost": 114,
+    "hitRate": 71,
+    "consistency": 91,
+    "daysActive": 10,
+    "totalGames": 434,
+    "consensusRate": 0,
+    "conversionRate": 0,
+    "riskProfile": "medium",
+    "lastActive": "2026-06-23",
+    "avgOdds": 0,
+    "codes": [
+      {
+        "code": "RQPSMC",
+        "date": "2026-06-23",
+        "games": 39,
+        "won": 28,
+        "lost": 8,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 78
+      },
+      {
+        "code": "P70PG7",
+        "date": "2026-06-22",
+        "games": 40,
+        "won": 22,
+        "lost": 13,
+        "void": 5,
+        "pending": 0,
+        "hitRate": 63
+      },
+      {
+        "code": "ZFTZTZ",
+        "date": "2026-06-21",
+        "games": 39,
+        "won": 29,
+        "lost": 6,
+        "void": 4,
+        "pending": 0,
+        "hitRate": 83
+      },
+      {
+        "code": "PNADUB",
+        "date": "2026-06-19",
+        "games": 40,
+        "won": 27,
+        "lost": 11,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 71
+      },
+      {
+        "code": "XAZB18",
+        "date": "2026-06-18",
+        "games": 37,
+        "won": 23,
+        "lost": 12,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 66
+      },
+      {
+        "code": "GGYBSA",
+        "date": "2026-06-18",
+        "games": 39,
+        "won": 27,
+        "lost": 10,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 73
+      },
+      {
+        "code": "VDGN1F",
+        "date": "2026-06-17",
+        "games": 40,
+        "won": 25,
+        "lost": 9,
+        "void": 4,
+        "pending": 2,
+        "hitRate": 74
+      },
+      {
+        "code": "TE5S24",
+        "date": "2026-06-16",
+        "games": 40,
+        "won": 21,
+        "lost": 13,
+        "void": 6,
+        "pending": 0,
+        "hitRate": 62
+      },
+      {
+        "code": "XFVJAC",
+        "date": "2026-06-15",
+        "games": 40,
+        "won": 33,
+        "lost": 4,
+        "void": 2,
+        "pending": 1,
+        "hitRate": 89
+      },
+      {
+        "code": "MNBLLJ",
+        "date": "2026-06-14",
+        "games": 40,
+        "won": 27,
+        "lost": 10,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 73
+      },
+      {
+        "code": "P6EHAB",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 40,
+        "won": 21,
+        "lost": 18,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 54
+      }
+    ],
+    "todayCode": "",
+    "lastCode": "P6EHAB",
+    "lastDate": "2026-06-25"
+  },
+  {
+    "punter": "9Z",
+    "totalSelections": 40,
+    "futureSelections": 38,
+    "futureFootball": 38,
+    "avgOdds": 1.339,
+    "aggressiveness": 10,
+    "consistency": 88,
+    "topMarkets": [
+      [
+        "Over/Under",
+        12
+      ],
+      [
+        "Over/Under - Early Goals",
+        5
+      ],
+      [
+        "GG/NG",
+        5
+      ],
+      [
+        "Both Halves Under 1.5",
+        4
+      ],
+      [
+        "1X2",
+        3
+      ]
+    ],
+    "topLeagues": [
+      [
+        "Esiliiga B",
+        4
+      ],
+      [
+        "Premier League",
+        4
+      ],
+      [
+        "Tercera Division, Reserves",
+        4
+      ],
+      [
+        "Superettan",
+        2
+      ],
+      [
+        "Svenska Cup",
+        2
+      ]
+    ],
+    "overlapWith": {
+      "Top Boy": 26,
+      "King Eric": 1,
+      "Mr Lantern": 28,
+      "39 Billion": 24
+    },
+    "overlapScore": 79,
+    "rank": 2,
+    "daysActive": 9,
+    "totalGames": 345,
+    "lastActive": "2026-06-26",
+    "consensusHits": 34,
+    "consensusRate": 97,
+    "conversionRate": 0,
+    "riskProfile": "low",
+    "todaySelections": 0,
+    "trustScore": 91,
+    "won": 238,
+    "lost": 90,
+    "hitRate": 73,
+    "handle": "@9zerobillion",
+    "tier": "primary",
+    "codes": [
+      {
+        "code": "REX2G1",
+        "date": "2026-06-24",
+        "games": 38,
+        "won": 25,
+        "lost": 12,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 68
+      },
+      {
+        "code": "M8HYSJ",
+        "date": "2026-06-23",
+        "games": 39,
+        "won": 27,
+        "lost": 10,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 73
+      },
+      {
+        "code": "LT0RMU",
+        "date": "2026-06-22",
+        "games": 40,
+        "won": 26,
+        "lost": 12,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 68
+      },
+      {
+        "code": "LU84JS",
+        "date": "2026-06-21",
+        "games": 36,
+        "won": 32,
+        "lost": 4,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 89
+      },
+      {
+        "code": "N008GY",
+        "date": "2026-06-20",
+        "games": 40,
+        "won": 24,
+        "lost": 13,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 65
+      },
+      {
+        "code": "Q4TXHP",
+        "date": "2026-06-19",
+        "games": 39,
+        "won": 26,
+        "lost": 8,
+        "void": 5,
+        "pending": 0,
+        "hitRate": 76
+      },
+      {
+        "code": "LLVRBH",
+        "date": "2026-06-18",
+        "games": 38,
+        "won": 24,
+        "lost": 13,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 65
+      },
+      {
+        "code": "MXT07E",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 38,
+        "won": 22,
+        "lost": 13,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 63
+      },
+      {
+        "code": "QUQX2C",
+        "date": "2026-06-26",
+        "games": 37,
+        "won": 32,
+        "lost": 5,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 86,
+        "status": "active"
+      }
+    ],
+    "bestCode": "LU84JS",
+    "worstCode": "N008GY",
+    "todayCode": "QUQX2C",
+    "lastCode": "MXT07E",
+    "lastDate": "2026-06-25"
+  },
+  {
+    "punter": "Ayo Jordan",
+    "daysActive": 8,
+    "totalGames": 341,
+    "consensusHits": 72,
+    "conversionRate": 0,
+    "riskProfile": "low",
+    "lastActive": "2026-06-26",
+    "consensusRate": 73,
+    "avgOdds": 1.303,
+    "todaySelections": 33,
+    "trustScore": 93,
+    "won": 235,
+    "lost": 90,
+    "hitRate": 72,
+    "handle": "@AyoJordan",
+    "tier": "primary",
+    "codes": [
+      {
+        "code": "MP0MUK",
+        "date": "2026-06-24",
+        "games": 40,
+        "won": 25,
+        "lost": 13,
+        "void": 1,
+        "pending": 1,
+        "hitRate": 66
+      },
+      {
+        "code": "W9HQ63",
+        "date": "2026-06-23",
+        "games": 43,
+        "won": 28,
+        "lost": 15,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 65
+      },
+      {
+        "code": "QWJHGG",
+        "date": "2026-06-22",
+        "games": 43,
+        "won": 35,
+        "lost": 6,
+        "void": 0,
+        "pending": 2,
+        "hitRate": 85
+      },
+      {
+        "code": "MDTXU3",
+        "date": "2026-06-21",
+        "games": 39,
+        "won": 27,
+        "lost": 10,
+        "void": 1,
+        "pending": 1,
+        "hitRate": 73
+      },
+      {
+        "code": "Y3XBRC",
+        "date": "2026-06-20",
+        "games": 43,
+        "won": 32,
+        "lost": 9,
+        "void": 1,
+        "pending": 1,
+        "hitRate": 78
+      },
+      {
+        "code": "Q1BRJW",
+        "date": "2026-06-18",
+        "games": 43,
+        "won": 24,
+        "lost": 16,
+        "void": 0,
+        "pending": 3,
+        "hitRate": 60
+      },
+      {
+        "code": "QGGKKC",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 46,
+        "won": 33,
+        "lost": 8,
+        "void": 1,
+        "pending": 4,
+        "hitRate": 80
+      },
+      {
+        "code": "XEPYL8",
+        "date": "2026-06-26",
+        "games": 44,
+        "won": 31,
+        "lost": 13,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 70,
+        "status": "active"
+      }
+    ],
+    "consistency": 88,
+    "bestCode": "Y3XBRC",
+    "worstCode": "Q1BRJW",
+    "todayCode": "XEPYL8",
+    "lastCode": "QGGKKC",
+    "lastDate": "2026-06-25"
+  },
+  {
+    "punter": "Sirtee",
+    "daysActive": 5,
+    "totalGames": 189,
+    "consensusHits": 0,
+    "conversionRate": 0,
+    "riskProfile": "low",
+    "lastActive": "2026-06-22",
+    "consensusRate": 0,
+    "avgOdds": 1.32,
+    "todaySelections": 0,
+    "trustScore": 74,
+    "won": 110,
+    "lost": 62,
+    "hitRate": 64,
+    "handle": "@Sirtee",
+    "tier": "secondary",
+    "codes": [
+      {
+        "code": "UX0A2B",
+        "date": "2026-06-22",
+        "games": 21,
+        "won": 14,
+        "lost": 6,
+        "void": 0,
+        "pending": 1,
+        "hitRate": 70
+      },
+      {
+        "code": "HXQH8Q",
+        "date": "2026-06-21",
+        "games": 44,
+        "won": 28,
+        "lost": 16,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 64
+      },
+      {
+        "code": "L2HN4B",
+        "date": "2026-06-20",
+        "games": 40,
+        "won": 18,
+        "lost": 6,
+        "void": 0,
+        "pending": 16,
+        "hitRate": 75
+      },
+      {
+        "code": "R8RV49",
+        "date": "2026-06-19",
+        "games": 45,
+        "won": 31,
+        "lost": 14,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 69
+      },
+      {
+        "code": "HDZZQ1",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 39,
+        "won": 19,
+        "lost": 20,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 49
+      }
+    ],
+    "consistency": 91,
+    "bestCode": "L2HN4B",
+    "worstCode": "HXQH8Q",
+    "todayCode": "",
+    "lastCode": "HDZZQ1",
+    "lastDate": "2026-06-25"
+  },
+  {
+    "punter": "OY",
+    "daysActive": 4,
+    "totalGames": 145,
+    "consensusHits": 0,
+    "conversionRate": 0,
+    "riskProfile": "low",
+    "lastActive": "2026-06-21",
+    "consensusRate": 0,
+    "avgOdds": 1.389,
+    "todaySelections": 0,
+    "trustScore": 87,
+    "won": 76,
+    "lost": 38,
+    "hitRate": 67,
+    "handle": "@OyAi_dev",
+    "tier": "secondary",
+    "codes": [
+      {
+        "code": "M9J9KV",
+        "date": "2026-06-21",
+        "games": 37,
+        "won": 27,
+        "lost": 9,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 75
+      },
+      {
+        "code": "WTV2UC",
+        "date": "2026-06-20",
+        "games": 39,
+        "won": 21,
+        "lost": 13,
+        "void": 4,
+        "pending": 1,
+        "hitRate": 62
+      },
+      {
+        "code": "M3Z2JF",
+        "date": "2026-06-19",
+        "games": 37,
+        "won": 22,
+        "lost": 15,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 59
+      },
+      {
+        "code": "R5QZ78",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 32,
+        "won": 6,
+        "lost": 1,
+        "void": 0,
+        "pending": 25,
+        "hitRate": 86
+      }
+    ],
+    "consistency": 89,
+    "bestCode": "M9J9KV",
+    "worstCode": "M3Z2JF",
+    "todayCode": "",
+    "lastCode": "R5QZ78",
+    "lastDate": "2026-06-25"
+  },
+  {
+    "punter": "Comrade",
+    "daysActive": 5,
+    "totalGames": 221,
+    "lastActive": "2026-06-26",
+    "consensusHits": 69,
+    "consensusRate": 66,
+    "conversionRate": 3,
+    "riskProfile": "low",
+    "avgOdds": 1.371,
+    "todaySelections": 35,
+    "codes": [
+      {
+        "code": "PM3MXG",
+        "date": "2026-06-24",
+        "games": 45,
+        "won": 29,
+        "lost": 15,
+        "void": 0,
+        "pending": 1,
+        "hitRate": 66
+      },
+      {
+        "code": "Q7WUM4",
+        "date": "2026-06-23",
+        "games": 42,
+        "won": 30,
+        "lost": 11,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 73
+      },
+      {
+        "code": "GBVV9A",
+        "date": "2026-06-22",
+        "games": 42,
+        "won": 30,
+        "lost": 12,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 71
+      },
+      {
+        "code": "GB9PBN",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 46,
+        "won": 31,
+        "lost": 15,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 67
+      },
+      {
+        "code": "QAZH1Y",
+        "date": "2026-06-26",
+        "games": 46,
+        "won": 37,
+        "lost": 9,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 80,
+        "status": "active"
+      }
+    ],
+    "won": 157,
+    "lost": 62,
+    "hitRate": 72,
+    "consistency": 95,
+    "trustScore": 90,
+    "todayCode": "QAZH1Y",
+    "lastCode": "GB9PBN",
+    "lastDate": "2026-06-25"
+  },
+  {
+    "punter": "Princewill",
+    "daysActive": 4,
+    "totalGames": 91,
+    "consensusHits": 6,
+    "conversionRate": 0,
+    "riskProfile": "high",
+    "lastActive": "2026-06-21",
+    "consensusRate": 13,
+    "avgOdds": 2.504,
+    "todaySelections": 12,
+    "trustScore": 56,
+    "won": 43,
+    "lost": 22,
+    "hitRate": 66,
+    "handle": "@90Princewill",
+    "tier": "secondary",
+    "codes": [
+      {
+        "code": "V3XV6K",
+        "date": "2026-06-21",
+        "games": 15,
+        "won": 2,
+        "lost": 8,
+        "void": 0,
+        "pending": 5,
+        "hitRate": 20
+      },
+      {
+        "code": "JT8QZY",
+        "date": "2026-06-16",
+        "games": 18,
+        "won": 10,
+        "lost": 3,
+        "void": 0,
+        "pending": 5,
+        "hitRate": 77
+      },
+      {
+        "code": "JKQ0MJ",
+        "date": "2026-06-14",
+        "games": 40,
+        "won": 23,
+        "lost": 6,
+        "void": 0,
+        "pending": 11,
+        "hitRate": 79
+      },
+      {
+        "code": "L97S8S",
+        "date": "2026-06-15",
+        "games": 18,
+        "won": 8,
+        "lost": 5,
+        "void": 0,
+        "pending": 5,
+        "hitRate": 62
+      }
+    ],
+    "consistency": 76,
+    "bestCode": "JT8QZY",
+    "worstCode": "JKQ0MJ",
+    "todayCode": "",
+    "lastCode": "",
+    "lastDate": ""
+  },
+  {
+    "punter": "Big Strategic",
+    "daysActive": 2,
+    "totalGames": 96,
+    "consensusHits": 0,
+    "conversionRate": 0,
+    "riskProfile": "low",
+    "lastActive": "2026-06-21",
+    "consensusRate": 0,
+    "avgOdds": 1.307,
+    "todaySelections": 0,
+    "trustScore": 73,
+    "won": 69,
+    "lost": 26,
+    "hitRate": 73,
+    "handle": "@Big_Strategic",
+    "tier": "primary",
+    "codes": [
+      {
+        "code": "QU303D",
+        "date": "2026-06-21",
+        "games": 47,
+        "won": 32,
+        "lost": 14,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 70
+      },
+      {
+        "code": "WZCESW",
+        "date": "2026-06-20",
+        "games": 49,
+        "won": 37,
+        "lost": 12,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 76
+      }
+    ],
+    "consistency": 97,
+    "bestCode": "WZCESW",
+    "worstCode": "QU303D",
+    "todayCode": "",
+    "lastCode": "",
+    "lastDate": ""
+  },
+  {
+    "punter": "Bayo Bets",
+    "daysActive": 2,
+    "totalGames": 75,
+    "consensusHits": 3,
+    "conversionRate": 0,
+    "riskProfile": "low",
+    "lastActive": "2026-06-21",
+    "consensusRate": 75,
+    "avgOdds": 1.359,
+    "todaySelections": 1,
+    "trustScore": 68,
+    "won": 50,
+    "lost": 24,
+    "hitRate": 68,
+    "handle": "@BayoBets",
+    "tier": "primary",
+    "codes": [
+      {
+        "code": "RE9N9N",
+        "date": "2026-06-21",
+        "games": 38,
+        "won": 26,
+        "lost": 11,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 70
+      },
+      {
+        "code": "VRQY31",
+        "date": "2026-06-17",
+        "games": 37,
+        "won": 24,
+        "lost": 13,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 65
+      }
+    ],
+    "consistency": 98,
+    "bestCode": "VRQY31",
+    "worstCode": "RE9N9N",
+    "todayCode": "",
+    "lastCode": "",
+    "lastDate": ""
+  },
+  {
+    "punter": "King Eric",
+    "totalSelections": 46,
+    "futureSelections": 35,
+    "futureFootball": 6,
+    "avgOdds": 1.425,
+    "aggressiveness": 10.9,
+    "consistency": 100,
+    "topMarkets": [
+      [
+        "Winner",
+        20
+      ],
+      [
+        "Total games 20.5",
+        7
+      ],
+      [
+        "Total games 19.5",
+        6
+      ],
+      [
+        "1X2 - 2UP",
+        3
+      ],
+      [
+        "Total games 21.5",
+        2
+      ]
+    ],
+    "topLeagues": [
+      [
+        "Wimbledon Men Singles",
+        13
+      ],
+      [
+        "WTA Bad Homburg, Germany Women Singles",
+        9
+      ],
+      [
+        "ATP Eastbourne, Great Britain Men Singles",
+        9
+      ],
+      [
+        "ATP Mallorca, Spain Men Singles",
+        8
+      ],
+      [
+        "World Cup",
+        6
+      ]
+    ],
+    "overlapWith": {
+      "Top Boy": 1,
+      "Mr Lantern": 2,
+      "39 Billion": 2,
+      "9Z": 1
+    },
+    "overlapScore": 6,
+    "rank": 5,
+    "daysActive": 1,
+    "totalGames": 47,
+    "lastActive": "2026-06-23",
+    "consensusHits": 4,
+    "consensusRate": 67,
+    "conversionRate": 67,
+    "riskProfile": "medium",
+    "todaySelections": 6,
+    "codes": [
+      {
+        "code": "Q5FKSH",
+        "date": "2026-06-23",
+        "games": 47,
+        "won": 36,
+        "lost": 9,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 80,
+        "status": "active"
+      }
+    ],
+    "todayCode": "",
+    "won": 36,
+    "lost": 9,
+    "hitRate": 80,
+    "trustScore": 90,
+    "lastCode": "",
+    "lastDate": ""
+  },
+  {
+    "codes": [
+      {
+        "code": "NN2BAL",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 37,
+        "won": 25,
+        "lost": 12,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 68
+      }
+    ],
+    "wins": 0,
+    "losses": 0,
+    "totalGames": 37,
+    "hitRate": 68,
+    "trustScore": 68,
+    "lastCode": "NN2BAL",
+    "lastDate": "2026-06-25",
+    "punter": "Duke",
+    "lastActive": "2026-06-25",
+    "daysActive": 1,
+    "won": 25,
+    "lost": 12,
+    "consistency": 100
+  },
+  {
+    "codes": [
+      {
+        "code": "HMBNFM",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 40,
+        "won": 26,
+        "lost": 14,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 65
+      }
+    ],
+    "wins": 0,
+    "losses": 0,
+    "totalGames": 40,
+    "hitRate": 65,
+    "trustScore": 65,
+    "lastCode": "HMBNFM",
+    "lastDate": "2026-06-25",
+    "punter": "Pandev",
+    "lastActive": "2026-06-25",
+    "daysActive": 1,
+    "won": 26,
+    "lost": 14,
+    "consistency": 100
+  },
+  {
+    "punter": "Kaki Juniors",
+    "codes": [
+      {
+        "code": "GMNW9U",
+        "date": "2026-06-23",
+        "games": 21,
+        "won": 7,
+        "lost": 14,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 33,
+        "status": "active"
+      }
+    ],
+    "daysActive": 1,
+    "totalGames": 21,
+    "lastActive": "2026-06-23",
+    "todayCode": "",
+    "won": 7,
+    "lost": 14,
+    "hitRate": 33,
+    "consistency": 100,
+    "trustScore": 23,
+    "lastCode": "",
+    "lastDate": ""
+  },
+  {
+    "punter": "Mr Lantern",
+    "totalSelections": 127,
+    "futureSelections": 44,
+    "futureFootball": 42,
+    "avgOdds": 1.356,
+    "aggressiveness": 7.9,
+    "consistency": 92.7,
+    "topMarkets": [
+      [
+        "Over/Under",
+        37
+      ],
+      [
+        "Over/Under - Early Goals",
+        28
+      ],
+      [
+        "1X2",
+        13
+      ],
+      [
+        "1st Half - Over/Under",
+        10
+      ],
+      [
+        "Double Chance",
+        9
+      ]
+    ],
+    "topLeagues": [
+      [
+        "Premier League",
+        10
+      ],
+      [
+        "World Cup",
+        7
+      ],
+      [
+        "Tercera Division, Reserves",
+        6
+      ],
+      [
+        "Besta deild",
+        6
+      ],
+      [
+        "Primera B",
+        6
+      ]
+    ],
+    "overlapWith": {
+      "Top Boy": 30,
+      "King Eric": 2,
+      "39 Billion": 29,
+      "9Z": 28
+    },
+    "overlapScore": 89,
+    "rank": 1,
+    "daysActive": 1,
+    "totalGames": 40,
+    "lastActive": "2026-06-22",
+    "consensusHits": 38,
+    "consensusRate": 95,
+    "conversionRate": 15,
+    "riskProfile": "low",
+    "todaySelections": 40,
+    "lastCode": "",
+    "lastDate": ""
+  },
+  {
+    "punter": "Top Boy",
+    "totalSelections": 42,
+    "futureSelections": 42,
+    "futureFootball": 38,
+    "avgOdds": 1.368,
+    "aggressiveness": 9.5,
+    "consistency": 91.6,
+    "topMarkets": [
+      [
+        "Over/Under",
+        8
+      ],
+      [
+        "Double Chance",
+        8
+      ],
+      [
+        "Both Halves Under 1.5",
+        7
+      ],
+      [
+        "2nd Half - Multigoals",
+        6
+      ],
+      [
+        "1X2",
+        4
+      ]
+    ],
+    "topLeagues": [
+      [
+        "Premier League",
+        6
+      ],
+      [
+        "Tercera Division, Reserves",
+        6
+      ],
+      [
+        "Superettan",
+        3
+      ],
+      [
+        "Division 2",
+        3
+      ],
+      [
+        "MLB",
+        3
+      ]
+    ],
+    "overlapWith": {
+      "King Eric": 1,
+      "Mr Lantern": 30,
+      "39 Billion": 22,
+      "9Z": 26
+    },
+    "overlapScore": 79,
+    "rank": 3,
+    "daysActive": 1,
+    "totalGames": 36,
+    "lastActive": "2026-06-22",
+    "consensusHits": 35,
+    "consensusRate": 97,
+    "conversionRate": 14,
+    "riskProfile": "low",
+    "todaySelections": 36,
+    "lastCode": "",
+    "lastDate": ""
+  },
+  {
+    "punter": "King Lateef",
+    "codes": [
+      {
+        "code": "H5E7ZM,YANLQW",
+        "date": "2026-06-23",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "active"
+      }
+    ],
+    "daysActive": 1,
+    "totalGames": 0,
+    "lastActive": "2026-06-23",
+    "todayCode": "",
+    "won": 0,
+    "lost": 0,
+    "hitRate": 0,
+    "lastCode": "",
+    "lastDate": ""
+  }
+]
