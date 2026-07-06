@@ -1501,7 +1501,7 @@ const PUNTER_CODES_FILE = path.join(DATA_DIR, "punter-codes.json");
 
 function loadPunterCodes() {
   try {
-    const raw = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8"));
+    const raw = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8").replace(/^﻿/, ""));
     const today = new Date().toISOString().slice(0, 10);
     if (raw._date && raw._date !== today) {
       const cleared = { _date: today };
@@ -1590,7 +1590,7 @@ const WEAK_MATCHES_FILE = path.join(DATA_DIR, "weak-matches.json");
 
 function loadLeaderboard() {
   let lb = [];
-  try { lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8")); } catch {}
+  try { lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8").replace(/^﻿/, "")); } catch {}
   // Auto-merge from punter-profiles.json if leaderboard is missing trust/win data
   try {
     const profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, "utf-8"));
