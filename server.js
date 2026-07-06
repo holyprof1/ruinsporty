@@ -2852,8 +2852,61 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || "Server error" });
 });
 
+// ── Daily Cleanup ──
+
+function runDailyCleanup() {
+  const now = Date.now();
+  const day7  = 7  * 24 * 60 * 60 * 1000;
+  const day30 = 30 * 24 * 60 * 60 * 1000;
+  const day90 = 90 * 24 * 60 * 60 * 1000;
+
+  // 1. Odds bank — drop entries whose kickoff was > 7 days ago
+  try {
+    const ob = loadOddsBank();
+    let n = 0;
+    for (const key of Object.keys(ob)) {
+      const k = ob[key].kickoff || ob[key].firstSeen;
+      if (k && now - new Date(k).getTime() > day7) { delete ob[key]; n++; }
+    }
+    if (n) { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(ob, null, 2)); console.log(`[Cleanup] Odds bank: removed ${n} stale entries`); }
+  } catch(e) { console.error('[Cleanup] Odds bank:', e.message); }
+
+  // 2. Daily analysis reports — delete files older than 30 days
+  try {
+    let n = 0;
+    for (const f of fs.readdirSync(REPORTS_DIR).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f))) {
+      if (now - new Date(f.replace('.json','')).getTime() > day30) { fs.unlinkSync(path.join(REPORTS_DIR, f)); n++; }
+    }
+    if (n) console.log(`[Cleanup] Reports: deleted ${n} files older than 30 days`);
+  } catch(e) { console.error('[Cleanup] Reports:', e.message); }
+
+  // 3. Express session files — delete files not touched in > 7 days
+  try {
+    let n = 0;
+    for (const f of fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'))) {
+      const fp = path.join(SESSIONS_DIR, f);
+      if (now - fs.statSync(fp).mtimeMs > day7) { fs.unlinkSync(fp); n++; }
+    }
+    if (n) console.log(`[Cleanup] Sessions: deleted ${n} old session files`);
+  } catch(e) { console.error('[Cleanup] Sessions:', e.message); }
+
+  // 4. Visitors — trim entries older than 90 days
+  try {
+    const raw = JSON.parse(fs.readFileSync(VISITORS_FILE, 'utf8'));
+    const trimmed = raw.filter(v => v.time && now - new Date(v.time).getTime() < day90);
+    if (trimmed.length < raw.length) {
+      fs.writeFileSync(VISITORS_FILE, JSON.stringify(trimmed, null, 2));
+      console.log(`[Cleanup] Visitors: trimmed ${raw.length - trimmed.length} old entries`);
+    }
+  } catch(e) { console.error('[Cleanup] Visitors:', e.message); }
+
+  console.log('[Cleanup] Done —', new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }));
+}
+
 // ── Start ──
 
 app.listen(PORT, () => {
   console.log("SlipPilot v3 running at http://localhost:" + PORT);
+  setTimeout(runDailyCleanup, 60000); // first run 1 min after boot
+  setInterval(runDailyCleanup, 24 * 60 * 60 * 1000); // then every 24h
 });

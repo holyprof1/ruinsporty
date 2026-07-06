@@ -1188,7 +1188,7 @@ let mergerConflicts = [];
 
 $("addCodeBtn").addEventListener("click", () => {
   const rows = document.querySelectorAll(".merger-code-row");
-  if (rows.length >= 5) return;
+  if (rows.length >= 10) return;
   const row = document.createElement("div"); row.className = "merger-code-row";
   row.innerHTML = `<input type="text" class="field merger-code-field" placeholder="Booking code ${rows.length+1}" /><button class="btn-rm-code" onclick="this.parentElement.remove()">&times;</button>`;
   $("mergerInputs").appendChild(row);
