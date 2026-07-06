@@ -3,9 +3,9 @@
     "name": "39 Billion",
     "handle": "@39billion",
     "tier": "primary",
-    "totalGames": 853,
-    "won": 576,
-    "lost": 220,
+    "totalGames": 854,
+    "won": 569,
+    "lost": 222,
     "void": 37,
     "hitRate": 72,
     "trustScore": 92,
@@ -15,17 +15,29 @@
     "avgOddsPerGame": 0,
     "bestCode": "K8YFL4",
     "worstCode": "M3ZNHX",
-    "consistency": 93,
+    "consistency": 92,
     "codes": [
+      {
+        "code": "TQ3EKB",
+        "date": "2026-07-06",
+        "games": 39,
+        "won": 16,
+        "lost": 12,
+        "void": 1,
+        "pending": 10,
+        "hitRate": 57,
+        "status": "active",
+        "totalOdds": 23717366842.44
+      },
       {
         "code": "PHHDXX",
         "date": "2026-07-05",
         "games": 38,
-        "won": 21,
+        "won": 24,
         "lost": 7,
         "void": 6,
-        "pending": 4,
-        "hitRate": 75,
+        "pending": 1,
+        "hitRate": 77,
         "status": "active",
         "totalOdds": 917909533.67
       },
@@ -41,15 +53,93 @@
         "totalOdds": 45495113094.66
       },
       {
-        "code": "RYW1CH",
-        "date": "2026-06-27",
+        "code": "KWGWWC",
+        "date": "2026-07-03",
         "games": 39,
-        "won": 27,
-        "lost": 9,
-        "void": 3,
+        "won": 22,
+        "lost": 15,
+        "void": 2,
         "pending": 0,
-        "hitRate": 75,
+        "hitRate": 59,
+        "status": "settled"
+      },
+      {
+        "code": "JHCP1E",
+        "date": "2026-07-02",
+        "games": 39,
+        "won": 30,
+        "lost": 8,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 79,
+        "status": "settled"
+      },
+      {
+        "code": "JGRMCJ",
+        "date": "2026-07-01",
+        "games": 39,
+        "won": 28,
+        "lost": 9,
+        "void": 0,
+        "pending": 2,
+        "hitRate": 76,
+        "status": "active",
+        "totalOdds": 4215969478.08
+      },
+      {
+        "code": "W59KRE",
+        "date": "2026-06-30",
+        "games": 39,
+        "won": 29,
+        "lost": 8,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 78,
+        "totalOdds": 1818499136.27
+      },
+      {
+        "code": "WDUNMH",
+        "date": "2026-06-29",
+        "games": 39,
+        "won": 32,
+        "lost": 7,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 82
+      },
+      {
+        "code": "ZPTZUD",
+        "date": "2026-06-28",
+        "games": 39,
+        "won": 24,
+        "lost": 11,
+        "void": 3,
+        "pending": 1,
+        "hitRate": 69,
+        "status": "active",
+        "totalOdds": 65583172345.79
+      },
+      {
+        "code": "T05M9W",
+        "date": "2026-06-26",
+        "games": 39,
+        "won": 25,
+        "lost": 13,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 66,
         "status": "active"
+      },
+      {
+        "code": "MKYUGW",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 39,
+        "won": 26,
+        "lost": 12,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 68
       },
       {
         "code": "PNBA14",
@@ -160,95 +250,6 @@
         "void": 5,
         "pending": 0,
         "hitRate": 85
-      },
-      {
-        "code": "MKYUGW",
-        "date": "2026-06-25",
-        "status": "active",
-        "games": 39,
-        "won": 26,
-        "lost": 12,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 68
-      },
-      {
-        "code": "T05M9W",
-        "date": "2026-06-26",
-        "games": 39,
-        "won": 25,
-        "lost": 13,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 66,
-        "status": "active"
-      },
-      {
-        "code": "ZPTZUD",
-        "date": "2026-06-28",
-        "games": 38,
-        "won": 23,
-        "lost": 11,
-        "void": 3,
-        "pending": 1,
-        "hitRate": 68,
-        "status": "active",
-        "totalOdds": 64297227789.99
-      },
-      {
-        "code": "WDUNMH",
-        "date": "2026-06-29",
-        "games": 39,
-        "won": 32,
-        "lost": 7,
-        "void": 0,
-        "pending": 0,
-        "hitRate": 82
-      },
-      {
-        "code": "W59KRE",
-        "date": "2026-06-30",
-        "games": 39,
-        "won": 29,
-        "lost": 8,
-        "void": 2,
-        "pending": 0,
-        "hitRate": 78,
-        "totalOdds": 1818499136.27
-      },
-      {
-        "code": "JGRMCJ",
-        "date": "2026-07-01",
-        "games": 39,
-        "won": 28,
-        "lost": 10,
-        "void": 0,
-        "pending": 1,
-        "hitRate": 74,
-        "status": "active",
-        "totalOdds": 4215969478.08
-      },
-      {
-        "code": "JHCP1E",
-        "games": 39,
-        "won": 30,
-        "lost": 8,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 79,
-        "date": "2026-07-02",
-        "status": "settled"
-      },
-      {
-        "code": "KWGWWC",
-        "date": "2026-07-03",
-        "games": 39,
-        "won": 22,
-        "lost": 15,
-        "void": 2,
-        "pending": 0,
-        "hitRate": 59,
-        "status": "settled"
       }
     ]
   },
@@ -256,42 +257,142 @@
     "name": "9Z",
     "handle": "@9zerobillion",
     "tier": "primary",
-    "totalGames": 674,
-    "won": 467,
-    "lost": 163,
+    "totalGames": 650,
+    "won": 453,
+    "lost": 150,
     "void": 13,
-    "hitRate": 74,
-    "trustScore": 94,
+    "hitRate": 75,
+    "trustScore": 95,
     "strongMarkets": [],
     "weakMarkets": [],
     "killerMarkets": [],
     "avgOddsPerGame": 0,
     "bestCode": "LU84JS",
     "worstCode": "N008GY",
-    "consistency": 91,
+    "consistency": 92,
     "codes": [
+      {
+        "code": "YRF4LH",
+        "date": "2026-07-06",
+        "games": 15,
+        "won": 5,
+        "lost": 2,
+        "void": 1,
+        "pending": 7,
+        "hitRate": 71,
+        "status": "active",
+        "totalOdds": 223.23
+      },
       {
         "code": "PKJPM0",
         "date": "2026-07-05",
         "games": 34,
-        "won": 19,
+        "won": 21,
         "lost": 9,
         "void": 2,
-        "pending": 4,
-        "hitRate": 68,
+        "pending": 2,
+        "hitRate": 70,
         "status": "active",
-        "totalOdds": 12516014769.94
+        "totalOdds": 11043542444.07
       },
       {
-        "code": "G3BPMS",
-        "date": "2026-06-27",
-        "games": 39,
-        "won": 21,
-        "lost": 14,
-        "void": 4,
+        "code": "MA80VM",
+        "date": "2026-07-04",
+        "games": 41,
+        "won": 26,
+        "lost": 12,
+        "void": 2,
+        "pending": 1,
+        "hitRate": 68,
+        "status": "active",
+        "totalOdds": 1012316278804.26
+      },
+      {
+        "code": "SZLD1L",
+        "date": "2026-07-03",
+        "games": 35,
+        "won": 26,
+        "lost": 6,
+        "void": 3,
         "pending": 0,
-        "hitRate": 60,
+        "hitRate": 81,
+        "status": "settled"
+      },
+      {
+        "code": "P72X04",
+        "date": "2026-07-02",
+        "games": 38,
+        "won": 30,
+        "lost": 5,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 86,
+        "status": "settled"
+      },
+      {
+        "code": "MAU2GX",
+        "date": "2026-07-01",
+        "games": 34,
+        "won": 24,
+        "lost": 8,
+        "void": 0,
+        "pending": 2,
+        "hitRate": 75,
+        "status": "active",
+        "totalOdds": 99211599.79
+      },
+      {
+        "code": "WNE51Y",
+        "date": "2026-06-30",
+        "games": 35,
+        "won": 30,
+        "lost": 4,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 88
+      },
+      {
+        "code": "THAW19",
+        "date": "2026-06-29",
+        "games": 35,
+        "won": 29,
+        "lost": 5,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 85
+      },
+      {
+        "code": "KP44T3",
+        "date": "2026-06-28",
+        "games": 38,
+        "won": 24,
+        "lost": 9,
+        "void": 5,
+        "pending": 0,
+        "hitRate": 73,
         "status": "active"
+      },
+      {
+        "code": "QUQX2C",
+        "date": "2026-06-26",
+        "games": 37,
+        "won": 32,
+        "lost": 5,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 86,
+        "status": "active"
+      },
+      {
+        "code": "MXT07E",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 38,
+        "won": 22,
+        "lost": 13,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 63
       },
       {
         "code": "REX2G1",
@@ -362,105 +463,6 @@
         "void": 1,
         "pending": 0,
         "hitRate": 65
-      },
-      {
-        "code": "MXT07E",
-        "date": "2026-06-25",
-        "status": "active",
-        "games": 38,
-        "won": 22,
-        "lost": 13,
-        "void": 3,
-        "pending": 0,
-        "hitRate": 63
-      },
-      {
-        "code": "QUQX2C",
-        "date": "2026-06-26",
-        "games": 37,
-        "won": 32,
-        "lost": 5,
-        "void": 0,
-        "pending": 0,
-        "hitRate": 86,
-        "status": "active"
-      },
-      {
-        "code": "KP44T3",
-        "date": "2026-06-28",
-        "games": 38,
-        "won": 24,
-        "lost": 9,
-        "void": 5,
-        "pending": 0,
-        "hitRate": 73,
-        "status": "active"
-      },
-      {
-        "code": "THAW19",
-        "date": "2026-06-29",
-        "games": 35,
-        "won": 29,
-        "lost": 5,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 85
-      },
-      {
-        "code": "WNE51Y",
-        "date": "2026-06-30",
-        "games": 35,
-        "won": 30,
-        "lost": 4,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 88
-      },
-      {
-        "code": "MAU2GX",
-        "date": "2026-07-01",
-        "games": 34,
-        "won": 24,
-        "lost": 9,
-        "void": 0,
-        "pending": 1,
-        "hitRate": 73,
-        "status": "active",
-        "totalOdds": 99211599.79
-      },
-      {
-        "code": "P72X04",
-        "games": 38,
-        "won": 30,
-        "lost": 5,
-        "void": 3,
-        "pending": 0,
-        "hitRate": 86,
-        "date": "2026-07-02",
-        "status": "settled"
-      },
-      {
-        "code": "SZLD1L",
-        "date": "2026-07-03",
-        "games": 35,
-        "won": 26,
-        "lost": 6,
-        "void": 3,
-        "pending": 0,
-        "hitRate": 81,
-        "status": "settled"
-      },
-      {
-        "code": "MA80VM",
-        "date": "2026-07-04",
-        "games": 41,
-        "won": 26,
-        "lost": 12,
-        "void": 2,
-        "pending": 1,
-        "hitRate": 68,
-        "status": "active",
-        "totalOdds": 1012316278804.26
       }
     ]
   },
@@ -508,7 +510,7 @@
     "name": "Ayo Jordan",
     "handle": "@AyoJordan",
     "tier": "primary",
-    "totalGames": 466,
+    "totalGames": 464,
     "won": 321,
     "lost": 125,
     "void": 4,
@@ -525,14 +527,14 @@
       {
         "code": "HWL3A3",
         "date": "2026-07-05",
-        "games": 38,
+        "games": 37,
         "won": 26,
         "lost": 8,
         "void": 0,
-        "pending": 4,
+        "pending": 3,
         "hitRate": 76,
         "status": "active",
-        "totalOdds": 57147688.8
+        "totalOdds": 44646631.87
       },
       {
         "code": "KU1S5F",
@@ -544,6 +546,39 @@
         "pending": 0,
         "hitRate": 57,
         "status": "settled"
+      },
+      {
+        "code": "PRF324",
+        "date": "2026-07-02",
+        "games": 42,
+        "won": 34,
+        "lost": 8,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 81,
+        "status": "settled"
+      },
+      {
+        "code": "XEPYL8",
+        "date": "2026-06-26",
+        "games": 44,
+        "won": 31,
+        "lost": 13,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 70,
+        "status": "active"
+      },
+      {
+        "code": "QGGKKC",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 46,
+        "won": 33,
+        "lost": 8,
+        "void": 1,
+        "pending": 4,
+        "hitRate": 80
       },
       {
         "code": "MP0MUK",
@@ -569,11 +604,11 @@
         "code": "QWJHGG",
         "date": "2026-06-22",
         "games": 43,
-        "won": 35,
+        "won": 36,
         "lost": 6,
         "void": 0,
-        "pending": 2,
-        "hitRate": 85,
+        "pending": 1,
+        "hitRate": 86,
         "totalOdds": 89617631275.21
       },
       {
@@ -605,40 +640,6 @@
         "void": 0,
         "pending": 3,
         "hitRate": 60
-      },
-      {
-        "code": "QGGKKC",
-        "date": "2026-06-25",
-        "status": "active",
-        "games": 47,
-        "won": 34,
-        "lost": 8,
-        "void": 1,
-        "pending": 4,
-        "hitRate": 81,
-        "totalOdds": 2738477759455887
-      },
-      {
-        "code": "XEPYL8",
-        "date": "2026-06-26",
-        "games": 44,
-        "won": 31,
-        "lost": 13,
-        "void": 0,
-        "pending": 0,
-        "hitRate": 70,
-        "status": "active"
-      },
-      {
-        "code": "PRF324",
-        "games": 42,
-        "won": 34,
-        "lost": 8,
-        "void": 0,
-        "pending": 0,
-        "hitRate": 81,
-        "date": "2026-07-02",
-        "status": "settled"
       }
     ]
   },
@@ -749,8 +750,8 @@
     "handle": "@90Princewill",
     "tier": "secondary",
     "totalGames": 91,
-    "won": 37,
-    "lost": 14,
+    "won": 40,
+    "lost": 15,
     "void": 0,
     "hitRate": 73,
     "trustScore": 73,
@@ -760,39 +761,39 @@
     "avgOddsPerGame": 0,
     "bestCode": "JT8QZY",
     "worstCode": "JKQ0MJ",
-    "consistency": 79,
+    "consistency": 77,
     "codes": [
       {
         "code": "V3XV6K",
         "date": "2026-06-21",
         "games": 15,
         "won": 2,
-        "lost": 4,
+        "lost": 5,
         "void": 0,
-        "pending": 9,
-        "hitRate": 33,
+        "pending": 8,
+        "hitRate": 29,
         "totalOdds": 111476.93
       },
       {
         "code": "JT8QZY",
         "date": "2026-06-16",
         "games": 18,
-        "won": 9,
+        "won": 10,
         "lost": 1,
         "void": 0,
-        "pending": 8,
-        "hitRate": 90,
+        "pending": 7,
+        "hitRate": 91,
         "totalOdds": 170329.24
       },
       {
         "code": "JKQ0MJ",
         "date": "2026-06-14",
         "games": 40,
-        "won": 18,
+        "won": 20,
         "lost": 6,
         "void": 0,
-        "pending": 16,
-        "hitRate": 75,
+        "pending": 14,
+        "hitRate": 77,
         "totalOdds": 11418.62
       },
       {
@@ -813,8 +814,8 @@
     "handle": "@Sirtee",
     "tier": "secondary",
     "totalGames": 366,
-    "won": 219,
-    "lost": 109,
+    "won": 200,
+    "lost": 100,
     "void": 0,
     "hitRate": 67,
     "trustScore": 87,
@@ -824,41 +825,85 @@
     "avgOddsPerGame": 0,
     "bestCode": "L2HN4B",
     "worstCode": "HXQH8Q",
-    "consistency": 91,
+    "consistency": 87,
     "codes": [
+      {
+        "code": "H1UH1E",
+        "date": "2026-07-06",
+        "games": 23,
+        "won": 5,
+        "lost": 3,
+        "void": 3,
+        "pending": 12,
+        "hitRate": 63,
+        "status": "active",
+        "totalOdds": 19645.62
+      },
       {
         "code": "JTT63F",
         "date": "2026-07-05",
         "games": 40,
         "won": 26,
-        "lost": 12,
+        "lost": 13,
         "void": 1,
-        "pending": 1,
-        "hitRate": 68,
+        "pending": 0,
+        "hitRate": 67,
         "status": "active",
         "totalOdds": 2076281561963979
       },
       {
-        "code": "QMDFX5",
-        "date": "2026-06-27",
-        "games": 44,
-        "won": 28,
+        "code": "YGV191",
+        "date": "2026-07-03",
+        "games": 38,
+        "won": 22,
         "lost": 13,
-        "void": 2,
-        "pending": 1,
-        "hitRate": 68,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 63,
+        "status": "settled"
+      },
+      {
+        "code": "QRPXS3",
+        "date": "2026-07-01",
+        "games": 38,
+        "won": 24,
+        "lost": 11,
+        "void": 1,
+        "pending": 2,
+        "hitRate": 69,
         "status": "active",
-        "totalOdds": 341586298087.77
+        "totalOdds": 17048564002.09
+      },
+      {
+        "code": "S4TLSY",
+        "date": "2026-06-29",
+        "games": 38,
+        "won": 25,
+        "lost": 7,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 78
+      },
+      {
+        "code": "HDZZQ1",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 39,
+        "won": 19,
+        "lost": 20,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 49
       },
       {
         "code": "UX0A2B",
         "date": "2026-06-22",
         "games": 21,
-        "won": 0,
+        "won": 2,
         "lost": 0,
         "void": 0,
-        "pending": 21,
-        "hitRate": 0,
+        "pending": 19,
+        "hitRate": 100,
         "totalOdds": 1365.16
       },
       {
@@ -875,11 +920,11 @@
         "code": "L2HN4B",
         "date": "2026-06-20",
         "games": 40,
-        "won": 15,
+        "won": 18,
         "lost": 3,
         "void": 0,
-        "pending": 22,
-        "hitRate": 83,
+        "pending": 19,
+        "hitRate": 86,
         "totalOdds": 16096877.41
       },
       {
@@ -891,50 +936,6 @@
         "void": 0,
         "pending": 0,
         "hitRate": 69
-      },
-      {
-        "code": "HDZZQ1",
-        "date": "2026-06-25",
-        "status": "active",
-        "games": 39,
-        "won": 19,
-        "lost": 20,
-        "void": 0,
-        "pending": 0,
-        "hitRate": 49
-      },
-      {
-        "code": "S4TLSY",
-        "date": "2026-06-29",
-        "games": 38,
-        "won": 25,
-        "lost": 7,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 78
-      },
-      {
-        "code": "QRPXS3",
-        "date": "2026-07-01",
-        "games": 38,
-        "won": 25,
-        "lost": 11,
-        "void": 1,
-        "pending": 1,
-        "hitRate": 69,
-        "status": "active",
-        "totalOdds": 17048564002.09
-      },
-      {
-        "code": "YGV191",
-        "date": "2026-07-03",
-        "games": 38,
-        "won": 22,
-        "lost": 13,
-        "void": 3,
-        "pending": 0,
-        "hitRate": 63,
-        "status": "settled"
       }
     ]
   },
@@ -942,12 +943,12 @@
     "name": "ASA",
     "handle": "",
     "tier": "secondary",
-    "totalGames": 712,
-    "won": 470,
-    "lost": 177,
+    "totalGames": 673,
+    "won": 446,
+    "lost": 171,
     "void": 34,
-    "hitRate": 73,
-    "trustScore": 93,
+    "hitRate": 72,
+    "trustScore": 92,
     "consistency": 91,
     "avgOddsPerGame": 0,
     "codes": [
@@ -955,13 +956,36 @@
         "code": "KKPS84",
         "date": "2026-07-05",
         "games": 39,
-        "won": 21,
+        "won": 25,
         "lost": 8,
         "void": 5,
-        "pending": 5,
-        "hitRate": 72,
+        "pending": 1,
+        "hitRate": 76,
         "status": "active",
-        "totalOdds": 673537650.83
+        "totalOdds": 2301810546.01
+      },
+      {
+        "code": "HFGDYP",
+        "date": "2026-07-04",
+        "games": 40,
+        "won": 25,
+        "lost": 10,
+        "void": 5,
+        "pending": 0,
+        "hitRate": 71,
+        "status": "active"
+      },
+      {
+        "code": "WA68GE",
+        "date": "2026-07-01",
+        "games": 40,
+        "won": 24,
+        "lost": 13,
+        "void": 1,
+        "pending": 2,
+        "hitRate": 65,
+        "status": "active",
+        "totalOdds": 4164584701181.91
       },
       {
         "code": "WJ4HJG",
@@ -974,15 +998,36 @@
         "hitRate": 87
       },
       {
-        "code": "PYRL3D",
-        "date": "2026-06-27",
-        "games": 39,
-        "won": 27,
-        "lost": 6,
-        "void": 6,
+        "code": "Q3VF9H",
+        "date": "2026-06-29",
+        "games": 40,
+        "won": 29,
+        "lost": 10,
+        "void": 1,
         "pending": 0,
-        "hitRate": 82,
+        "hitRate": 74
+      },
+      {
+        "code": "QR2HNJ",
+        "date": "2026-06-28",
+        "games": 40,
+        "won": 26,
+        "lost": 11,
+        "void": 3,
+        "pending": 0,
+        "hitRate": 70,
         "status": "active"
+      },
+      {
+        "code": "P6EHAB",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 40,
+        "won": 21,
+        "lost": 18,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 54
       },
       {
         "code": "RQPSMC",
@@ -1083,72 +1128,31 @@
         "void": 3,
         "pending": 0,
         "hitRate": 73
-      },
-      {
-        "code": "P6EHAB",
-        "date": "2026-06-25",
-        "status": "active",
-        "games": 40,
-        "won": 21,
-        "lost": 18,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 54
-      },
-      {
-        "code": "QR2HNJ",
-        "date": "2026-06-28",
-        "games": 40,
-        "won": 26,
-        "lost": 11,
-        "void": 3,
-        "pending": 0,
-        "hitRate": 70,
-        "status": "active"
-      },
-      {
-        "code": "Q3VF9H",
-        "date": "2026-06-29",
-        "games": 40,
-        "won": 29,
-        "lost": 10,
-        "void": 1,
-        "pending": 0,
-        "hitRate": 74
-      },
-      {
-        "code": "WA68GE",
-        "date": "2026-07-01",
-        "games": 40,
-        "won": 25,
-        "lost": 13,
-        "void": 1,
-        "pending": 1,
-        "hitRate": 66,
-        "status": "active",
-        "totalOdds": 4164584701181.91
-      },
-      {
-        "code": "HFGDYP",
-        "date": "2026-07-04",
-        "games": 40,
-        "won": 25,
-        "lost": 10,
-        "void": 5,
-        "pending": 0,
-        "hitRate": 71,
-        "status": "active"
       }
     ]
   },
   "Top Boy": {
-    "trustScore": 80,
-    "won": 0,
-    "lost": 0,
-    "hitRate": 0,
-    "consistency": 80,
+    "trustScore": 52,
+    "won": 12,
+    "lost": 11,
+    "hitRate": 52,
+    "consistency": 100,
     "tier": "primary",
-    "codes": []
+    "codes": [
+      {
+        "code": "WXMPMP",
+        "date": "2026-07-06",
+        "games": 42,
+        "won": 12,
+        "lost": 11,
+        "void": 0,
+        "pending": 19,
+        "hitRate": 52,
+        "status": "active",
+        "totalOdds": 32931567431.25
+      }
+    ],
+    "totalGames": 42
   },
   "Super Mario": {
     "trustScore": 75,
@@ -1157,60 +1161,197 @@
     "hitRate": 0,
     "consistency": 80,
     "tier": "secondary",
-    "codes": []
+    "codes": [
+      {
+        "code": "YDTU04",
+        "date": "2026-07-06",
+        "games": 41,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 41,
+        "hitRate": 0,
+        "status": "active",
+        "totalOdds": 553455.61
+      }
+    ],
+    "totalGames": 0
   },
   "CongratulationsOdd": {
-    "trustScore": 75,
-    "won": 0,
-    "lost": 0,
-    "hitRate": 0,
-    "consistency": 80,
+    "trustScore": 76,
+    "won": 16,
+    "lost": 5,
+    "hitRate": 76,
+    "consistency": 100,
     "tier": "secondary",
-    "codes": []
+    "codes": [
+      {
+        "code": "8N55NT",
+        "date": "2026-07-06",
+        "games": 34,
+        "won": 16,
+        "lost": 5,
+        "void": 0,
+        "pending": 13,
+        "hitRate": 76,
+        "status": "active",
+        "totalOdds": 1245845.58
+      }
+    ],
+    "totalGames": 34
   },
   "Lordship": {
-    "trustScore": 75,
-    "won": 0,
-    "lost": 0,
-    "hitRate": 0,
-    "consistency": 80,
+    "trustScore": 43,
+    "won": 3,
+    "lost": 4,
+    "hitRate": 43,
+    "consistency": 100,
     "tier": "secondary",
-    "codes": []
+    "codes": [
+      {
+        "code": "ZHRSTC",
+        "date": "2026-07-06",
+        "games": 11,
+        "won": 3,
+        "lost": 4,
+        "void": 0,
+        "pending": 4,
+        "hitRate": 43,
+        "status": "active",
+        "totalOdds": 12769.35
+      }
+    ],
+    "totalGames": 11
   },
   "Boochi Tips": {
-    "trustScore": 75,
-    "won": 0,
-    "lost": 0,
-    "hitRate": 0,
-    "consistency": 80,
+    "trustScore": 67,
+    "won": 4,
+    "lost": 2,
+    "hitRate": 67,
+    "consistency": 100,
     "tier": "secondary",
-    "codes": []
+    "codes": [
+      {
+        "code": "GCKX8X",
+        "date": "2026-07-06",
+        "games": 11,
+        "won": 4,
+        "lost": 2,
+        "void": 0,
+        "pending": 5,
+        "hitRate": 67,
+        "status": "active",
+        "totalOdds": 46347.13
+      }
+    ],
+    "totalGames": 11
   },
   "Just Believe": {
     "trustScore": 75,
-    "won": 0,
-    "lost": 0,
-    "hitRate": 0,
-    "consistency": 80,
+    "won": 3,
+    "lost": 1,
+    "hitRate": 75,
+    "consistency": 100,
     "tier": "secondary",
-    "codes": []
+    "codes": [
+      {
+        "code": "W1N631",
+        "date": "2026-07-06",
+        "games": 49,
+        "won": 3,
+        "lost": 1,
+        "void": 1,
+        "pending": 44,
+        "hitRate": 75,
+        "status": "active",
+        "totalOdds": 100892.29
+      }
+    ],
+    "totalGames": 49
   },
   "Comrade": {
-    "trustScore": 90,
+    "trustScore": 92,
     "won": 157,
     "lost": 62,
     "hitRate": 72,
-    "consistency": 91,
+    "consistency": 95,
     "tier": "primary",
-    "codes": []
+    "codes": [
+      {
+        "code": "PM3MXG",
+        "date": "2026-06-24",
+        "games": 45,
+        "won": 29,
+        "lost": 15,
+        "void": 0,
+        "pending": 1,
+        "hitRate": 66
+      },
+      {
+        "code": "Q7WUM4",
+        "date": "2026-06-23",
+        "games": 42,
+        "won": 30,
+        "lost": 11,
+        "void": 1,
+        "pending": 0,
+        "hitRate": 73
+      },
+      {
+        "code": "GBVV9A",
+        "date": "2026-06-22",
+        "games": 42,
+        "won": 30,
+        "lost": 12,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 71
+      },
+      {
+        "code": "GB9PBN",
+        "date": "2026-06-25",
+        "status": "active",
+        "games": 46,
+        "won": 31,
+        "lost": 15,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 67
+      },
+      {
+        "code": "QAZH1Y",
+        "date": "2026-06-26",
+        "games": 46,
+        "won": 37,
+        "lost": 9,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 80,
+        "status": "active"
+      }
+    ],
+    "totalGames": 221
   },
   "King Eric": {
     "trustScore": 90,
     "won": 36,
     "lost": 9,
     "hitRate": 80,
-    "consistency": 85,
+    "consistency": 100,
     "tier": "secondary",
-    "codes": []
+    "codes": [
+      {
+        "code": "Q5FKSH",
+        "date": "2026-06-23",
+        "games": 47,
+        "won": 36,
+        "lost": 9,
+        "void": 2,
+        "pending": 0,
+        "hitRate": 80,
+        "status": "active"
+      }
+    ],
+    "totalGames": 47
   }
 }

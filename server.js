@@ -38,6 +38,7 @@ const session = require("express-session");
 const https = require("https");
 const path = require("path");
 const fs = require("fs");
+const xAssistant = require("./x-assistant-engine");
 
 const app = express();
 const PORT = 3000;
@@ -2589,6 +2590,33 @@ app.post("/api/score-selections", requireAdmin, (req, res) => {
     });
     res.json({ success: true, selections: scored });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── X Assistant (SlipPilot AI on X — no paid X API required) ─────────────────
+
+app.post("/api/admin/x-assistant/analyze", requireAdmin, async (req, res) => {
+  try {
+    const { tweetUrl, tweetText } = req.body || {};
+    if (!tweetUrl && !tweetText) {
+      return res.status(400).json({ error: "Provide a tweetUrl or tweetText" });
+    }
+    const result = await xAssistant.analyze({ tweetUrl, tweetText });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message || "X Assistant analysis failed" });
+  }
+});
+
+app.get("/api/admin/x-assistant/history", requireAdmin, (req, res) => {
+  const list = xAssistant.loadHistory();
+  res.json(list.slice().reverse());
+});
+
+app.get("/api/admin/x-assistant/history/:id", requireAdmin, (req, res) => {
+  const list = xAssistant.loadHistory();
+  const entry = list.find((e) => e.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: "Not found" });
+  res.json(entry);
 });
 
 // ── Smart Slip Builder ────────────────────────────────────────────────────────
