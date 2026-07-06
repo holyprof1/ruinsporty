@@ -138,8 +138,6 @@
         <select class="field wiz-field" disabled><option>SportyBet</option></select>
         <label class="field-label">BOOKING CODE</label>
         <input type="text" id="bookingCode" class="field wiz-field wiz-code-input" placeholder="Enter booking code" autocomplete="off" spellcheck="false" />
-        <label class="field-label">WHO MADE THIS SLIP?</label>
-        <input type="text" id="optPunterName" class="field wiz-field" placeholder="Punter name (optional)" autocomplete="off" />
         <button id="fetchBtn" class="btn btn-green btn-big wiz-cta">Load Slip</button>
         <p id="errorMsg" class="error hidden"></p>
       </div>
@@ -296,6 +294,10 @@
         <button class="btn btn-green btn-big" id="copyGenCode">Copy Booking Code</button>
       </div>
       <button id="generateBtn" class="btn btn-green btn-big wiz-cta" disabled>Generate Codes</button>
+      <button id="startBuilderBtn" class="btn btn-ghost btn-big" onclick="loadOptimizerIntoConvert()" style="margin-top:8px;display:none">Edit in Convert &rarr;</button>
+      <div id="manualEditNotice" class="hidden" style="margin-top:10px;padding:9px 14px;background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.35);border-radius:var(--radius);font-size:12px;color:#d9a24a;text-align:left">
+        &#9888; <strong id="manualEditCount">0</strong> game(s) manually excluded &mdash; Generate uses your current selection. To change markets too, click <strong>Edit in Convert &rarr;</strong>.
+      </div>
 
       <!-- Not satisfied hint -->
       <div id="notSatisfiedHint" class="hidden" style="text-align:center;padding:16px 0;font-size:13px;color:var(--text3)">
@@ -317,7 +319,6 @@
     <div class="wiz-step active" data-wiz="merger-1">
       <div class="wiz-card"><h2 class="wiz-title">Slip Merger</h2><p class="wiz-sub">Combine up to 5 codes into one mega-slip</p>
         <div id="mergerInputs" class="merger-inputs"><div class="merger-code-row"><input type="text" class="field merger-code-field wiz-field" placeholder="Booking code 1" /><button class="btn-rm-code hidden">&times;</button></div><div class="merger-code-row"><input type="text" class="field merger-code-field wiz-field" placeholder="Booking code 2" /><button class="btn-rm-code hidden">&times;</button></div></div>
-        <input type="text" id="mergerPunterName" class="field wiz-field" placeholder="Punter name (optional)" autocomplete="off" />
         <div class="merger-actions"><button id="addCodeBtn" class="btn btn-ghost">+ Add Code</button></div>
         <button id="mergerLoadBtn" class="btn btn-green btn-big wiz-cta">Fetch All &amp; Merge</button>
         <p id="mergerError" class="error hidden"></p>
@@ -445,8 +446,6 @@
         <p class="wiz-sub">See how your slip performed</p>
         <label class="field-label">BOOKING CODE</label>
         <input type="text" id="scanCode" class="field wiz-field wiz-code-input" placeholder="Enter old booking code" autocomplete="off" spellcheck="false" />
-        <label class="field-label">PUNTER NAME</label>
-        <input type="text" id="scanPunterName" class="field wiz-field" placeholder="Punter name (optional)" autocomplete="off" />
         <button id="scanBtn" class="btn btn-green btn-big wiz-cta">Scan Results</button>
         <p id="scanError" class="error hidden"></p>
       </div>
@@ -460,8 +459,6 @@
           <div class="scan-stat scan-stat--rate"><span class="scan-stat-num" id="scanHitRate">0%</span><span class="scan-stat-lbl">Hit Rate</span></div>
           <div class="scan-stat"><span class="scan-stat-num" id="scanTotalOdds" style="color:#a371f7">-</span><span class="scan-stat-lbl">Total Odds</span></div>
         </div>
-
-        <div id="scanAutoSave" class="scan-autosave hidden"><span>Save to leaderboard?</span><button id="autoSaveYes" class="btn btn-green">Save</button><button id="autoSaveNo" class="btn btn-ghost">Skip</button></div>
 
         <div class="scan-panels">
           <section class="panel"><div class="panel-head panel-head--red"><h3>Killers</h3><span class="badge badge--red" id="killersBadge">0</span></div><div class="panel-scroll" id="killersTable"></div></section>
@@ -578,21 +575,38 @@
 
         <!-- MANUAL mode -->
         <div id="convertManualMode" class="hidden">
-          <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Edit each pick individually. Click Edit Pick to see all available markets for that game.</p>
+
+          <!-- Advanced Automation -->
+          <details id="automationPanel" style="margin-bottom:12px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+            <summary style="cursor:pointer;padding:10px 14px;font-size:13px;font-weight:600;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between" onclick="renderAutomationPanel()">
+              <span>&#9881; Advanced Automation</span>
+              <span id="automationEnabledBadge" style="font-size:11px;font-weight:400;color:var(--text3)">0 enabled</span>
+            </summary>
+            <div style="padding:0 14px 14px;border-top:1px solid var(--border)">
+              <p style="font-size:12px;color:var(--text3);margin:8px 0 10px">Bulk-replace markets across all non-locked selections. Locked and removed picks are skipped.</p>
+              <div id="automationRulesList"></div>
+              <button id="automationApplyBtn" class="btn btn-green" onclick="applyAutomation()" style="margin-top:12px;width:100%">Apply Enabled Rules</button>
+              <div id="automationResult" style="margin-top:8px;font-size:12px;color:var(--text2)"></div>
+            </div>
+          </details>
+
           <div id="manualConvertList" class="manual-convert-list panel"></div>
           <div class="stat-bar" style="margin-top:12px">
-            <div class="stat-block"><span class="stat-num mono" id="manualOldOdds">0</span><span class="stat-lbl">Before</span></div>
+            <div class="stat-block"><span class="stat-num mono" id="manualGameCount">0</span><span class="stat-lbl">Games</span></div>
+            <div class="stat-sep"></div>
+            <div class="stat-block"><span class="stat-num mono" id="manualOldOdds">—</span><span class="stat-lbl">Original</span></div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-            <div class="stat-block accent"><span class="stat-num mono" id="manualNewOdds">0</span><span class="stat-lbl">After</span></div>
+            <div class="stat-block accent"><span class="stat-num mono" id="manualNewOdds">—</span><span class="stat-lbl">Current</span></div>
             <div class="stat-sep"></div>
             <div class="stat-block"><span class="stat-num mono" id="manualChanged">0</span><span class="stat-lbl">Changed</span></div>
           </div>
-          <button class="btn btn-green btn-big wiz-cta" onclick="generateManualConvertCode()">Generate New Code</button>
+          <button id="manualGenBtn" class="btn btn-green btn-big wiz-cta" onclick="generateManualConvertCode()">Generate New Booking Code</button>
           <div id="manualConvertGenResult" class="hidden"></div>
         </div>
       </div>
     </div>
   </div>
+
 
   <!-- ═══ LEADERBOARD ═══ -->
   <div id="tab-leaderboard" class="tab-page">

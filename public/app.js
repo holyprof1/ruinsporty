@@ -1,4 +1,17 @@
 /* SlipPilot */
+
+// Human-readable total odds formatter (e.g. 2.45M, 18.6M, 523K, 2.9T)
+function fmtTotalOdds(n) {
+  if (!n || n <= 1 || !isFinite(n)) return null;
+  if (n >= 1e15) return '>999T×';
+  const sig3 = v => { const s = parseFloat(v.toPrecision(3)); return isFinite(s) ? String(s) : v.toFixed(0); };
+  if (n < 1000)  return n.toFixed(2) + '×';
+  if (n < 1e6)   return sig3(n / 1e3)  + 'K×';
+  if (n < 1e9)   return sig3(n / 1e6)  + 'M×';
+  if (n < 1e12)  return sig3(n / 1e9)  + 'B×';
+  return sig3(n / 1e12) + 'T×';
+}
+
 let allSelections = [];
 let originalSelections = [];
 let filtered = [];
@@ -24,13 +37,13 @@ function showHomepage() {
 function resetTabState(tab) {
   if (tab === "optimizer") {
     allSelections = []; originalSelections = []; filtered = []; changedEventIds = new Set(); safetyScores = {}; bankers = new Set(); excluded = new Set();
-    $("bookingCode").value = ""; $("optPunterName").value = "";
+    $("bookingCode").value = "";
     showErr("errorMsg",""); $("generateResult").classList.add("hidden"); $("tripleCards").classList.add("hidden"); $("codeCard").classList.add("hidden");
     wizGo("opt",1);
   } else if (tab === "merger") {
     mergerSelections = []; mergerConflicts = [];
     document.querySelectorAll(".merger-code-field").forEach(f => f.value = "");
-    $("mergerPunterName").value = ""; showErr("mergerError","");
+    showErr("mergerError","");
     wizGo("merger",1);
   } else if (tab === "splitter") {
     splitterSels = []; splitData = null;
@@ -41,6 +54,7 @@ function resetTabState(tab) {
     showErr("scanError","");
   } else if (tab === "convert") {
     convertOriginal = []; convertResult = []; manualConvertEdits = {};
+    manualLocked = new Set(); manualRemoved = new Set(); manualMktFilter = '';
     $("convertCode").value = ""; showErr("convertError",""); $("convertResults").classList.add("hidden");
   }
 }
@@ -299,7 +313,11 @@ function runOptimize() {
     });
   }
 
-  let pool = filtered.filter(s => !s.removed);
+  // Remove any stale opt-report from a previous run so it doesn't accumulate
+  document.querySelectorAll('.opt-report').forEach(el => el.remove());
+
+  // Excluded items count as removed — exclude them from the pool
+  let pool = filtered.filter(s => !s.removed && !excluded.has(s.eventId));
 
   // BUG1 FIX: Never have 0 games — if all removed, restore all
   if (pool.length === 0) {
@@ -418,9 +436,9 @@ function runOptimize() {
   }
   // If both are off/auto with no target: keep everything as-is
 
-  const kept = filtered.filter(s => !s.removed);
-  const allRemoved = filtered.filter(s => s.removed);
-  const totalOdds = kept.length > 0 ? kept.reduce((a, s) => a * s.odds, 1) : 0;
+  const kept = filtered.filter(s => !s.removed && !excluded.has(s.eventId));
+  const allRemoved = filtered.filter(s => s.removed || excluded.has(s.eventId));
+  const totalOdds = kept.length > 0 ? kept.reduce((a, s) => a * (s.originalOdds || s.odds || 1), 1) : 0;
   const inRange = oddsLo > 0 || oddsHi < Infinity ? (totalOdds >= oddsLo && totalOdds <= oddsHi) : true;
 
   // BUG1 FIX: If still 0 games somehow, show error not success
@@ -451,7 +469,7 @@ function runOptimize() {
       reportHtml += '<div style="color:#8a9e8a">Removed ' + allRemoved.length + ': ' + reasons.join("; ") + '</div>';
     }
     for (const w of warnings) reportHtml += '<div style="color:#ffb300;margin-top:2px">' + w + '</div>';
-    reportHtml += '<div style="color:#ccc;margin-top:4px;font-weight:600">' + kept.length + ' games · ' + kept.length + '-fold · ' + totalOdds.toFixed(1) + 'x' + (inRange ? ' <span style="color:#00c853">✓</span>' : '') + '</div>';
+    reportHtml += '<div style="color:#ccc;margin-top:4px;font-weight:600">' + kept.length + ' games · ' + kept.length + '-fold · ' + (fmtTotalOdds(totalOdds)||totalOdds.toFixed(1)+'x') + (inRange ? ' <span style="color:#00c853">✓</span>' : '') + '</div>';
     reportHtml += '</div>';
   }
 
@@ -640,6 +658,7 @@ function initOptimizer(json) {
   allSelections = json.selections.map(s => ({ ...s }));
   changedEventIds = new Set();
   safetyScores = {};
+  excluded = new Set();   // always clear excluded when loading a new slip
   populateFilterOptions();
   resetFilters();
   // Set slider max values based on loaded slip
@@ -911,20 +930,33 @@ function resetFilters() {
   $("activeChips").classList.add("hidden"); $("activeChips").innerHTML = "";
 }
 
-function renderOpt(kept, removed) {
-  const oO = allSelections.reduce((a,s)=>a*s.odds,1), kO = kept.length ? kept.reduce((a,s)=>a*s.odds,1) : 0;
-  $("origCount").textContent = allSelections.length; $("optCount").textContent = kept.length;
+function renderOpt(keptInput, removedInput) {
+  // Excluded items are treated as effectively removed for display and generate purposes
+  const kept    = keptInput.filter(s => !excluded.has(s.eventId));
+  const excl    = keptInput.filter(s =>  excluded.has(s.eventId));
+  const removed = [...removedInput, ...excl];
+
+  const oO = allSelections.reduce((a,s) => a * (s.originalOdds || s.odds || 1), 1);
+  const kO = kept.length ? kept.reduce((a,s) => a * (s.originalOdds || s.odds || 1), 1) : 0;
+
+  $("origCount").textContent = allSelections.length;
+  $("optCount").textContent  = kept.length;
   $("removedCount").textContent = removed.length;
-  $("origOdds").textContent = oO.toFixed(2); $("optOdds").textContent = kO.toFixed(2);
-  $("origBadge").textContent = allSelections.length; $("optBadge").textContent = kept.length; $("removedBadge").textContent = removed.length;
+  $("origOdds").textContent  = fmtTotalOdds(oO) || oO.toFixed(2);
+  $("optOdds").textContent   = fmtTotalOdds(kO) || (kO > 0 ? kO.toFixed(2) : '—');
+  $("origBadge").textContent = allSelections.length;
+  $("optBadge").textContent  = kept.length;
+  $("removedBadge").textContent = removed.length;
   $("originalTable").innerHTML = (bankers.size ? `<div style="padding:8px 14px;font-size:12px;color:var(--green)">&#128737; ${bankers.size} banker${bankers.size>1?'s':''} locked <button class="btn-sm" onclick="bankers.clear();renderOpt(filtered.filter(s=>!s.removed),filtered.filter(s=>s.removed))" style="margin-left:8px">Clear</button></div>` : '') + renderCards(allSelections, {banker:true});
   $("optimizedTable").innerHTML = kept.length ? renderCards(kept, {actions:true}) : '<div class="empty-state">All removed</div>';
   if (removed.length) { $("removedSection").classList.remove("hidden"); $("removedTable").innerHTML = renderCards(removed, {removed:true}); }
   else $("removedSection").classList.add("hidden");
   $("generateBtn").disabled = !(kept.length > 0);
+  const sbBtn = $("startBuilderBtn"); if (sbBtn) sbBtn.style.display = kept.length > 0 ? '' : 'none';
+  const _notice = $("manualEditNotice");
+  if (_notice) { _notice.classList.toggle("hidden", excluded.size === 0); const _nc = $("manualEditCount"); if (_nc) _nc.textContent = excluded.size; }
   $("generateResult").classList.add("hidden");
   $("codeCard").classList.add("hidden");
-  // Step 3 result stats
   const rg = $("resultGames"); if (rg) rg.textContent = kept.length;
 }
 
@@ -1176,7 +1208,7 @@ async function loadMerger() {
     mergerSelections = j.selections;
     mergerConflicts = j.conflicts || [];
     $("mergerCodesCount").textContent = codes.length; $("mergerTotal").textContent = j.mergedCount;
-    $("mergerDupes").textContent = j.dupesRemoved; $("mergerOdds").textContent = j.totalOdds.toFixed(2);
+    $("mergerDupes").textContent = j.dupesRemoved; $("mergerOdds").textContent = fmtTotalOdds(j.totalOdds) || j.totalOdds.toFixed(2);
     $("mergerBadge").textContent = j.mergedCount;
     renderMergerTable();
     renderMergerConflicts();
@@ -1189,7 +1221,7 @@ function renderMergerTable() {
   $("mergerTable").innerHTML = renderCards(mergerSelections, {removable:true});
   $("mergerBadge").textContent = mergerSelections.length;
   $("mergerTotal").textContent = mergerSelections.length;
-  $("mergerOdds").textContent = mergerSelections.reduce((a,s)=>a*s.odds,1).toFixed(2);
+  const mOdds = mergerSelections.reduce((a,s)=>a*s.odds,1); $("mergerOdds").textContent = fmtTotalOdds(mOdds) || mOdds.toFixed(2);
 }
 
 function renderMergerConflicts() {
@@ -1302,7 +1334,7 @@ async function loadSplitter() {
     const r = await fetch(`/api/booking/${encodeURIComponent(code)}`); const j = await r.json();
     if (!r.ok) throw new Error(j.error);
     splitterSels = j.selections;
-    $("splitterTotal").textContent = j.selections.length; $("splitterOdds").textContent = j.totalOdds.toFixed(2);
+    $("splitterTotal").textContent = j.selections.length; $("splitterOdds").textContent = fmtTotalOdds(j.totalOdds) || j.totalOdds.toFixed(2);
     $("splitterResults").innerHTML = ""; $("splitterCopyAll").classList.add("hidden"); $("splitterGenerateAll").classList.add("hidden");
     const ec = $("extractCount"); if (ec) { ec.max = j.selections.length; ec.value = Math.min(10, j.selections.length); $("extractCountVal").textContent = ec.value; }
     renderSplitterSelections();
@@ -1314,7 +1346,7 @@ async function loadSplitter() {
 function renderSplitterSelections() {
   $("splitterSelTable").innerHTML = renderCards(splitterSels, {splitterRemovable:true});
   $("splitterTotal").textContent = splitterSels.length;
-  $("splitterOdds").textContent = splitterSels.reduce((a,s)=>a*s.odds,1).toFixed(2);
+  const spOdds = splitterSels.reduce((a,s)=>a*s.odds,1); $("splitterOdds").textContent = fmtTotalOdds(spOdds) || spOdds.toFixed(2);
 }
 
 window.removeSplitterGame = function(eventId) {
@@ -1329,7 +1361,7 @@ async function doSplit() {
     const j = await r.json(); if (!r.ok) throw new Error(j.error);
     splitData = j.slips;
     $("splitterResults").innerHTML = j.slips.map((sl,i) =>
-      `<section class="panel splitter-panel"><div class="panel-head"><h3>Slip ${i+1}</h3><span class="badge">${sl.count}</span><span class="sel-odds">${sl.totalOdds.toFixed(2)}</span></div><div class="panel-scroll">${renderCards(sl.selections)}</div><div class="cta-row split-cta"><button class="btn btn-green" onclick="genSplitCode(${i})">Generate</button><span id="splitCode${i}" class="gen-code-inline mono"></span></div></section>`
+      `<section class="panel splitter-panel"><div class="panel-head"><h3>Slip ${i+1}</h3><span class="badge">${sl.count}</span><span class="sel-odds">${fmtTotalOdds(sl.totalOdds)||sl.totalOdds.toFixed(2)}</span></div><div class="panel-scroll">${renderCards(sl.selections)}</div><div class="cta-row split-cta"><button class="btn btn-green" onclick="genSplitCode(${i})">Generate</button><span id="splitCode${i}" class="gen-code-inline mono"></span></div></section>`
     ).join("");
     $("splitterGenerateAll").classList.remove("hidden");
     $("splitterCopyAll").classList.remove("hidden");
@@ -1455,8 +1487,7 @@ try {
 } catch {}
 $("scanBtn").addEventListener("click", scanSlip);
 $("scanCode").addEventListener("keydown", e => { if (e.key==="Enter") scanSlip(); });
-$("autoSaveYes").addEventListener("click", saveScanPunter);
-$("autoSaveNo").addEventListener("click", () => $("scanAutoSave").classList.add("hidden"));
+// autoSave UI removed from public frontend
 // scanData restored from sessionStorage — will render when scanner tab activates
 
 async function scanSlip() {
@@ -1471,7 +1502,7 @@ async function scanSlip() {
     try { sessionStorage.setItem("scanData", JSON.stringify(j)); sessionStorage.setItem("scanCode", code); } catch {}
     $("scanResults").classList.remove("hidden");
     renderScanResults();
-    if ($("scanPunterName").value.trim()) $("scanAutoSave").classList.remove("hidden");
+    // auto-save prompt removed (punter name field no longer shown to public users)
   } catch(e) { showErr("scanError",e.message); }
   finally { $("scanBtn").disabled = false; $("scanBtn").textContent = "Scan Results"; }
 }
@@ -1484,9 +1515,10 @@ function renderScanResults() {
   $("scanWon").textContent=won.length; $("scanLost").textContent=lost.length;
   $("scanVoid").textContent=voided.length; $("scanPending").textContent=pending.length;
   $("scanHitRate").textContent=hitRate+"%";
-  const totalOdds = results.reduce((a,r) => a * (r.odds||1), 1);
+  const totalOdds = results.reduce((a,r) => a * (r.originalOdds || r.odds || 1), 1);
   const oddsEl = $("scanTotalOdds");
-  if (oddsEl) oddsEl.textContent = totalOdds >= 1e6 ? (totalOdds/1e6).toFixed(1)+"M" : totalOdds >= 1000 ? Math.round(totalOdds/1000)+"K" : totalOdds.toFixed(0);
+  const oddsStr = fmtTotalOdds(totalOdds);
+  if (oddsEl) { oddsEl.textContent = oddsStr || '—'; const oddsWrap = oddsEl.closest(".scan-stat"); if (oddsWrap) oddsWrap.style.display = oddsStr ? "" : "none"; }
   // Dynamic show/hide
   const hrStat = $("scanHitRate")?.closest(".scan-stat");
   const pendStat = $("scanPending")?.closest(".scan-stat");
@@ -1504,19 +1536,14 @@ function scanCard(r) {
   const vc={WON:"v-won",LOST:"v-lost",VOID:"v-void",PENDING:"v-pending"}[r.verdict]||"v-pending";
   const manual = r.verdict==="PENDING" ? `<button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'WON')">W</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'LOST')">L</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'VOID')">V</button>` : "";
   const koTime = r.kickoff ? new Date(r.kickoff).toLocaleString("en-GB", {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "";
-  return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(r.homeTeam)} vs ${esc(r.awayTeam)}</div><div class="sel-meta"><span class="sel-market">${esc(r.market)}</span> — ${esc(r.outcome)}${r.league?" · "+esc(r.league):""}${koTime?" · "+koTime:""}</div></div><span class="scan-score">${esc(r.score||"--")}</span><span class="sel-odds">${r.odds.toFixed(2)}</span><span class="v-pill ${vc}">${r.verdict}</span>${manual}</div>`;
+  const origOdds = r.originalOdds && r.originalOdds > 1 ? r.originalOdds : null;
+  const oddsTag = origOdds ? `<span class="sel-odds">${origOdds.toFixed(2)}</span>` : '';
+  return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(r.homeTeam)} vs ${esc(r.awayTeam)}</div><div class="sel-meta"><span class="sel-market">${esc(r.market)}</span> — ${esc(r.outcome)}${r.league?" · "+esc(r.league):""}${koTime?" · "+koTime:""}</div></div><span class="scan-score">${esc(r.score||"--")}</span>${oddsTag}<span class="v-pill ${vc}">${r.verdict}</span>${manual}</div>`;
 }
 
 window.setManual = function(eid,v) { manualOverrides[eid]=v; renderScanResults(); };
 
-async function saveScanPunter() {
-  const name = $("scanPunterName").value.trim(); if (!name||!scanData) return;
-  const results = scanData.results.map(r => manualOverrides[r.eventId] ? {...r,verdict:manualOverrides[r.eventId]} : r);
-  try {
-    const r = await fetch("/api/punters",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,code:scanData.shareCode,results})});
-    if ((await r.json()).success) { $("scanAutoSave").classList.add("hidden"); showToast("Saved "+name,"success"); }
-  } catch(e) { showToast(e.message,"error"); }
-}
+// saveScanPunter removed — punter auto-save is admin-only
 
 // ── Leaderboard ──
 let lbData = [];
@@ -2511,6 +2538,241 @@ window.adminExportCodes = function() {
 
 // ── Convert Manual Mode ──
 let manualConvertEdits = {};
+let manualLocked  = new Set();
+let manualRemoved = new Set();
+let manualMktFilter = '';
+
+// ── Automation Rules ──────────────────────────────────────────────────────────
+const AUTOMATION_RULES = [
+  {
+    id: 'btts_to_bounds',
+    label: 'BTTS / GG → Goal Bounds',
+    desc: 'Replace Both Teams Score Yes with the Goal Bounds market',
+    defaultEnabled: false,
+    match: s => {
+      const m = (s.market||'').toLowerCase(), o = (s.outcome||'').toLowerCase();
+      return (m.includes('btts')||m.includes('both teams score')||m.includes('gg to score')) && (o==='yes'||o==='gg'||o==='1');
+    },
+    findReplacement: (groups) => {
+      const g = groups.find(g => g.marketName.toLowerCase().includes('goal bounds'));
+      if (!g) return null;
+      const o = g.outcomes.find(o => /^[23][+]?$|^2-|^3-/.test(o.outcomeName.trim())) || g.outcomes[0];
+      return o ? { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'' } : null;
+    },
+  },
+  {
+    id: 'away_to_dc',
+    label: 'Away Win → Double Chance X2',
+    desc: 'DC X2 is safer; uses DNB Away if intel data strongly favours it',
+    defaultEnabled: true,
+    match: s => {
+      const m = (s.market||'').toLowerCase(), o = (s.outcome||'').toLowerCase();
+      return (m.includes('1x2')||m.includes('match result')||m.includes('full time result')) && (o==='2'||o.includes('away win')||o==='away');
+    },
+    findReplacement: (groups, intel) => {
+      const dcHR = intel?.['Double Chance']?.hitRate || 0;
+      const dnbHR = intel?.['Draw No Bet']?.hitRate || 0;
+      if (dnbHR > dcHR + 5) {
+        const g = groups.find(g => g.marketName.toLowerCase().includes('draw no bet'));
+        if (g) { const o = g.outcomes.find(o => /away|^2$/i.test(o.outcomeName)); if (o) return { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'', note: 'DNB Away (data-driven)' }; }
+      }
+      const g = groups.find(g => g.marketName.toLowerCase().includes('double chance'));
+      if (!g) return null;
+      const o = g.outcomes.find(o => /x2|2x/i.test(o.outcomeName));
+      return o ? { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'', note: dcHR ? '' : 'DC X2 (no intel — default)' } : null;
+    },
+  },
+  {
+    id: 'home_to_dc',
+    label: 'Home Win → Double Chance 1X',
+    desc: 'Apply when home win odds meet or exceed the odds threshold below',
+    defaultEnabled: false,
+    threshold: 1.8,
+    hasThreshold: true,
+    match: (s, threshold) => {
+      const m = (s.market||'').toLowerCase(), o = (s.outcome||'').toLowerCase();
+      const isHome = (m.includes('1x2')||m.includes('match result')||m.includes('full time result')) && (o==='1'||o.includes('home win')||o==='home');
+      if (!isHome) return false;
+      return (s.odds || s.originalOdds || 0) >= (threshold ?? 1.8);
+    },
+    findReplacement: (groups) => {
+      const g = groups.find(g => g.marketName.toLowerCase().includes('double chance'));
+      if (!g) return null;
+      const o = g.outcomes.find(o => /^1x$|1\s*x|home.*draw/i.test(o.outcomeName));
+      return o ? { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'' } : null;
+    },
+  },
+  {
+    id: 'over35_to_25',
+    label: 'Over 3.5 → Over 2.5',
+    desc: 'Step down to a more likely outcome',
+    defaultEnabled: true,
+    match: s => {
+      const o = (s.outcome||'').toLowerCase(), m = (s.market||'').toLowerCase();
+      return (o.includes('over')||m.includes('over')) && (o.includes('3.5')||m.includes('3.5')) && !o.includes('4') && !o.includes('5');
+    },
+    findReplacement: groups => {
+      for (const g of groups) { if (!g.marketName.toLowerCase().includes('over')) continue; const o = g.outcomes.find(o => /over\s*2\.5/i.test(o.outcomeName)); if (o) return { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'' }; }
+      return null;
+    },
+  },
+  {
+    id: 'over25_to_15',
+    label: 'Over 2.5 → Over 1.5',
+    desc: 'Step down to a more likely outcome',
+    defaultEnabled: false,
+    match: s => {
+      const o = (s.outcome||'').toLowerCase(), m = (s.market||'').toLowerCase();
+      return (o.includes('over')||m.includes('over')) && (o.includes('2.5')||m.includes('2.5')) && !o.includes('3') && !o.includes('4') && !o.includes('1.5');
+    },
+    findReplacement: groups => {
+      for (const g of groups) { if (!g.marketName.toLowerCase().includes('over')) continue; const o = g.outcomes.find(o => /over\s*1\.5/i.test(o.outcomeName)); if (o) return { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'' }; }
+      return null;
+    },
+  },
+  {
+    id: 'under35_to_45',
+    label: 'Under 3.5 → Under 4.5',
+    desc: 'Safer under threshold — fewer goals needed to lose',
+    defaultEnabled: false,
+    match: s => {
+      const o = (s.outcome||'').toLowerCase(), m = (s.market||'').toLowerCase();
+      return (o.includes('under')||m.includes('under')) && (o.includes('3.5')||m.includes('3.5')) && !o.includes('over');
+    },
+    findReplacement: groups => {
+      for (const g of groups) { const n = g.marketName.toLowerCase(); if (!n.includes('under')&&!n.includes('over/under')&&!n.includes('total goals')) continue; const o = g.outcomes.find(o => /under\s*4\.5/i.test(o.outcomeName)); if (o) return { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'' }; }
+      return null;
+    },
+  },
+  {
+    id: 'asian_to_dnb',
+    label: 'Asian Handicap → Draw No Bet',
+    desc: 'Same team, fewer outcomes — removes the draw loss condition',
+    defaultEnabled: false,
+    match: s => (s.market||'').toLowerCase().includes('asian handicap'),
+    findReplacement: (groups, intel, sel) => {
+      const side = (sel.outcome||'').toLowerCase().includes('away') ? 'away' : 'home';
+      const g = groups.find(g => g.marketName.toLowerCase().includes('draw no bet'));
+      if (!g) return null;
+      const o = g.outcomes.find(o => side === 'away' ? /away|^2$/i.test(o.outcomeName) : /home|^1$/i.test(o.outcomeName));
+      return o ? { market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: g.specifier||'' } : null;
+    },
+  },
+];
+
+let automationEnabled   = Object.fromEntries(AUTOMATION_RULES.map(r => [r.id, r.defaultEnabled]));
+let automationThresholds = Object.fromEntries(AUTOMATION_RULES.filter(r => r.hasThreshold).map(r => [r.id, r.threshold]));
+
+function renderAutomationPanel() {
+  const listEl  = $("automationRulesList");
+  const badgeEl = $("automationEnabledBadge");
+  if (!listEl) return;
+  const active = (convertOriginal || []).filter(s => !manualRemoved.has(s.eventId) && !manualLocked.has(s.eventId));
+  const enabledCount = AUTOMATION_RULES.filter(r => automationEnabled[r.id]).length;
+  if (badgeEl) badgeEl.textContent = enabledCount + ' enabled';
+
+  listEl.innerHTML = AUTOMATION_RULES.map(rule => {
+    const threshold = automationThresholds[rule.id] ?? rule.threshold;
+    const affected  = active.filter(s => rule.match(s, threshold)).length;
+    const on        = automationEnabled[rule.id];
+    const thCtrl    = rule.hasThreshold
+      ? `<div style="margin-top:4px;font-size:11px;color:var(--text3)">Apply when odds &ge; <input type="number" min="1" max="10" step="0.1" value="${threshold}" style="width:48px;font-size:11px;padding:1px 4px;background:var(--card3,#161b22);border:1px solid var(--border);border-radius:3px;color:var(--text1)" onchange="automationThresholds['${rule.id}']=parseFloat(this.value)||1.8;renderAutomationPanel()"></div>`
+      : '';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <input type="checkbox" ${on ? 'checked' : ''} style="margin-top:3px;flex-shrink:0" onchange="automationEnabled['${rule.id}']=this.checked;renderAutomationPanel()">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${rule.label}</div>
+        <div style="font-size:11px;color:var(--text3)">${rule.desc}</div>
+        ${thCtrl}
+      </div>
+      <span style="font-size:11px;white-space:nowrap;padding:2px 8px;border-radius:12px;flex-shrink:0;${affected>0&&on?'background:rgba(0,200,83,.12);color:var(--green)':'color:var(--text3)'}">${affected} match${affected!==1?'es':''}</span>
+    </div>`;
+  }).join('');
+}
+
+window.applyAutomation = async function() {
+  const btn      = $("automationApplyBtn");
+  const resultEl = $("automationResult");
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+  if (resultEl) { resultEl.textContent = ''; resultEl.style.color = 'var(--text2)'; }
+
+  try {
+    const enabledRules = AUTOMATION_RULES.filter(r => automationEnabled[r.id]);
+    if (!enabledRules.length) { if (resultEl) resultEl.textContent = 'No rules enabled — tick at least one rule above.'; return; }
+
+    let intel = {};
+    try {
+      const ir = await fetch('/api/intelligence/markets', { headers: { 'x-admin-password': window.__adminPw || '' } });
+      if (ir.ok) intel = await ir.json();
+    } catch { /* proceed without intel — rules fall back to defaults */ }
+
+    const active = (convertOriginal || []).filter(s => !manualRemoved.has(s.eventId) && !manualLocked.has(s.eventId));
+    let changed = 0, skipped = 0;
+    const notes = [];
+
+    for (const rule of enabledRules) {
+      const threshold = automationThresholds[rule.id] ?? rule.threshold;
+      const matching  = active.filter(s => rule.match(s, threshold));
+      for (const s of matching) {
+        if (resultEl) resultEl.textContent = `Checking ${s.homeTeam} vs ${s.awayTeam}…`;
+        try {
+          let data;
+          if (marketsCache[s.eventId]) { data = marketsCache[s.eventId]; }
+          else {
+            const r = await fetch(`/api/markets/${encodeURIComponent(s.eventId)}`);
+            data = await r.json();
+            if (!r.ok) throw new Error(data.error);
+            marketsCache[s.eventId] = data;
+          }
+          const rep = rule.findReplacement(data.groups || [], intel, s);
+          if (rep) {
+            manualConvertEdits[s.eventId] = { market: rep.market, outcome: rep.outcome, odds: rep.odds, marketId: rep.marketId, outcomeId: rep.outcomeId, specifier: rep.specifier };
+            if (rep.note) notes.push(rep.note);
+            changed++;
+          } else { skipped++; }
+        } catch { skipped++; }
+      }
+    }
+
+    renderManualConvert();
+    const noteStr = [...new Set(notes.filter(Boolean))].map(n => `(${n})`).join(' ');
+    if (resultEl) {
+      resultEl.textContent = `✓ ${changed} changed, ${skipped} skipped. ${noteStr}`.trim();
+      resultEl.style.color = changed > 0 ? 'var(--green)' : 'var(--text3)';
+    }
+    renderAutomationPanel();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Apply Enabled Rules'; }
+  }
+};
+
+// Transfer optimized selections directly into Convert Manual — no API call
+function loadOptimizerIntoConvert() {
+  const kept = (filtered || []).filter(s => !s.removed && !excluded.has(s.eventId));
+  if (!kept.length) return showToast('Run Optimizer first — no selections ready', 'error');
+  convertOriginal = kept.map(s => ({
+    eventId:    s.eventId,
+    homeTeam:   s.homeTeam,
+    awayTeam:   s.awayTeam,
+    league:     s.league,
+    market:     s.market,
+    outcome:    s.outcome,
+    odds:       s.originalOdds || s.odds || 1,
+    originalOdds: s.originalOdds || s.odds || 1,
+    kickoff:    s.kickoff,
+    marketId:   s.marketId,
+    outcomeId:  s.outcomeId,
+    specifier:  s.specifier,
+    productId:  s.productId,
+    sportId:    s.sportId,
+  }));
+  manualConvertEdits = {};
+  manualLocked  = new Set();
+  manualRemoved = new Set();
+  manualMktFilter = '';
+  activateTab('convert');
+  setConvertMode('manual');
+}
 
 window.setConvertMode = function(mode) {
   const pills = document.querySelectorAll("#convertResults > .pill-row .pill");
@@ -2521,23 +2783,81 @@ window.setConvertMode = function(mode) {
 };
 
 function renderManualConvert() {
-  if (!convertOriginal.length) return;
   const list = $("manualConvertList");
-  list.innerHTML = convertOriginal.map(s => {
-    const edit = manualConvertEdits[s.eventId];
-    const pickHtml = edit
-      ? `<span class="pick-old">${esc(s.market)} - ${esc(s.outcome)}</span><span class="pick-new">${esc(edit.market)} - ${esc(edit.outcome)} @ ${edit.odds.toFixed(2)}</span>`
-      : `<span style="font-size:12px;color:var(--text2)">${esc(s.market)} - ${esc(s.outcome)}</span>`;
-    return `<div class="manual-convert-item"><div class="sel-info"><div class="sel-teams">${esc(s.homeTeam)} vs ${esc(s.awayTeam)}</div><div class="pick-display">${pickHtml}</div></div><span class="sel-odds">${(edit ? edit.odds : s.odds).toFixed(2)}</span><button class="btn-edit-pick" onclick="openManualMarkets(${jsArg(s.eventId)})">Edit Pick</button></div>`;
-  }).join("");
+  if (!list || !convertOriginal.length) return;
 
-  const oldOdds = convertOriginal.reduce((a,s) => a*s.odds, 1);
-  const newOdds = convertOriginal.reduce((a,s) => a * (manualConvertEdits[s.eventId]?.odds || s.odds), 1);
-  const changedCount = Object.keys(manualConvertEdits).length;
-  $("manualOldOdds").textContent = oldOdds.toFixed(2);
-  $("manualNewOdds").textContent = newOdds.toFixed(2);
-  $("manualChanged").textContent = changedCount;
+  let activeHtml = '', removedHtml = '';
+  let origOdds = 1, curOdds = 1, changedCount = 0, activeCount = 0;
+
+  for (const s of convertOriginal) {
+    const removed = manualRemoved.has(s.eventId);
+    const locked  = manualLocked.has(s.eventId);
+    const edit    = !locked && manualConvertEdits[s.eventId];
+    const cur     = edit || { market: s.market, outcome: s.outcome, odds: s.odds || s.originalOdds || 1 };
+    const odds    = parseFloat(cur.odds) || 1;
+    const baseOdds = parseFloat(s.odds || s.originalOdds || 1);
+
+    if (removed) {
+      removedHtml += `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;opacity:.45;border-bottom:1px solid var(--border)">
+        <div style="flex:1;font-size:12px;color:var(--text3);text-decoration:line-through">${esc(s.homeTeam)} vs ${esc(s.awayTeam)} — ${esc(s.market)} / ${esc(s.outcome)}</div>
+        <button onclick="manualRemoveToggle('${esc(s.eventId)}')" style="padding:2px 10px;border:1px solid var(--border);color:var(--text2);background:transparent;border-radius:4px;font-size:11px;cursor:pointer">Restore</button>
+      </div>`;
+      continue;
+    }
+
+    activeCount++;
+    origOdds *= baseOdds;
+    curOdds  *= odds;
+    if (edit) changedCount++;
+
+    const ko = s.kickoff ? new Date(s.kickoff).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const changedBadge = edit ? `<span style="font-size:10px;color:#ffb300;background:rgba(255,179,0,.12);padding:1px 6px;border-radius:3px;margin-left:4px">changed</span>` : '';
+    const lockedBadge  = locked ? `<span style="font-size:10px;color:var(--green);background:rgba(0,200,83,.1);padding:1px 6px;border-radius:3px;margin-left:4px">locked</span>` : '';
+
+    activeHtml += `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);${locked ? 'background:rgba(0,200,83,.02)' : ''}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--text1)">${esc(s.homeTeam)} <span style="color:var(--text3);font-weight:400">vs</span> ${esc(s.awayTeam)}</div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:3px">
+          <span style="font-size:12px;color:var(--text2)">${esc(cur.market)}</span>
+          <span style="color:var(--text3);font-size:11px">/</span>
+          <span style="font-size:12px;color:var(--green);font-weight:700">${esc(cur.outcome)}</span>
+          <span style="font-size:12px;color:var(--text3)">@ ${odds.toFixed(2)}</span>
+          ${ko ? `<span style="font-size:11px;color:var(--text3)">${ko}</span>` : ''}
+          ${changedBadge}${lockedBadge}
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        ${locked
+          ? `<button onclick="manualUnlock('${esc(s.eventId)}')" title="Unlock" style="padding:4px 8px;border:1px solid var(--green);color:var(--green);background:rgba(0,200,83,.1);border-radius:4px;font-size:11px;cursor:pointer">🔒</button>`
+          : `<button onclick="manualLock('${esc(s.eventId)}')" title="Lock" style="padding:4px 8px;border:1px solid var(--border);color:var(--text3);background:transparent;border-radius:4px;font-size:11px;cursor:pointer">🔓</button>`}
+        ${!locked ? `<button onclick="openManualMarkets('${esc(s.eventId)}')" style="padding:4px 10px;border:1px solid var(--border);color:var(--text2);background:transparent;border-radius:4px;font-size:12px;cursor:pointer">Edit</button>` : ''}
+        <button onclick="manualRemoveToggle('${esc(s.eventId)}')" title="Remove" style="padding:4px 8px;border:1px solid rgba(229,57,53,.4);color:#e53935;background:rgba(229,57,53,.07);border-radius:4px;font-size:11px;cursor:pointer">✕</button>
+      </div>
+    </div>`;
+  }
+
+  if (removedHtml) {
+    removedHtml = `<div style="padding:6px 12px;font-size:11px;font-weight:700;color:var(--text3);background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <span>REMOVED</span>
+      <button onclick="manualRestoreAll()" style="border:none;background:none;color:var(--text2);cursor:pointer;font-size:11px;text-decoration:underline">Restore all</button>
+    </div>` + removedHtml;
+  }
+
+  list.innerHTML = (activeHtml || '<div style="padding:24px;text-align:center;color:var(--text3)">No active selections</div>') + removedHtml;
+
+  if ($('manualGameCount')) $('manualGameCount').textContent = activeCount;
+  if ($('manualOldOdds'))   $('manualOldOdds').textContent  = origOdds > 1 ? (fmtTotalOdds(origOdds) || origOdds.toFixed(2) + '×') : '—';
+  if ($('manualNewOdds'))   $('manualNewOdds').textContent  = curOdds  > 1 ? (fmtTotalOdds(curOdds)  || curOdds.toFixed(2)  + '×') : '—';
+  if ($('manualChanged'))   $('manualChanged').textContent  = changedCount;
 }
+
+window.manualLock = function(eventId) { manualLocked.add(eventId); renderManualConvert(); };
+window.manualUnlock = function(eventId) { manualLocked.delete(eventId); renderManualConvert(); };
+window.manualRemoveToggle = function(eventId) {
+  if (manualRemoved.has(eventId)) manualRemoved.delete(eventId); else manualRemoved.add(eventId);
+  renderManualConvert();
+};
+window.manualRestoreAll = function() { manualRemoved.clear(); renderManualConvert(); };
 
 window.openManualMarkets = async function(eventId) {
   currentMktEvt = eventId;
@@ -2553,17 +2873,125 @@ window.openManualMarkets = async function(eventId) {
   } catch(e) { $("modalBody").innerHTML = `<div class="modal-loading" style="color:var(--red)">${esc(e.message)}</div>`; }
 };
 
+// Build smart market suggestions based on current pick intent
+function getSmartSuggestions(curPick, groups) {
+  if (!curPick?.market && !curPick?.outcome) return [];
+  const mkt = (curPick.market || '').toLowerCase();
+  const out = (curPick.outcome || '').toLowerCase();
+
+  // Flatten all outcomes for lookup
+  const pool = [];
+  for (const g of groups) {
+    for (const o of (g.outcomes || [])) {
+      pool.push({ market: g.marketName, outcome: o.outcomeName, odds: o.odds, marketId: o.marketId, outcomeId: o.outcomeId, specifier: o.specifier || '' });
+    }
+  }
+
+  const find = (mktQ, outQ) => pool.find(p => p.market.toLowerCase().includes(mktQ) && p.outcome.toLowerCase().includes(outQ));
+  const add = (mktQ, outQ, results) => { const r = find(mktQ, outQ); if (r) results.push(r); };
+
+  const results = [];
+
+  // Over X.5 → suggest adjacent safer level
+  const overM = out.match(/over (\d+\.5)/) || mkt.match(/over (\d+\.5)/);
+  if (overM) {
+    const v = parseFloat(overM[1]);
+    if (v >= 1.5) add('over/under', `over ${v - 1}`, results);
+    if (v >= 2.5) add('over/under', `over ${v - 2}`, results);
+  }
+
+  // 1X2 Home → DC 1X, Home DNB
+  if ((mkt.includes('1x2') || mkt.includes('result')) && (out === '1' || out.includes('home win'))) {
+    add('double chance', '1x', results);
+    add('draw no bet', '1', results);
+    add('draw no bet', 'home', results);
+  }
+  // 1X2 Away → DC X2, Away DNB
+  if ((mkt.includes('1x2') || mkt.includes('result')) && (out === '2' || out.includes('away win'))) {
+    add('double chance', 'x2', results);
+    add('draw no bet', '2', results);
+    add('draw no bet', 'away', results);
+  }
+  // 1X2 Draw → DC 1X, DC X2
+  if ((mkt.includes('1x2') || mkt.includes('result')) && (out === 'x' || out === 'draw')) {
+    add('double chance', '1x', results);
+    add('double chance', 'x2', results);
+  }
+  // BTTS Yes → Over 1.5
+  if ((mkt.includes('btts') || mkt.includes('both teams')) && out.includes('yes')) {
+    add('over/under', 'over 1.5', results);
+    add('over/under', 'over 0.5', results);
+  }
+  // BTTS No → Under 2.5
+  if ((mkt.includes('btts') || mkt.includes('both teams')) && out.includes('no')) {
+    add('over/under', 'under 2.5', results);
+    add('over/under', 'under 1.5', results);
+  }
+
+  // Deduplicate by marketId+outcomeId
+  const seen = new Set();
+  return results.filter(r => {
+    const k = r.marketId + '|' + r.outcomeId;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  }).slice(0, 4);
+}
+
+window.setMktFilter = function(filter) {
+  manualMktFilter = filter;
+  if (currentMktEvt && marketsCache[currentMktEvt]) renderManualMarketModal(marketsCache[currentMktEvt], currentMktEvt);
+};
+
 function renderManualMarketModal(d, eventId) {
   $("modalTitle").textContent = `${d.homeTeam} vs ${d.awayTeam}`;
-  $("modalSub").textContent = "Select a new pick for this game";
+  $("modalSub").textContent = "Choose new pick";
   $("modalStats").innerHTML = `<span>Markets: <span class="ms-val">${d.marketCount}</span></span><span>Outcomes: <span class="ms-val">${d.outcomeCount}</span></span>`;
 
+  // Build deduped groups
   const groups = []; const seen = new Map();
-  d.markets.forEach(m => { const k = `${m.marketId}|${m.specifier}`; if (!seen.has(k)) { seen.set(k, {marketName:m.marketName, specifier:m.specifier, outcomes:[]}); groups.push(seen.get(k)); } seen.get(k).outcomes.push(m); });
+  (d.markets || []).forEach(m => {
+    const k = `${m.marketId}|${m.specifier}`;
+    if (!seen.has(k)) { seen.set(k, { marketName: m.marketName, specifier: m.specifier, outcomes: [] }); groups.push(seen.get(k)); }
+    seen.get(k).outcomes.push(m);
+  });
 
-  // Group categories
+  // Smart suggestions from current pick
+  const orig = (convertOriginal || []).find(s => s.eventId === eventId);
+  const curPick = manualConvertEdits[eventId] || (orig ? { market: orig.market || '', outcome: orig.outcome || '' } : null);
+  const suggestions = curPick ? getSmartSuggestions(curPick, groups) : [];
+
+  // Quick filter buttons
+  const FILTERS = [
+    { label: 'All', v: '' }, { label: 'Over', v: 'over' }, { label: 'Under', v: 'under' },
+    { label: 'BTTS', v: 'btts' }, { label: 'Double Chance', v: 'double chance' },
+    { label: 'DNB', v: 'draw no bet' }, { label: '1X2', v: '1x2' },
+    { label: 'Handicap', v: 'handicap' }, { label: 'Asian HCP', v: 'asian handicap' },
+    { label: 'Corners', v: 'corner' }, { label: 'Cards', v: 'card' },
+    { label: 'Both Halves', v: 'both halves' }, { label: 'Half Time', v: 'half time' },
+  ];
+  const filterRow = `<div style="padding:8px 12px 6px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:4px">
+    ${FILTERS.map(f => `<button onclick="setMktFilter(${jsArg(f.v)})" style="padding:3px 10px;border:1px solid ${manualMktFilter===f.v?'var(--green)':'var(--border)'};color:${manualMktFilter===f.v?'var(--green)':'var(--text2)'};background:${manualMktFilter===f.v?'rgba(0,200,83,.1)':'transparent'};border-radius:20px;font-size:11px;cursor:pointer;white-space:nowrap">${esc(f.label)}</button>`).join('')}
+  </div>`;
+
+  // Suggestions block
+  let sugHtml = '';
+  if (suggestions.length) {
+    sugHtml = `<div style="padding:8px 16px 4px;background:rgba(0,200,83,.04);border-bottom:1px solid rgba(0,200,83,.15)">
+      <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:6px;letter-spacing:.5px">SMART SUGGESTIONS</div>
+      <div class="mkt-outcomes">${suggestions.map(s =>
+        `<div class="mkt-outcome-row"><span class="mkt-outcome-name">${esc(s.market)}: ${esc(s.outcome)}</span><span class="mkt-outcome-odds">${s.odds.toFixed(2)}</span><button class="btn-sm btn-use" onclick="useManualPick(${jsArg(eventId)},${jsArg(s.market)},${jsArg(s.outcome)},${s.odds},${jsArg(s.marketId)},${jsArg(s.outcomeId)},${jsArg(s.specifier)})">Use</button></div>`
+      ).join('')}</div>
+    </div>`;
+  }
+
+  // Filter groups by active filter
+  const filtered = manualMktFilter
+    ? groups.filter(g => g.marketName.toLowerCase().includes(manualMktFilter))
+    : groups;
+
+  // Category grouping
   const cats = { "Goals": [], "Result": [], "Half Time": [], "Corners & Cards": [], "Other": [] };
-  groups.forEach(g => {
+  filtered.forEach(g => {
     const n = g.marketName.toLowerCase();
     if (n.includes("over/under") || n.includes("goal") || n.includes("gg") || n.includes("btts") || n.includes("score")) cats["Goals"].push(g);
     else if (n.includes("1x2") || n.includes("result") || n.includes("double chance") || n.includes("draw no bet") || n.includes("handicap")) cats["Result"].push(g);
@@ -2572,16 +3000,20 @@ function renderManualMarketModal(d, eventId) {
     else cats["Other"].push(g);
   });
 
-  let html = '<div class="mkt-th"><span>Outcome</span><span>Odds</span><span></span></div>';
+  let html = filterRow + sugHtml + '<div class="mkt-th"><span>Outcome</span><span>Odds</span><span></span></div>';
+  const allOpen = manualMktFilter !== '';
   Object.entries(cats).forEach(([catName, catGroups]) => {
     if (!catGroups.length) return;
     html += `<div style="padding:6px 20px;font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.5px;background:var(--bg);border-bottom:1px solid var(--border)">${catName}</div>`;
     catGroups.forEach((g, i) => {
-      html += `<div class="mkt-group ${i < 2 ? 'open' : ''}" onclick="this.classList.toggle('open')"><div class="mkt-group-header"><span class="mkt-group-chevron">&#9654;</span><span class="mkt-group-name">${esc(g.marketName)}${g.specifier ? " ("+esc(g.specifier)+")" : ""}</span><span class="mkt-group-count">${g.outcomes.length}</span></div><div class="mkt-outcomes">${g.outcomes.map(o =>
+      const open = allOpen || i < 2;
+      html += `<div class="mkt-group${open ? ' open' : ''}" onclick="this.classList.toggle('open')"><div class="mkt-group-header"><span class="mkt-group-chevron">&#9654;</span><span class="mkt-group-name">${esc(g.marketName)}${g.specifier ? " (" + esc(g.specifier) + ")" : ""}</span><span class="mkt-group-count">${g.outcomes.length}</span></div><div class="mkt-outcomes">${g.outcomes.map(o =>
         `<div class="mkt-outcome-row"><span class="mkt-outcome-name">${esc(o.outcomeName)}</span><span class="mkt-outcome-odds">${o.odds.toFixed(2)}</span><button class="btn-sm btn-use" onclick="useManualPick(${jsArg(eventId)},${jsArg(o.marketName)},${jsArg(o.outcomeName)},${o.odds},${jsArg(o.marketId)},${jsArg(o.outcomeId)},${jsArg(o.specifier||'')})">Use</button></div>`
-      ).join("")}</div></div>`;
+      ).join('')}</div></div>`;
     });
   });
+
+  if (!filtered.length) html += '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No markets match this filter</div>';
   $("modalBody").innerHTML = html;
 }
 
@@ -2593,18 +3025,22 @@ window.useManualPick = function(eventId, market, outcome, odds, marketId, outcom
 };
 
 window.generateManualConvertCode = async function() {
-  const sels = convertOriginal.map(s => {
-    const edit = manualConvertEdits[s.eventId];
-    return edit ? {...s, ...edit} : s;
-  });
-  if (!sels.length) return;
-  const btn = $("convertManualMode").querySelector(".wiz-cta");
-  btn.disabled = true; btn.textContent = "Generating...";
+  const sels = (convertOriginal || [])
+    .filter(s => !manualRemoved.has(s.eventId))
+    .map(s => {
+      const edit = !manualLocked.has(s.eventId) && manualConvertEdits[s.eventId];
+      return edit ? { ...s, ...edit } : s;
+    });
+  if (!sels.length) return showToast('No selections to generate', 'error');
+  const btn = $("manualGenBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+  const resultEl = $("manualConvertGenResult");
+  if (resultEl) { resultEl.innerHTML = ''; resultEl.classList.remove('hidden'); }
   try {
-    const r = await fetch("/api/generate", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({selections:genPayload(sels)})});
+    const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ selections: genPayload(sels) }) });
     renderGenResult("manualConvertGenResult", await r.json(), sels);
   } catch(e) { showToast(e.message, "error"); }
-  finally { btn.disabled = false; btn.textContent = "Generate New Code"; }
+  finally { if (btn) { btn.disabled = false; btn.textContent = "Generate New Booking Code"; } }
 };
 
 // ── Permutation Generator ──
@@ -2682,3 +3118,5 @@ window.copyAllPermCodes = function() {
     }, 500);
   }
 })();
+
+// Builder tab removed — edit via Optimizer → "Edit in Convert →" → Convert Manual mode
