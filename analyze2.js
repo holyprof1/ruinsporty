@@ -239,49 +239,65 @@ function calcSafety(pick, h2h, consensus, strongConsensus, punterTrust, killerMk
 async function convertPick(pick, h2h) {
   const out = (pick.outcome || "").toLowerCase();
   const mkt = (pick.market || "").toLowerCase();
-  let target = null, reason = "";
+  let targets = null, reason = "";
 
   const overMatch = out.match(/^over (\d+\.?\d*)$/);
   if (overMatch) {
     const v = parseFloat(overMatch[1]);
-    if (v >= 4.5) { target = { mkt: "Over/Under", out: "Over 2.5" }; reason = `Over ${v} → Over 2.5`; }
-    else if (v >= 3.0) { target = { mkt: "Over/Under", out: "Over 2.5" }; reason = `Over ${v} → Over 2.5`; }
-    else if (v >= 2.5 && h2h.found && h2h.avgGoals !== null && h2h.avgGoals < 2.0) { target = { mkt: "Over/Under", out: "Over 1.5" }; reason = `Over 2.5 → Over 1.5 (avg ${h2h.avgGoals}g)`; }
+    if (v >= 4.5 || v >= 3.0) {
+      targets = [
+        { markets: ["Double Chance & Over/Under 2.5", "Double Chance"], outcomes: ["Home/Draw & Over 2.5", "Draw/Away & Over 2.5", "Home or Draw", "Draw or Away"] },
+        { markets: ["Over/Under"], outcomes: ["Over 2.5"] },
+      ];
+      reason = `Over ${v} → safer goal-line / double chance`;
+    } else if (v >= 2.5 && h2h.found && h2h.avgGoals !== null && h2h.avgGoals < 2.0) {
+      targets = [{ markets: ["Over/Under"], outcomes: ["Over 1.5"] }];
+      reason = `Over 2.5 → Over 1.5 (avg ${h2h.avgGoals}g)`;
+    }
   }
-  if (!target && mkt.includes("gg") && out === "yes" && h2h.found && h2h.bttsRate !== null && h2h.bttsRate < 40) {
-    target = { mkt: "Over/Under", out: "Over 1.5" }; reason = `BTTS Yes → Over 1.5 (btts ${h2h.bttsRate}%)`;
+  if (!targets && mkt.includes("gg") && out === "yes" && h2h.found && h2h.bttsRate !== null && h2h.bttsRate < 40) {
+    targets = [{ markets: ["Over/Under"], outcomes: ["Over 1.5"] }];
+    reason = `BTTS Yes → Over 1.5 (btts ${h2h.bttsRate}%)`;
   }
-  if (!target && mkt.includes("gg") && out === "no" && h2h.found && h2h.bttsRate !== null && h2h.bttsRate > 60) {
+  if (!targets && mkt.includes("gg") && out === "yes" && h2h.found && h2h.bttsRate !== null && h2h.bttsRate >= 40) {
+    targets = [
+      { markets: ["Double Chance & Over/Under 2.5", "Double Chance"], outcomes: ["Home/Draw & Over 2.5", "Draw/Away & Over 2.5", "Home or Draw", "Draw or Away"] },
+      { markets: ["Over/Under"], outcomes: ["Over 2.5"] },
+    ];
+    reason = `BTTS Yes → draw or over 2.5 option (btts ${h2h.bttsRate}%)`;
+  }
+  if (!targets && mkt.includes("gg") && out === "no" && h2h.found && h2h.bttsRate !== null && h2h.bttsRate > 60) {
     return { ...pick, _removed: true, _reason: `BTTS No removed (btts ${h2h.bttsRate}%)` };
   }
-  if (!target && mkt === "1x2" && out === "home" && h2h.found && h2h.homeWinRate !== null && h2h.homeWinRate < 25) {
-    target = { mkt: "Double Chance", out: "Home or Draw" }; reason = `Home → DC 1X (hw ${h2h.homeWinRate}%)`;
+  if (!targets && mkt === "1x2" && out === "home" && h2h.found && h2h.homeWinRate !== null && h2h.homeWinRate < 25) {
+    targets = [
+      { markets: ["Double Chance & Over/Under 2.5", "Double Chance"], outcomes: ["Home/Draw & Over 2.5", "Home or Draw"] },
+    ];
+    reason = `Home → DC 1X (hw ${h2h.homeWinRate}%)`;
   }
-  if (!target && mkt === "1x2" && out === "away" && h2h.found && h2h.homeWinRate !== null && h2h.homeWinRate > 75) {
-    target = { mkt: "Double Chance", out: "Draw or Away" }; reason = `Away → DC X2 (hw ${h2h.homeWinRate}%)`;
+  if (!targets && mkt === "1x2" && out === "away" && h2h.found && h2h.homeWinRate !== null && h2h.homeWinRate > 75) {
+    targets = [
+      { markets: ["Double Chance & Over/Under 2.5", "Double Chance"], outcomes: ["Draw/Away & Over 2.5", "Draw or Away"] },
+    ];
+    reason = `Away → DC X2 (hw ${h2h.homeWinRate}%)`;
   }
-  if (!target && mkt.includes("correct score")) {
-    target = { mkt: "Over/Under", out: "Over 1.5" }; reason = "Correct Score → Over 1.5";
+  if (!targets && mkt.includes("correct score")) {
+    targets = [{ markets: ["Over/Under"], outcomes: ["Over 1.5"] }];
+    reason = "Correct Score → Over 1.5";
   }
-  if (!target && mkt.includes("both halves") && mkt.includes("under") && out === "no") {
-    target = { mkt: "Over/Under", out: "Over 2.5" }; reason = "Both Halves U1.5 No → Over 2.5";
+  if (!targets && mkt.includes("both halves") && mkt.includes("under") && out === "no") {
+    targets = [{ markets: ["Over/Under"], outcomes: ["Over 2.5"] }];
+    reason = "Both Halves U1.5 No → Over 2.5";
   }
   if (mkt.includes("handicap")) {
     const hcp = parseFloat((pick.specifier || "").match(/hcp=([-\d.]+)/)?.[1] || 0);
     if (hcp <= -2.0) return { ...pick, _removed: true, _reason: `AH ${hcp} removed` };
   }
 
-  if (!target) return pick;
+  if (!targets) return pick;
 
-  try {
-    const mkts = await localGet(`/api/markets/${encodeURIComponent(pick.eventId)}`);
-    if (mkts.markets) {
-      const found = mkts.markets.find(m => m.marketName.toLowerCase().includes(target.mkt.toLowerCase()) && m.outcomeName === target.out);
-      if (found) {
-        return { ...pick, market: found.marketName, outcome: found.outcomeName, odds: found.odds, marketId: found.marketId, outcomeId: found.outcomeId, specifier: found.specifier || "", _converted: true, _reason: reason };
-      }
-    }
-  } catch {}
+  const resolved = await resolveTarget(pick, targets, reason);
+  if (resolved) return resolved;
   return pick;
 }
 
@@ -311,6 +327,58 @@ function pickRandom(arr, n) {
 
 function pickTopN(arr, n) {
   return [...arr].sort((a, b) => b.safetyScore - a.safetyScore).slice(0, Math.min(n, arr.length));
+}
+
+function getLagosHour(dateLike) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Africa/Lagos",
+      hour: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(dateLike));
+    const hourPart = parts.find(p => p.type === "hour");
+    return hourPart ? parseInt(hourPart.value, 10) : null;
+  } catch {
+    return null;
+  }
+}
+
+function isSafeKickoff(kickoff) {
+  if (!kickoff) return false;
+  const when = new Date(kickoff);
+  if (Number.isNaN(when.getTime())) return false;
+  if (when.getTime() <= Date.now() + 20 * 60 * 1000) return false;
+  const hour = getLagosHour(when);
+  return hour !== null && hour >= 14 && hour <= 23;
+}
+
+async function resolveTarget(pick, targets, reason) {
+  try {
+    const mkts = await localGet(`/api/markets/${encodeURIComponent(pick.eventId)}`);
+    if (mkts.markets) {
+      for (const target of targets) {
+        const found = mkts.markets.find(m => {
+          const marketName = (m.marketName || "").toLowerCase();
+          const outcomeName = m.outcomeName || "";
+          return target.markets.some(name => marketName.includes(name.toLowerCase())) && target.outcomes.includes(outcomeName);
+        });
+        if (found) {
+          return {
+            ...pick,
+            market: found.marketName,
+            outcome: found.outcomeName,
+            odds: found.odds,
+            marketId: found.marketId,
+            outcomeId: found.outcomeId,
+            specifier: found.specifier || "",
+            _converted: true,
+            _reason: reason,
+          };
+        }
+      }
+    }
+  } catch {}
+  return null;
 }
 
 // ── MAIN ──
@@ -415,10 +483,20 @@ async function main() {
     const conv = await convertPick(game.bestPick, game.h2h || { found: false });
     if (conv._removed) { game._removed = true; rmCount++; if (conv._reason) console.log(`  ✗ ${game.homeTeam} vs ${game.awayTeam}: ${conv._reason}`); }
     else if (conv._converted) { game.bestPick = conv; game.converted = true; convCount++; console.log(`  ↳ ${game.homeTeam} vs ${game.awayTeam}: ${conv._reason}`); }
+    if (!conv._removed && !isSafeKickoff(conv.kickoff)) {
+      game._removed = true;
+      rmCount++;
+      console.log(`  ✗ ${game.homeTeam} vs ${game.awayTeam}: kickoff outside 2pm-11pm Lagos or too close/live`);
+    }
+    if (!conv._removed && (conv.odds || 0) > 2) {
+      game._removed = true;
+      rmCount++;
+      console.log(`  ✗ ${game.homeTeam} vs ${game.awayTeam}: odds ${conv.odds} above 2.0 cap`);
+    }
     game.finalPick = conv._removed ? null : conv;
   }
 
-  const activePool = pool.filter(g => !g._removed && g.finalPick);
+  const activePool = pool.filter(g => !g._removed && g.finalPick && isSafeKickoff(g.finalPick.kickoff) && (g.finalPick.odds || 0) <= 2);
   console.log(`\n  Converted: ${convCount} | Removed: ${rmCount} | Active: ${activePool.length}`);
 
   // STEP 6

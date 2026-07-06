@@ -61,6 +61,37 @@ input:focus{border-color:#00c853}
 #login{max-width:400px;margin:80px auto;text-align:center}
 #login input{width:100%;max-width:300px;margin-bottom:12px}
 #dashboard{display:none}
+/* ── Content Studio ── */
+.cs-stab{padding:7px 18px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#64748B;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s}
+.cs-stab:hover{border-color:#2563EB;color:#F1F5F9}
+.cs-stab.active{background:#2563EB;color:#fff;border-color:#2563EB}
+.cs-content{display:none}.cs-content.active{display:block}
+.cs-rtype-btn{padding:4px 14px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#64748B;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s}
+.cs-rtype-btn:hover{border-color:#2563EB;color:#F1F5F9}
+.cs-rtype-btn.active{background:rgba(37,99,235,0.15);color:#60A5FA;border-color:rgba(37,99,235,0.4)}
+.cs-gcard{background:#060B14;border:1px solid rgba(37,99,235,0.15);border-radius:14px;overflow:hidden;transition:border-color .2s;margin-bottom:16px}
+.cs-gcard:hover{border-color:rgba(37,99,235,0.35)}
+.cs-gcard-hdr{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cs-gcard-title{font-size:12px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.5px}
+.cs-gcard-preview{background:#040810;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:200px}
+.cs-gcard-preview canvas{width:100%;height:auto;display:block}
+.cs-gcard-footer{padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.04)}
+.cs-dl-btn{padding:5px 12px;border-radius:8px;border:1px solid rgba(37,99,235,0.25);background:rgba(37,99,235,0.08);color:#60A5FA;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.cs-dl-btn:hover{background:rgba(37,99,235,0.2);border-color:rgba(37,99,235,0.5)}
+.cs-social-section{background:#060B14;border:1px solid rgba(37,99,235,0.15);border-radius:14px;overflow:hidden;margin-top:20px}
+.cs-platform-tab{padding:8px 16px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#64748B;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;margin:4px}
+.cs-platform-tab.active{background:rgba(37,99,235,0.15);color:#60A5FA;border-color:rgba(37,99,235,0.4)}
+.cs-copy-btn{padding:6px 14px;border-radius:8px;border:1px solid #1e2e1e;background:transparent;color:#64748B;font-size:11px;cursor:pointer;font-weight:600}
+.cs-copy-btn:hover{border-color:#2563EB;color:#60A5FA}
+.cs-commentary{background:#0E1826;border-radius:12px;padding:20px;border:1px solid rgba(37,99,235,0.12);margin-bottom:16px;font-size:15px;color:#CBD5E1;line-height:1.7;font-style:italic}
+.cs-progress-wrap{background:#060B14;border-radius:8px;overflow:hidden;height:6px;margin:12px 0}
+.cs-progress-inner{height:100%;width:0%;transition:width .4s ease,background .3s;border-radius:8px}
+.cs-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.cs-grid-2{grid-template-columns:1fr}}
+.cs-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.cs-nav-btn:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:900px){.cs-grid-3{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.cs-grid-3{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -91,6 +122,7 @@ input:focus{border-color:#00c853}
     <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">Codes</button>
     <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
     <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">Settings</button>
+    <button class="tab-btn" data-tab="studio" onclick="switchAdminTab('studio');loadStudio()">✦ Studio</button>
   </div>
 
   <!-- LEADERBOARD -->
@@ -205,6 +237,191 @@ input:focus{border-color:#00c853}
     </div>
   </div>
 
+  <!-- CONTENT STUDIO -->
+  <div class="tab-content" id="tab-studio">
+
+    <!-- ── Conflict Modal ── -->
+    <div id="cs-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:9000;align-items:flex-start;justify-content:center;padding-top:120px">
+      <div style="background:#0B1628;border:1px solid rgba(37,99,235,0.35);border-radius:16px;padding:28px 32px;max-width:400px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,0.7)">
+        <div style="font-size:20px;font-weight:800;color:#F1F5F9;margin-bottom:10px">Report Already Exists</div>
+        <p style="font-size:14px;color:#94A3B8;margin-bottom:20px">Yesterday's report was generated at <strong id="cs-modal-time" style="color:#F1F5F9"></strong>. What would you like to do?</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="csViewToday()" style="background:#2563EB;padding:9px 20px;font-size:13px">View Report</button>
+          <button class="btn" onclick="generateDailyReport(true)" style="background:#374151;padding:9px 20px;font-size:13px">Regenerate</button>
+          <button class="btn-sm" onclick="csHideModal()" style="padding:9px 16px">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="background:#0B1628;border-color:rgba(37,99,235,0.2)">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+        <div style="width:8px;height:8px;border-radius:50%;background:#2563EB;box-shadow:0 0 10px #2563EB;flex-shrink:0"></div>
+        <h2 style="color:#F1F5F9;margin:0">Content Studio</h2>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="cs-status" style="display:none;font-size:12px;color:#64748B"></span>
+          <button class="btn" id="cs-gen-btn" onclick="generateDailyReport(false)" style="background:linear-gradient(135deg,#2563EB,#06B6D4);padding:9px 22px;font-size:13px">✦ Generate Report</button>
+        </div>
+      </div>
+
+      <!-- Error box -->
+      <div id="cs-error-box" style="display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#FCA5A5;line-height:1.5"></div>
+
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid rgba(37,99,235,0.1);margin-bottom:20px">
+        <button class="cs-stab active" data-tab="daily"     onclick="switchStudioTab('daily')">Daily</button>
+        <button class="cs-stab"        data-tab="history"   onclick="switchStudioTab('history')">History</button>
+        <button class="cs-stab"        data-tab="templates" onclick="switchStudioTab('templates')">Templates</button>
+        <button class="cs-stab"        data-tab="slips"     onclick="switchStudioTab('slips')">⚡ Smart Slips</button>
+      </div>
+
+      <!-- ── DAILY ── -->
+      <div class="cs-content active" data-tab="daily">
+
+        <!-- Report type selector -->
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:20px">
+          <button class="cs-rtype-btn active" data-type="daily"   onclick="setReportType('daily')">Daily</button>
+          <button class="cs-rtype-btn"        data-type="weekly"  onclick="setReportType('weekly')">Weekly</button>
+          <button class="cs-rtype-btn"        data-type="monthly" onclick="setReportType('monthly')">Monthly</button>
+          <span id="cs-rtype-hint" style="font-size:11px;color:#64748B;margin-left:6px">Yesterday's completed session</span>
+        </div>
+
+        <!-- Onboarding -->
+        <div id="cs-onboarding" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:64px 20px">
+          <div style="width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#2563EB,#06B6D4);display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:20px">✦</div>
+          <div style="font-size:22px;font-weight:800;color:#F1F5F9;margin-bottom:8px">Your Daily Newsroom</div>
+          <div style="font-size:14px;color:#64748B;max-width:400px;line-height:1.6;margin-bottom:24px">Generate your first report to see rankings and an X caption — built from your real punter data.</div>
+          <button class="btn" onclick="generateDailyReport(false)" style="background:linear-gradient(135deg,#2563EB,#06B6D4);padding:12px 32px;font-size:15px">Generate First Report</button>
+        </div>
+
+        <!-- Report -->
+        <div id="cs-report" style="display:none">
+
+          <!-- Report meta -->
+          <div style="margin-bottom:20px">
+            <div id="cs-report-date" style="font-size:18px;font-weight:800;color:#e8edf4"></div>
+            <div id="cs-report-meta" style="font-size:12px;color:#6b7e96;margin-top:4px"></div>
+          </div>
+
+          <!-- Image 1: Punter Scoreboard -->
+          <div class="cs-gcard" style="margin-bottom:20px">
+            <div class="cs-gcard-hdr">
+              <span class="cs-gcard-title">Image 1 — Punter Scoreboard</span>
+              <span style="font-size:10px;color:#64748B">1080px wide</span>
+            </div>
+            <div class="cs-gcard-preview" style="height:340px">
+              <canvas id="cs-canvas-1" style="max-width:100%;max-height:100%;object-fit:contain"></canvas>
+            </div>
+            <div class="cs-gcard-footer">
+              <button class="cs-dl-btn" onclick="csDownloadCard(1)">Download PNG</button>
+            </div>
+          </div>
+
+          <!-- X Caption -->
+          <div class="cs-social-section">
+            <div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-size:14px;font-weight:700;color:#F1F5F9">𝕏 Caption</span>
+              <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+                <button id="cs-cp-btn" class="cs-copy-btn" onclick="csCP()">Copy Caption</button>
+                <button class="cs-copy-btn" onclick="csNewCaption()">New Variation</button>
+              </div>
+            </div>
+            <div style="padding:16px 18px">
+              <pre id="cs-caption-text" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:16px;margin:0;max-height:320px;overflow-y:auto"></pre>
+            </div>
+          </div>
+
+          <!-- 𝕏 First Reply -->
+          <div class="cs-social-section" style="margin-top:12px">
+            <div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-size:14px;font-weight:700;color:#F1F5F9">𝕏 First Reply</span>
+              <span style="font-size:10px;color:#64748B">Post this as the first reply to your main tweet</span>
+              <div style="margin-left:auto">
+                <button id="cs-reply-cp-btn" class="cs-copy-btn" onclick="csCPReply()">Copy Reply</button>
+              </div>
+            </div>
+            <div style="padding:16px 18px">
+              <pre id="cs-reply-text" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:16px;margin:0;max-height:320px;overflow-y:auto"></pre>
+            </div>
+          </div>
+
+        </div><!-- /cs-report -->
+      </div><!-- /daily -->
+
+      <!-- ── HISTORY ── -->
+      <div class="cs-content" data-tab="history">
+        <div style="border:1px solid rgba(37,99,235,0.15);border-radius:12px;overflow:hidden">
+          <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:700;color:#F1F5F9">Report Archive</span>
+            <button class="cs-dl-btn" onclick="csRenderHistory()">Refresh</button>
+          </div>
+          <div id="cs-history-list" style="max-height:520px;overflow-y:auto"><p style="color:#64748B;font-size:13px;padding:16px">Loading…</p></div>
+        </div>
+      </div>
+
+      <!-- ── TEMPLATES ── -->
+      <div class="cs-content" data-tab="templates">
+        <div style="border:1px solid rgba(37,99,235,0.15);border-radius:12px;overflow:hidden;max-width:460px">
+          <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.05)">
+            <span style="font-size:13px;font-weight:700;color:#F1F5F9">Branding</span>
+          </div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;gap:10px;align-items:center">
+              <label style="min-width:84px;font-size:13px;color:#94A3B8">Site Name</label>
+              <input type="text" id="tpl-site" placeholder="SlipPilot" style="flex:1" />
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <label style="min-width:84px;font-size:13px;color:#94A3B8">Logo Text</label>
+              <input type="text" id="tpl-logo" placeholder="SP" style="max-width:80px" />
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <label style="min-width:84px;font-size:13px;color:#94A3B8">Primary</label>
+              <input type="color" id="tpl-blue" value="#2563EB" style="width:44px;height:32px;border:none;background:none;cursor:pointer;padding:0" />
+              <span style="font-size:11px;color:#64748B">Blue accent</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <label style="min-width:84px;font-size:13px;color:#94A3B8">Secondary</label>
+              <input type="color" id="tpl-cyan" value="#06B6D4" style="width:44px;height:32px;border:none;background:none;cursor:pointer;padding:0" />
+              <span style="font-size:11px;color:#64748B">Cyan accent</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button class="btn" id="cs-tpl-save-btn" onclick="csSaveTemplate()" style="padding:8px 20px;font-size:13px">Save</button>
+              <button class="btn-sm" onclick="csResetTemplate()">Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SMART SLIPS ── -->
+      <div class="cs-content" data-tab="slips">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#F1F5F9">⚡ Smart Slip Builder</div>
+            <div style="font-size:11px;color:#64748B;margin-top:2px">Fetches today's punter codes · filters banned leagues · scores by consensus + historical data · generates up to 15 optimised slips</div>
+          </div>
+          <button id="ss-gen-btn" class="btn" style="margin-left:auto;min-width:160px" onclick="ssGenerate()">Generate Smart Slips</button>
+        </div>
+
+        <div id="ss-status" style="font-size:12px;color:#64748B;margin-bottom:12px;min-height:18px"></div>
+
+        <div id="ss-removed" style="display:none;margin-bottom:16px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;font-size:12px;color:#F87171"></div>
+
+        <div id="ss-output" style="display:none">
+          <div id="ss-tier-a" style="margin-bottom:28px"></div>
+          <div id="ss-tier-b" style="margin-bottom:28px"></div>
+          <div id="ss-tier-c" style="margin-bottom:28px"></div>
+        </div>
+
+        <div id="ss-empty" style="display:none;padding:40px;text-align:center;color:#64748B;font-size:13px">
+          Not enough validated data to generate optimised slips.<br>
+          <span style="font-size:11px">Run Rescan All first to settle today's codes.</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- DAILY SESSION -->
   <div class="tab-content" id="tab-session">
     <div class="card">
@@ -256,7 +473,7 @@ input:focus{border-color:#00c853}
 </div>
 
 <script>
-let adminPw='', profiles={}, generatedCodes={}, currentSort='consistency', currentGroup='all';
+var adminPw='', profiles={}, generatedCodes={}, currentSort='consistency', currentGroup='all';
 
 function switchAdminTab(id) {
   document.querySelectorAll('.tab-row .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
@@ -421,11 +638,6 @@ function renderLB(list) {
     const icon = isAI ? '<span style="font-size:10px;background:rgba(163,113,247,.15);color:#a371f7;padding:1px 6px;border-radius:4px;margin-right:4px">AI</span>' : '';
     const badgesHtml = (p.badges || []).map(b => `<span style="background:${badgeColors[b]||'#8a9e8a'}22;color:${badgeColors[b]||'#8a9e8a'};font-size:9px;padding:2px 8px;border-radius:100px;font-weight:700">${b}</span>`).join(' ');
 
-    const trust = p.trustScore || 0;
-    const ringBg = trust >= 80 ? 'rgba(0,200,83,.12)' : trust >= 60 ? 'rgba(255,179,0,.1)' : trust > 0 ? 'rgba(229,57,53,.1)' : 'rgba(138,158,138,.06)';
-    const ringC = trust >= 80 ? '#00c853' : trust >= 60 ? '#ffb300' : trust > 0 ? '#e53935' : '#8a9e8a';
-    const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
-
     const allCodes = (p.codes || []).filter(c => c && (c.games > 0 || c.status === 'active'));
     allCodes.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const codes = filterCodesByPeriod(allCodes, p.todayCode);
@@ -437,6 +649,14 @@ function renderLB(list) {
     const showWon = lbPeriod === 'all' ? (p.won || 0) : periodWon;
     const showLost = lbPeriod === 'all' ? (p.lost || 0) : periodLost;
     const showHR = lbPeriod === 'all' ? (p.hitRate || 0) : periodHR;
+
+    // Trust circle: period-aware score when filter is active
+    const trust = lbPeriod === 'all'
+      ? (p.trustScore || 0)
+      : (periodSettled > 0 ? Math.min(100, Math.round(showHR * 0.7 + Math.min(periodSettled, 30) * 1)) : 0);
+    const ringBg = trust >= 80 ? 'rgba(0,200,83,.12)' : trust >= 60 ? 'rgba(255,179,0,.1)' : trust > 0 ? 'rgba(229,57,53,.1)' : 'rgba(138,158,138,.06)';
+    const ringC = trust >= 80 ? '#00c853' : trust >= 60 ? '#ffb300' : trust > 0 ? '#e53935' : '#8a9e8a';
+    const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
     const hrC = showHR >= 70 ? '#00c853' : showHR >= 55 ? '#ffb300' : '#e53935';
 
     const codeRows = codes.slice(0, 10).map(c => {
@@ -612,10 +832,26 @@ function renderPunterCodesEditor() {
   const el = document.getElementById('punterCodesEditor');
   const names = Object.keys(punterCodes);
   if (!names.length) { el.innerHTML = '<p style="color:#8a9e8a">No punters configured.</p>'; return; }
-  el.innerHTML = names.map(name => {
+  const submitted = names.filter(n => (punterCodes[n] || '').trim());
+  const pending = names.filter(n => !(punterCodes[n] || '').trim());
+  function makeRow(name) {
     const code = punterCodes[name] || '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:100px;font-size:12px;font-weight:600">${esc(name)}</span><input type="text" value="${esc(code)}" id="pc_${name.replace(/\s/g,'_')}" style="flex:1;max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px;font-size:12px" placeholder="CODE" /><button class="btn-sm" onclick="this.previousElementSibling.value='';this.previousElementSibling.focus()" style="padding:2px 8px;font-size:9px;color:#e53935;border-color:#e53935">X</button></div>`;
-  }).join('');
+    const hascode = code.trim().length > 0;
+    const badge = hascode
+      ? `<span style="font-size:9px;background:#1b5e20;color:#69f0ae;padding:1px 5px;border-radius:3px;margin-left:4px">✅ IN</span>`
+      : `<span style="font-size:9px;background:#37170a;color:#ff7043;padding:1px 5px;border-radius:3px;margin-left:4px">⏳</span>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:100px;font-size:12px;font-weight:600">${esc(name)}${badge}</span><input type="text" value="${esc(code)}" id="pc_${name.replace(/\s/g,'_')}" style="flex:1;max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px;font-size:12px" placeholder="CODE" /><button class="btn-sm" onclick="this.previousElementSibling.value='';this.previousElementSibling.focus()" style="padding:2px 8px;font-size:9px;color:#e53935;border-color:#e53935">X</button></div>`;
+  }
+  let html = '';
+  if (submitted.length) {
+    html += `<div style="font-size:10px;color:#69f0ae;font-weight:700;padding:4px 0 2px;letter-spacing:.5px">SUBMITTED (${submitted.length})</div>`;
+    html += submitted.map(makeRow).join('');
+  }
+  if (pending.length) {
+    html += `<div style="font-size:10px;color:#ff7043;font-weight:700;padding:8px 0 2px;letter-spacing:.5px">PENDING (${pending.length})</div>`;
+    html += pending.map(makeRow).join('');
+  }
+  el.innerHTML = html;
 }
 
 async function savePunterCodes() {
@@ -940,6 +1176,160 @@ document.addEventListener('keydown', function(e) {
     }
   }
 });
+</script>
+<script src="/studio.js"></script>
+<script>
+// ── Smart Slip Builder ────────────────────────────────────────────────────────
+
+function ssStatus(msg, color) {
+  const el = document.getElementById('ss-status');
+  if (el) { el.textContent = msg; el.style.color = color || '#64748B'; }
+}
+
+function ssFmtOdds(n) {
+  if (!n || n <= 1 || !isFinite(n)) return null;
+  if (n >= 1e15) return '>999T×';
+  const sig3 = v => { const s = parseFloat(v.toPrecision(3)); return isFinite(s) ? String(s) : v.toFixed(0); };
+  if (n < 1000)  return n.toFixed(2) + '×';
+  if (n < 1e6)   return sig3(n / 1e3)  + 'K×';
+  if (n < 1e9)   return sig3(n / 1e6)  + 'M×';
+  if (n < 1e12)  return sig3(n / 1e9)  + 'B×';
+  return sig3(n / 1e12) + 'T×';
+}
+
+async function ssGenerate() {
+  const btn = document.getElementById('ss-gen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  document.getElementById('ss-output').style.display = 'none';
+  document.getElementById('ss-empty').style.display  = 'none';
+  document.getElementById('ss-removed').style.display = 'none';
+  ssStatus('Fetching today\'s codes and scoring selections…', '#60A5FA');
+
+  try {
+    const resp = await fetch('/api/smart-slips', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': window.adminPw || '' },
+    });
+    const data = await resp.json();
+
+    if (!data.success || !data.slips?.length) {
+      document.getElementById('ss-empty').style.display = 'block';
+      ssStatus(data.error || 'No slips generated.', '#F87171');
+      return;
+    }
+
+    ssStatus(`${data.slips.length} slips · ${data.uniqueSelections} unique selections · ${data.removedCount} removed`, '#34D399');
+
+    // Removed list
+    if (data.removed?.length) {
+      const el = document.getElementById('ss-removed');
+      el.style.display = 'block';
+      el.innerHTML = `<strong>Removed (${data.removed.length}):</strong> ` +
+        data.removed.map(r => `${r.match} — ${r.reason}`).join(' &nbsp;·&nbsp; ');
+    }
+
+    ssRenderSlips(data.slips);
+    document.getElementById('ss-output').style.display = 'block';
+  } catch (e) {
+    ssStatus('Error: ' + e.message, '#F87171');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate Smart Slips'; }
+  }
+}
+
+function ssRenderSlips(slips) {
+  const tiers = { A: [], B: [], C: [] };
+  slips.forEach(s => { if (tiers[s.tier]) tiers[s.tier].push(s); });
+
+  const tierInfo = {
+    A: { label: 'Tier A — Conservative',   desc: '6–8 selections · lower risk · strong consensus picks',      color: '#34D399' },
+    B: { label: 'Tier B — Moderate',        desc: '9–11 selections · balanced risk/reward',                    color: '#60A5FA' },
+    C: { label: 'Tier C — Aggressive',      desc: '12–14 selections · higher odds · maximum selection count',  color: '#F59E0B' },
+  };
+
+  for (const [tier, slipList] of Object.entries(tiers)) {
+    const container = document.getElementById(`ss-tier-${tier.toLowerCase()}`);
+    if (!container || !slipList.length) { if (container) container.style.display = 'none'; continue; }
+    const info = tierInfo[tier];
+    container.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:${info.color};margin-bottom:4px">${info.label}</div>
+      <div style="font-size:11px;color:#64748B;margin-bottom:14px">${info.desc}</div>
+      <div style="display:flex;flex-direction:column;gap:12px">${slipList.map((slip, i) => ssSlipCard(slip, i, info.color)).join('')}</div>
+    `;
+  }
+}
+
+function ssSlipCard(slip, idx, accent) {
+  const oddsStr = ssFmtOdds(slip.totalOdds);
+  const selRows = slip.selections.map(s => {
+    const oddsDisplay = s.originalOdds && s.originalOdds > 1 ? `<span style="color:#94A3B8;font-size:11px">${s.originalOdds}×</span>` : '';
+    const warnings = s.warnings?.length ? `<div style="color:#F87171;font-size:10px;margin-top:2px">${s.warnings.join(' · ')}</div>` : '';
+    const reasons  = s.reasons?.length  ? `<div style="color:#34D399;font-size:10px;margin-top:2px">${s.reasons.join(' · ')}</div>`  : '';
+    const consensus = s.punters?.length > 1
+      ? `<span style="background:rgba(96,165,250,0.15);color:#60A5FA;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:6px">${s.punters.length} punters</span>`
+      : '';
+    return `
+      <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600;color:#E2E8F0">${s.homeTeam} vs ${s.awayTeam}</span>
+          ${consensus}
+          <span style="font-size:10px;color:#64748B;margin-left:auto">${s.league || ''}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap">
+          <span style="font-size:11px;color:#CBD5E1">${s.market}${s.outcome ? ': ' + s.outcome : ''}</span>
+          ${oddsDisplay}
+          <span style="font-size:10px;background:rgba(255,255,255,0.05);border-radius:4px;padding:1px 5px;color:#94A3B8">Score ${s.score}</span>
+        </div>
+        ${warnings}${reasons}
+      </div>`;
+  }).join('');
+
+  const genBtnId = `ss-code-${slip.tier}-${idx}`;
+  return `
+    <div style="background:#0d1117;border:1px solid #21262d;border-radius:10px;padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:700;color:${accent}">Slip ${slip.tier}${slip.variant}</span>
+        <span style="font-size:11px;color:#64748B">${slip.selections.length} selections</span>
+        ${oddsStr ? `<span style="font-size:12px;font-weight:700;color:#E3B341;margin-left:auto">~${oddsStr}</span>` : ''}
+        <span style="font-size:10px;background:rgba(255,255,255,0.06);border-radius:4px;padding:2px 8px;color:#94A3B8">avg score ${slip.avgScore}</span>
+        <button class="btn-sm" id="${genBtnId}" onclick="ssGetCode(this, ${JSON.stringify(slip.selections).replace(/"/g,'&quot;')})"
+          style="font-size:11px;padding:4px 12px">Get Code</button>
+      </div>
+      ${selRows}
+    </div>`;
+}
+
+async function ssGetCode(btn, selections) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generating…';
+  try {
+    const payload = selections.map(s => ({
+      eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
+      productId: s.productId || 3, sportId: s.sportId, specifier: s.specifier || '',
+      parentBetBuilderMarketId: '',
+    }));
+    const resp = await fetch('/api/generate', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': window.adminPw || '' },
+      body: JSON.stringify({ selections: payload }),
+    });
+    const data = await resp.json();
+    if (data.success && data.shareCode) {
+      btn.textContent = data.shareCode;
+      btn.style.background = '#16a34a';
+      btn.style.color = '#fff';
+      btn.onclick = () => { navigator.clipboard.writeText(data.shareCode); btn.textContent = '✓ Copied!'; setTimeout(() => { btn.textContent = data.shareCode; }, 1400); };
+    } else {
+      btn.textContent = 'Failed';
+      btn.style.background = '#dc2626';
+      setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.disabled = false; }, 2500);
+    }
+  } catch (e) {
+    btn.textContent = 'Error'; btn.disabled = false;
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
+  }
+}
 </script>
 </body>
 </html>
