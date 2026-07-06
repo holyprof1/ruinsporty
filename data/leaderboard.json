@@ -61,7 +61,7 @@
     "rank": 4,
     "daysActive": 13,
     "totalGames": 504,
-    "lastActive": "2026-06-26",
+    "lastActive": "2026-07-06",
     "consensusHits": 30,
     "consensusRate": 97,
     "conversionRate": 0,
@@ -74,6 +74,17 @@
     "handle": "@39billion",
     "tier": "primary",
     "codes": [
+      {
+        "code": "TQ3EKB",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      },
       {
         "code": "PNBA14",
         "date": "2026-06-24",
@@ -408,7 +419,7 @@
     "rank": 2,
     "daysActive": 9,
     "totalGames": 345,
-    "lastActive": "2026-06-26",
+    "lastActive": "2026-07-06",
     "consensusHits": 34,
     "consensusRate": 97,
     "conversionRate": 0,
@@ -421,6 +432,17 @@
     "handle": "@9zerobillion",
     "tier": "primary",
     "codes": [
+      {
+        "code": "YRF4LH",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      },
       {
         "code": "REX2G1",
         "date": "2026-06-24",
@@ -635,7 +657,7 @@
     "consensusHits": 0,
     "conversionRate": 0,
     "riskProfile": "low",
-    "lastActive": "2026-06-22",
+    "lastActive": "2026-07-06",
     "consensusRate": 0,
     "avgOdds": 1.32,
     "todaySelections": 0,
@@ -646,6 +668,17 @@
     "handle": "@Sirtee",
     "tier": "secondary",
     "codes": [
+      {
+        "code": "H1UH1E",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      },
       {
         "code": "UX0A2B",
         "date": "2026-06-22",
@@ -1309,14 +1342,27 @@
     "rank": 3,
     "daysActive": 1,
     "totalGames": 36,
-    "lastActive": "2026-06-22",
+    "lastActive": "2026-07-06",
     "consensusHits": 35,
     "consensusRate": 97,
     "conversionRate": 14,
     "riskProfile": "low",
     "todaySelections": 36,
     "lastCode": "",
-    "lastDate": ""
+    "lastDate": "",
+    "codes": [
+      {
+        "code": "WXMPMP",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      }
+    ]
   },
   {
     "punter": "King Lateef",
@@ -1342,5 +1388,120 @@
     "hitRate": 0,
     "lastCode": "",
     "lastDate": ""
+  },
+  {
+    "punter": "Super Mario",
+    "trustScore": 75,
+    "won": 0,
+    "lost": 0,
+    "hitRate": 0,
+    "consistency": 80,
+    "codes": [
+      {
+        "code": "YDTU04",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      }
+    ],
+    "tier": "secondary",
+    "lastActive": "2026-07-06"
+  },
+  {
+    "punter": "CongratulationsOdd",
+    "trustScore": 75,
+    "won": 0,
+    "lost": 0,
+    "hitRate": 0,
+    "consistency": 80,
+    "codes": [
+      {
+        "code": "8N55NT",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      }
+    ],
+    "tier": "secondary",
+    "lastActive": "2026-07-06"
+  },
+  {
+    "punter": "Lordship",
+    "trustScore": 75,
+    "won": 0,
+    "lost": 0,
+    "hitRate": 0,
+    "consistency": 80,
+    "codes": [
+      {
+        "code": "ZHRSTC",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      }
+    ],
+    "tier": "secondary",
+    "lastActive": "2026-07-06"
+  },
+  {
+    "punter": "Boochi Tips",
+    "trustScore": 75,
+    "won": 0,
+    "lost": 0,
+    "hitRate": 0,
+    "consistency": 80,
+    "codes": [
+      {
+        "code": "GCKX8X",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      }
+    ],
+    "tier": "secondary",
+    "lastActive": "2026-07-06"
+  },
+  {
+    "punter": "Just Believe",
+    "trustScore": 75,
+    "won": 0,
+    "lost": 0,
+    "hitRate": 0,
+    "consistency": 80,
+    "codes": [
+      {
+        "code": "W1N631",
+        "date": "2026-07-06",
+        "games": 0,
+        "won": 0,
+        "lost": 0,
+        "void": 0,
+        "pending": 0,
+        "hitRate": 0,
+        "status": "pending"
+      }
+    ],
+    "tier": "secondary",
+    "lastActive": "2026-07-06"
   }
 ]

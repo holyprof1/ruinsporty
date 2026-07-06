@@ -1656,8 +1656,6 @@ function loadLeaderboard() {
     if (n.includes("SlipPilot") || n.includes("Generated") || n.startsWith("AI (") || n.includes("Independent")) return false;
     return true;
   });
-  // Persist merged data so scan-code can find new codes
-  try { fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(final, null, 2)); } catch {}
   return final;
 }
 function loadCodeHistory() { try { return JSON.parse(fs.readFileSync(CODE_HISTORY_FILE, "utf-8")); } catch { return []; } }
