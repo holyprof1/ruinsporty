@@ -78,6 +78,21 @@ input:focus{border-color:#00c853}
 .cs-gcard-footer{padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,0.04)}
 .cs-dl-btn{padding:5px 12px;border-radius:8px;border:1px solid rgba(37,99,235,0.25);background:rgba(37,99,235,0.08);color:#60A5FA;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
 .cs-dl-btn:hover{background:rgba(37,99,235,0.2);border-color:rgba(37,99,235,0.5)}
+/* ── X Assistant ── */
+.xa-content{display:none}.xa-content.active{display:block}
+.xa-field{background:#0a0f0a;border:1px solid rgba(124,58,237,0.25);border-radius:8px;color:#fff;font-size:13px;padding:12px;font-family:inherit}
+.xa-field:focus{outline:none;border-color:#7c3aed}
+.xa-row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
+.xa-row .xa-k{color:#8a9e8a;flex-shrink:0}
+.xa-row .xa-v{color:#fff;text-align:right;word-break:break-word}
+.xa-reply-card{background:#0a0f0a;border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:14px;margin-bottom:10px}
+.xa-reply-lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#a78bfa;margin-bottom:6px}
+.xa-reply-text{font-size:13px;color:#f0f0f0;line-height:1.5;white-space:pre-wrap;margin-bottom:8px}
+.xa-copy-btn{padding:4px 12px;font-size:11px;border-radius:100px;border:1px solid rgba(124,58,237,0.35);background:rgba(124,58,237,0.1);color:#c4b5fd;cursor:pointer}
+.xa-copy-btn:hover{background:rgba(124,58,237,0.25)}
+.xa-warn{background:rgba(255,179,0,.08);border:1px solid rgba(255,179,0,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:#ffb300;margin-bottom:8px}
+.xa-hist-item{padding:10px 14px;border:1px solid #1e2e1e;border-radius:8px;margin-bottom:8px;cursor:pointer;font-size:12px}
+.xa-hist-item:hover{border-color:#7c3aed}
 .cs-social-section{background:#060B14;border:1px solid rgba(37,99,235,0.15);border-radius:14px;overflow:hidden;margin-top:20px}
 .cs-platform-tab{padding:8px 16px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#64748B;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;margin:4px}
 .cs-platform-tab.active{background:rgba(37,99,235,0.15);color:#60A5FA;border-color:rgba(37,99,235,0.4)}
@@ -123,6 +138,7 @@ input:focus{border-color:#00c853}
     <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
     <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">Settings</button>
     <button class="tab-btn" data-tab="studio" onclick="switchAdminTab('studio');loadStudio()">✦ Studio</button>
+    <button class="tab-btn" data-tab="xassistant" onclick="switchAdminTab('xassistant');loadXaHistory()">🔮 X Assistant</button>
   </div>
 
   <!-- LEADERBOARD -->
@@ -261,6 +277,9 @@ input:focus{border-color:#00c853}
         <h2 style="color:#F1F5F9;margin:0">Content Studio</h2>
         <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="cs-status" style="display:none;font-size:12px;color:#64748B"></span>
+          <input type="date" id="cs-date-picker"
+            style="background:#0d1117;border:1px solid #21262d;border-radius:8px;color:#e6edf3;font-size:13px;padding:7px 10px;cursor:pointer"
+            title="Select date to generate report for">
           <button class="btn" id="cs-gen-btn" onclick="generateDailyReport(false)" style="background:linear-gradient(135deg,#2563EB,#06B6D4);padding:9px 22px;font-size:13px">✦ Generate Report</button>
         </div>
       </div>
@@ -284,7 +303,7 @@ input:focus{border-color:#00c853}
           <button class="cs-rtype-btn active" data-type="daily"   onclick="setReportType('daily')">Daily</button>
           <button class="cs-rtype-btn"        data-type="weekly"  onclick="setReportType('weekly')">Weekly</button>
           <button class="cs-rtype-btn"        data-type="monthly" onclick="setReportType('monthly')">Monthly</button>
-          <span id="cs-rtype-hint" style="font-size:11px;color:#64748B;margin-left:6px">Yesterday's completed session</span>
+          <span id="cs-rtype-hint" style="font-size:11px;color:#64748B;margin-left:6px">Pick any date — defaults to today</span>
         </div>
 
         <!-- Onboarding -->
@@ -468,6 +487,40 @@ input:focus{border-color:#00c853}
     <div class="card">
       <h2>Support Tickets &amp; Messages</h2>
       <div id="ticketsList"><p style="color:#8a9e8a">Loading tickets...</p></div>
+    </div>
+  </div>
+
+  <!-- X ASSISTANT -->
+  <div class="tab-content" id="tab-xassistant">
+    <div class="card" style="background:#0f0a1a;border-color:rgba(124,58,237,0.25)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="width:8px;height:8px;border-radius:50%;background:#7c3aed;box-shadow:0 0 10px #7c3aed;flex-shrink:0"></div>
+        <h2 style="margin:0">SlipPilot X Assistant</h2>
+      </div>
+      <p class="sub" style="margin-bottom:20px">Paste a tweet URL, tweet text, or a screenshot. Runs Scanner / Optimizer / Convert on your real data, drafts a reply — no paid X API needed. You copy &amp; post manually.</p>
+
+      <div style="display:flex;gap:6px;margin-bottom:18px">
+        <button class="cs-stab active" data-xtab="new" onclick="xaSwitchTab('new')">New</button>
+        <button class="cs-stab" data-xtab="history" onclick="xaSwitchTab('history')">History</button>
+      </div>
+
+      <!-- NEW -->
+      <div class="xa-content active" data-xtab="new">
+        <label style="font-size:11px;color:#8a9e8a;text-transform:uppercase;font-weight:700">Tweet URL, tweet text, or a direct command</label><br>
+        <textarea id="xa-input" class="xa-field" rows="4" style="width:100%;margin:8px 0" placeholder="e.g. https://x.com/someone/status/123...  or  @SlipPilot remove Brazil and reduce odds to around 700  or  Is KKPS84 really 11/12?"></textarea>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+          <button class="btn" style="margin-left:auto;background:linear-gradient(135deg,#1d9bf0,#7c3aed)" onclick="xaAnalyze()" id="xa-analyze-btn">Analyze</button>
+        </div>
+
+        <div id="xa-error-box" class="xa-warn" style="display:none"></div>
+        <div id="xa-result" style="display:none"></div>
+      </div>
+
+      <!-- HISTORY -->
+      <div class="xa-content" data-xtab="history">
+        <div id="xa-history-list"><p style="color:#8a9e8a;font-size:12px">Loading...</p></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1178,6 +1231,7 @@ document.addEventListener('keydown', function(e) {
 });
 </script>
 <script src="/studio.js"></script>
+<script src="/x-assistant.js"></script>
 <script>
 // ── Smart Slip Builder ────────────────────────────────────────────────────────
 

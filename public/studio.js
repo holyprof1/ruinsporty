@@ -137,6 +137,12 @@ function _localDateStr(offsetDays) {
   return `${y}-${m}-${day}`;
 }
 function getYesterday() { return _localDateStr(-1); }
+function getToday()     { return _localDateStr(0); }
+// Returns the date chosen in the picker, falling back to yesterday
+function getTargetDate() {
+  const picker = document.getElementById('cs-date-picker');
+  return (picker && picker.value) ? picker.value : getYesterday();
+}
 function fmtLong(s) {
   return new Date(s + 'T12:00:00').toLocaleDateString('en-GB',
     { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -825,7 +831,7 @@ async function _buildReportPayload(type) {
   let data, dateKey, rangeLabel;
 
   if (type === 'daily') {
-    const targetDate = getYesterday();
+    const targetDate = getTargetDate();
     data       = processLeaderboard(raw, targetDate);
     dateKey    = targetDate;
     rangeLabel = fmtLong(targetDate);
@@ -961,7 +967,7 @@ function csDisplayReport(report) {
 async function generateDailyReport(force) {
   const type = _reportType || 'daily';
   let key;
-  if (type === 'daily')       key = getYesterday();
+  if (type === 'daily')       key = getTargetDate();
   else if (type === 'weekly') key = 'week-' + getWeekRange().end;
   else                        key = getMonthRange().end.slice(0, 7);
 
@@ -1037,7 +1043,7 @@ function csDownloadCard(n) {
   if (!canvas || canvas.width < 100) { alert('Card ' + n + ' is not rendered yet.'); return; }
   const suffix = _mode === 'weekly'  ? 'week-' + getWeekRange().end
                : _mode === 'monthly' ? getMonthRange().end.slice(0, 7)
-               : getYesterday();
+               : getTargetDate();
   canvas.toBlob(blob => {
     const a   = document.createElement('a');
     a.href    = URL.createObjectURL(blob);
@@ -1060,7 +1066,7 @@ function csHideModal() {
 async function csViewToday() {
   csHideModal();
   const type = _reportType || 'daily';
-  const key  = type === 'daily'   ? getYesterday()
+  const key  = type === 'daily'   ? getTargetDate()
              : type === 'weekly'  ? 'week-' + getWeekRange().end
              : getMonthRange().end.slice(0, 7);
   try { csDisplayReport(await safeFetch('/api/studio/report/' + key)); }
@@ -1202,13 +1208,15 @@ function switchStudioTab(tab) {
 async function loadStudio() {
   csHideError();
   csStatus('Loading…', P.blue);
+  // Default date picker to today so reports load for today, not yesterday
+  const picker = document.getElementById('cs-date-picker');
+  if (picker && !picker.value) picker.value = getToday();
   await _loadLogo();
   try {
     const reports = await safeFetch('/api/studio/reports');
     _reportDates  = reports.map(r => r.date);
 
-    const yesterday = getYesterday();
-    const target    = reports.find(r => r.date === yesterday) || reports[0];
+    const target    = reports.find(r => r.date === getTargetDate()) || reports[0];
 
     if (!target) {
       csShowOnboarding();
