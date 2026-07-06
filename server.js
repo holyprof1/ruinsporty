@@ -46,10 +46,16 @@ const DATA_DIR = path.join(__dirname, "data");
 const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
 const DEBUG_DIR = path.join(__dirname, "debug", "markets");
 const H2H_DEBUG_DIR = path.join(__dirname, "debug", "h2h");
+const REPORTS_DIR = path.join(DATA_DIR, "reports");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 fs.mkdirSync(DEBUG_DIR, { recursive: true });
 fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true });
+fs.mkdirSync(REPORTS_DIR, { recursive: true });
+
+function localToday() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+}
 
 // Visitor tracking
 const VISITORS_FILE = path.join(DATA_DIR, "visitors.json");
@@ -326,14 +332,24 @@ app.get("/api/booking/:code", checkBookingRate, async (req, res) => {
     const outcomes = json.data.outcomes || [];
     const ticketSels = json.data.ticket?.selections || [];
     const selections = mapOutcomes(outcomes, ticketSels);
-    const totalOdds = selections.reduce((acc, s) => acc * s.odds, 1);
+
+    // Persist original pre-match odds on first sight; look up for all subsequent scans
+    const bank = loadOddsBank();
+    storeOriginalOdds(bank, selections, new Date().toISOString());
+    saveOddsForCode(code, selections); // in-memory fallback for same-session rescans
+
+    const enriched = selections.map(s => ({
+      ...s,
+      originalOdds: getBankOdds(bank, s), // null when not in bank → frontend hides badge
+    }));
+
+    const totalOdds = enriched.reduce((acc, s) => acc * (s.originalOdds || s.odds || 1), 1);
 
     incrementStat("slipsLoaded");
-    saveOddsForCode(code, selections);
 
     const result = {
       shareCode: json.data.shareCode || code,
-      selections,
+      selections: enriched,
       totalOdds: Math.round(totalOdds * 100) / 100,
     };
 
@@ -1096,6 +1112,8 @@ app.get("/admin/logout", (req, res) => { req.session.destroy(); res.redirect("/"
 function requireAdmin(req, res, next) {
   if (req.session?.admin) return next();
   if (req.headers["x-admin-password"] === process.env.ADMIN_PASSWORD) return next();
+  // API routes must always return JSON — never redirect
+  if (req.path.startsWith("/api/")) return res.status(403).json({ error: "Unauthorized" });
   if (req.accepts("html")) return res.redirect("/admin");
   return res.status(403).json({ error: "Unauthorized" });
 }
@@ -1800,6 +1818,420 @@ app.post("/api/admin/scan-code", requireAdmin, async (req, res) => {
 
 // ── Auto-Rescan All Punter Codes ──
 
+// ── Intelligence Engine ────────────────────────────────────────────────────────
+
+const ODDS_BANK_FILE    = path.join(DATA_DIR, "odds-bank.json");
+const LEAGUE_INTEL_FILE = path.join(DATA_DIR, "league-intelligence.json");
+const MARKET_INTEL_FILE = path.join(DATA_DIR, "market-intelligence.json");
+const TEAM_INTEL_FILE   = path.join(DATA_DIR, "team-intelligence.json");
+const SEL_HISTORY_FILE  = path.join(DATA_DIR, "selection-history.json");
+
+// ── In-memory intel cache (invalidated after every rescan) ────────────────────
+let _intel = { league: null, market: null, team: null, selHistory: null };
+function clearIntelCache() { _intel = { league: null, market: null, team: null, selHistory: null }; }
+
+const BANNED_LEAGUE_KEYWORDS = [
+  "kolmonen","4. deild","3. deild","besta deild","club friendlies",
+  "youth","women","virtual","usl league two","serie b ecuador","carioca",
+  "mineiro","azadegan","russian 2. liga","division 2","division 3",
+  "division 4","division 5","brasileiro serie b","esiliiga b",
+];
+function isBannedLeague(l) {
+  const s = (l || "").toLowerCase();
+  return BANNED_LEAGUE_KEYWORDS.some(b => s.includes(b));
+}
+
+function oddsKey(s) {
+  return `${s.league}|${s.homeTeam}|${s.awayTeam}|${s.market}|${s.outcome}`;
+}
+
+function loadOddsBank() {
+  try { return JSON.parse(fs.readFileSync(ODDS_BANK_FILE, "utf8")); } catch { return {}; }
+}
+
+function storeOriginalOdds(bank, selections, timestamp) {
+  let changed = false;
+  for (const s of selections) {
+    if (!s.odds || s.odds <= 1) continue;
+    const key = oddsKey(s);
+    if (!bank[key]) {
+      bank[key] = {
+        league: s.league, homeTeam: s.homeTeam, awayTeam: s.awayTeam,
+        market: s.market, outcome: s.outcome, originalOdds: s.odds,
+        kickoff: s.kickoff, firstSeen: timestamp,
+      };
+      changed = true;
+    }
+  }
+  if (changed) {
+    try { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(bank, null, 2)); } catch {}
+  }
+}
+
+function getBankOdds(bank, s) {
+  return bank[oddsKey(s)]?.originalOdds || null;
+}
+
+function formatTotalOdds(n) {
+  if (!n || n <= 1 || !isFinite(n)) return null;
+  if (n >= 1e15) return ">999T";
+  const sig3 = v => { const s = parseFloat(v.toPrecision(3)); return isFinite(s) ? String(s) : v.toFixed(0); };
+  if (n < 1000)  return parseFloat(n.toPrecision(3)).toString();
+  if (n < 1e6)   return sig3(n / 1e3)  + "K";
+  if (n < 1e9)   return sig3(n / 1e6)  + "M";
+  if (n < 1e12)  return sig3(n / 1e9)  + "B";
+  return sig3(n / 1e12) + "T";
+}
+
+function loadLeagueIntelligence() {
+  if (_intel.league) return _intel.league;
+  try { _intel.league = JSON.parse(fs.readFileSync(LEAGUE_INTEL_FILE, "utf8")); } catch { _intel.league = {}; }
+  return _intel.league;
+}
+
+function updateLeagueIntelligence(resultsByDate) {
+  const intel = loadLeagueIntelligence();
+  for (const results of Object.values(resultsByDate)) {
+    for (const r of results) {
+      if (r.verdict === "PENDING" || r.verdict === "VOID" || !r.league) continue;
+      if (!intel[r.league]) intel[r.league] = {
+        league: r.league, totalSelections: 0, won: 0, lost: 0,
+        markets: {}, banned: isBannedLeague(r.league), lastUpdated: "",
+      };
+      const li = intel[r.league];
+      li.totalSelections++;
+      if (r.verdict === "WON") li.won++; else li.lost++;
+      li.hitRate = li.won + li.lost > 0 ? Math.round(li.won / (li.won + li.lost) * 100) : 0;
+      const mk = r.market || "Unknown";
+      if (!li.markets[mk]) li.markets[mk] = { won: 0, lost: 0, hitRate: 0 };
+      if (r.verdict === "WON") li.markets[mk].won++; else li.markets[mk].lost++;
+      const mt = li.markets[mk].won + li.markets[mk].lost;
+      li.markets[mk].hitRate = mt > 0 ? Math.round(li.markets[mk].won / mt * 100) : 0;
+      li.lastUpdated = new Date().toISOString().slice(0, 10);
+    }
+  }
+  try { fs.writeFileSync(LEAGUE_INTEL_FILE, JSON.stringify(intel, null, 2)); } catch {}
+  return intel;
+}
+
+function loadMarketIntelligence() {
+  if (_intel.market) return _intel.market;
+  try { _intel.market = JSON.parse(fs.readFileSync(MARKET_INTEL_FILE, "utf8")); } catch { _intel.market = {}; }
+  return _intel.market;
+}
+
+function loadTeamIntelligence() {
+  if (_intel.team) return _intel.team;
+  try { _intel.team = JSON.parse(fs.readFileSync(TEAM_INTEL_FILE, "utf8")); } catch { _intel.team = {}; }
+  return _intel.team;
+}
+
+function loadSelectionHistory() {
+  if (_intel.selHistory) return _intel.selHistory;
+  try { _intel.selHistory = JSON.parse(fs.readFileSync(SEL_HISTORY_FILE, "utf8")); } catch { _intel.selHistory = {}; }
+  return _intel.selHistory;
+}
+
+function updateTeamIntelligence(resultsByDate) {
+  const intel = loadTeamIntelligence();
+  for (const results of Object.values(resultsByDate)) {
+    for (const r of results) {
+      if (r.verdict === "PENDING" || r.verdict === "VOID") continue;
+      const won = r.verdict === "WON";
+      const out = (r.outcome || "").toLowerCase();
+      const mkt = (r.market  || "").toLowerCase();
+      const isHomePick = out === "home" || out === "1" || out === "home win" || mkt === "1x2" && out === "home";
+      const isAwayPick = out === "away" || out === "2" || out === "away win" || mkt === "1x2" && out === "away";
+      for (const [team, side] of [[r.homeTeam, isHomePick ? "home" : null], [r.awayTeam, isAwayPick ? "away" : null]]) {
+        if (!team || !side) continue;
+        if (!intel[team]) intel[team] = { home: { won: 0, lost: 0 }, away: { won: 0, lost: 0 } };
+        if (won) intel[team][side].won++; else intel[team][side].lost++;
+      }
+    }
+  }
+  for (const t of Object.values(intel)) {
+    for (const side of ["home", "away"]) {
+      const total = t[side].won + t[side].lost;
+      t[side].hitRate = total > 0 ? Math.round(t[side].won / total * 100) : null;
+    }
+  }
+  try { fs.writeFileSync(TEAM_INTEL_FILE, JSON.stringify(intel, null, 2)); } catch {}
+  _intel.team = intel;
+  return intel;
+}
+
+function updateSelectionHistory(resultsByDate) {
+  const history = loadSelectionHistory();
+  for (const results of Object.values(resultsByDate)) {
+    for (const r of results) {
+      if (r.verdict === "PENDING" || r.verdict === "VOID") continue;
+      const key = oddsKey(r);
+      if (!history[key]) history[key] = { appearances: 0, won: 0, lost: 0, hitRate: 0, totalWinOdds: 0, totalLoseOdds: 0, avgWinOdds: 0, avgLoseOdds: 0, lastSeen: "" };
+      const h = history[key];
+      h.appearances++;
+      const odds = r.originalOdds || r.odds || 0;
+      if (r.verdict === "WON") { h.won++; h.totalWinOdds += odds; }
+      else                      { h.lost++; h.totalLoseOdds += odds; }
+      const total = h.won + h.lost;
+      h.hitRate      = total > 0 ? Math.round(h.won / total * 100) : 0;
+      h.avgWinOdds   = h.won  > 0 ? Math.round(h.totalWinOdds  / h.won  * 100) / 100 : 0;
+      h.avgLoseOdds  = h.lost > 0 ? Math.round(h.totalLoseOdds / h.lost * 100) / 100 : 0;
+      h.lastSeen     = new Date().toISOString().slice(0, 10);
+    }
+  }
+  try { fs.writeFileSync(SEL_HISTORY_FILE, JSON.stringify(history, null, 2)); } catch {}
+  _intel.selHistory = history;
+  return history;
+}
+
+// Compute punter recent form from their last N days of codes
+function getRecentForm(lbEntry, days = 7) {
+  if (!lbEntry?.codes?.length) return null;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  const recent = (lbEntry.codes || []).filter(c => c.date && new Date(c.date) >= cutoff && (c.won || 0) + (c.lost || 0) > 0);
+  if (!recent.length) return null;
+  const w = recent.reduce((a, c) => a + (c.won || 0), 0);
+  const l = recent.reduce((a, c) => a + (c.lost || 0), 0);
+  return w + l > 0 ? Math.round(w / (w + l) * 100) : null;
+}
+
+function updateMarketIntelligence(resultsByDate) {
+  const intel = loadMarketIntelligence();
+  for (const results of Object.values(resultsByDate)) {
+    for (const r of results) {
+      if (r.verdict === "PENDING" || r.verdict === "VOID") continue;
+      const mk = r.market || "Unknown";
+      if (!intel[mk]) intel[mk] = {
+        market: mk, totalSelections: 0, won: 0, lost: 0,
+        totalWinOdds: 0, totalLoseOdds: 0, lastUpdated: "",
+      };
+      const mi = intel[mk];
+      mi.totalSelections++;
+      const odds = r.originalOdds || r.odds || 0;
+      if (r.verdict === "WON") { mi.won++; mi.totalWinOdds += odds; }
+      else { mi.lost++; mi.totalLoseOdds += odds; }
+      const total = mi.won + mi.lost;
+      mi.hitRate    = total > 0 ? Math.round(mi.won / total * 100) : 0;
+      mi.avgWinOdds  = mi.won  > 0 ? Math.round(mi.totalWinOdds  / mi.won  * 100) / 100 : 0;
+      mi.avgLoseOdds = mi.lost > 0 ? Math.round(mi.totalLoseOdds / mi.lost * 100) / 100 : 0;
+      mi.lastUpdated = new Date().toISOString().slice(0, 10);
+    }
+  }
+  try { fs.writeFileSync(MARKET_INTEL_FILE, JSON.stringify(intel, null, 2)); } catch {}
+  return intel;
+}
+
+function generateDailyAnalysis(results, date, leagueIntel, marketIntel) {
+  const settled = results.filter(r => r.verdict === "WON" || r.verdict === "LOST");
+  const won     = settled.filter(r => r.verdict === "WON");
+  const lost    = settled.filter(r => r.verdict === "LOST");
+
+  // Group by match
+  const matchMap = {};
+  for (const r of results) {
+    const key = `${r.homeTeam}|${r.awayTeam}|${r.kickoff}`;
+    if (!matchMap[key]) matchMap[key] = {
+      homeTeam: r.homeTeam, awayTeam: r.awayTeam, league: r.league, kickoff: r.kickoff, selections: [],
+    };
+    matchMap[key].selections.push(r);
+  }
+
+  // Ticket killers & consensus wins
+  const ticketKillers = [], consensusWins = [];
+  for (const match of Object.values(matchMap)) {
+    const ms = match.selections.filter(s => s.verdict === "WON" || s.verdict === "LOST");
+    if (ms.length < 2) continue;
+    const mLost = ms.filter(s => s.verdict === "LOST");
+    const mWon  = ms.filter(s => s.verdict === "WON");
+
+    for (const [group, target] of [[mLost, ticketKillers], [mWon, consensusWins]]) {
+      if (group.length < 2) continue;
+      const punters = [...new Set(group.map(s => s.punter))];
+      const codes   = [...new Set(group.map(s => s.code))];
+      const avgOdds = group.reduce((a, s) => a + (s.originalOdds || s.odds || 0), 0) / group.length;
+      const leagueHR = leagueIntel[match.league]?.hitRate;
+      const mktHRs   = group.map(s => marketIntel[s.market]?.hitRate).filter(Boolean);
+      const avgMktHR = mktHRs.length ? Math.round(mktHRs.reduce((a, b) => a + b, 0) / mktHRs.length) : null;
+
+      let confidence = 50;
+      if (leagueHR != null) confidence = (confidence + leagueHR) / 2;
+      if (avgMktHR  != null) confidence = (confidence + avgMktHR) / 2;
+      if (avgOdds > 5)  confidence -= 20;
+      if (avgOdds > 10) confidence -= 15;
+      if (punters.length === 1) confidence -= 10;
+      if (punters.length >= 3)  confidence += 10;
+      if (target === consensusWins && avgOdds < 2) confidence += 5;
+      confidence = Math.max(5, Math.min(99, Math.round(confidence)));
+
+      const reasons = target === ticketKillers ? [
+        ...(avgOdds > 5 ? [`Very high odds market (${avgOdds.toFixed(2)})`] : []),
+        ...(punters.length === 1 ? ["Only 1 punter suggested it — low consensus"] : []),
+        ...(leagueHR != null && leagueHR < 60 ? [`${match.league} has low historical hit rate (${leagueHR}%)`] : []),
+        ...(avgMktHR != null && avgMktHR < 55 ? ["Market historically underperforms"] : []),
+      ] : [];
+
+      target.push({
+        match: `${match.homeTeam} vs ${match.awayTeam}`,
+        homeTeam: match.homeTeam, awayTeam: match.awayTeam,
+        league: match.league, kickoff: match.kickoff,
+        punters, codes,
+        selections: group.map(s => ({
+          market: s.market, outcome: s.outcome,
+          originalOdds: s.originalOdds || s.odds, punter: s.punter,
+        })),
+        codeCount: codes.length, punterCount: punters.length,
+        avgOdds: Math.round(avgOdds * 100) / 100,
+        confidence, reasons,
+        recommendation: target === ticketKillers
+          ? (avgOdds > 5 || punters.length === 1
+              ? "Blacklist this market family or require 3+ punter consensus."
+              : leagueHR != null && leagueHR < 60
+                ? "Avoid this league in future slips."
+                : "Review market selection strategy.")
+          : undefined,
+        leagueHitRate: leagueHR || null,
+        marketHitRate: avgMktHR || null,
+      });
+    }
+  }
+  ticketKillers.sort((a, b) => b.punterCount - a.punterCount || b.codeCount - a.codeCount);
+  consensusWins.sort((a, b) => b.punterCount - a.punterCount || b.codeCount - a.codeCount);
+
+  // Per-day league stats
+  const dayLeague = {};
+  for (const r of settled) {
+    if (!r.league) continue;
+    if (!dayLeague[r.league]) dayLeague[r.league] = {
+      league: r.league, won: 0, lost: 0, selections: 0, banned: isBannedLeague(r.league), markets: {},
+    };
+    const ls = dayLeague[r.league];
+    ls.selections++;
+    if (r.verdict === "WON") ls.won++; else ls.lost++;
+    const mk = r.market || "Unknown";
+    if (!ls.markets[mk]) ls.markets[mk] = { won: 0, lost: 0 };
+    if (r.verdict === "WON") ls.markets[mk].won++; else ls.markets[mk].lost++;
+  }
+  for (const ls of Object.values(dayLeague)) {
+    ls.hitRate = ls.won + ls.lost > 0 ? Math.round(ls.won / (ls.won + ls.lost) * 100) : 0;
+    for (const mk of Object.values(ls.markets)) {
+      const mt = mk.won + mk.lost;
+      mk.hitRate = mt > 0 ? Math.round(mk.won / mt * 100) : 0;
+    }
+  }
+
+  // Per-day market stats
+  const dayMarket = {};
+  for (const r of settled) {
+    const mk = r.market || "Unknown";
+    if (!dayMarket[mk]) dayMarket[mk] = { market: mk, won: 0, lost: 0, selections: 0 };
+    dayMarket[mk].selections++;
+    if (r.verdict === "WON") dayMarket[mk].won++; else dayMarket[mk].lost++;
+  }
+  for (const ms of Object.values(dayMarket)) {
+    ms.hitRate = ms.won + ms.lost > 0 ? Math.round(ms.won / (ms.won + ms.lost) * 100) : 0;
+  }
+
+  // Punter day stats
+  const punterStats = {};
+  for (const r of results) {
+    if (!punterStats[r.punter]) punterStats[r.punter] = {
+      punter: r.punter, won: 0, lost: 0, void: 0, pending: 0, codes: new Set(),
+    };
+    const ps = punterStats[r.punter];
+    if (r.code) ps.codes.add(r.code);
+    if      (r.verdict === "WON")     ps.won++;
+    else if (r.verdict === "LOST")    ps.lost++;
+    else if (r.verdict === "VOID")    ps.void++;
+    else                              ps.pending++;
+  }
+  for (const ps of Object.values(punterStats)) {
+    const t = ps.won + ps.lost;
+    ps.hitRate = t > 0 ? Math.round(ps.won / t * 100) : 0;
+    ps.codes   = [...ps.codes];
+  }
+
+  // Bullets
+  const bullets = [];
+  for (const tk of ticketKillers.slice(0, 3)) {
+    const selStr = [...new Set(tk.selections.map(s => s.outcome ? `${s.market}: ${s.outcome}` : s.market))].join("; ");
+    bullets.push(`${tk.match} trapped ${tk.punterCount} punter${tk.punterCount > 1 ? "s" : ""} (${tk.punters.join(", ")}) — ${selStr} lost across ${tk.codeCount} slip${tk.codeCount !== 1 ? "s" : ""}.`);
+  }
+  for (const cw of consensusWins.slice(0, 2)) {
+    const selStr = [...new Set(cw.selections.map(s => s.outcome || s.market))].join(", ");
+    bullets.push(`${cw.match} rewarded ${cw.punterCount} punter${cw.punterCount > 1 ? "s" : ""} (${cw.punters.join(", ")}) — ${selStr}.`);
+  }
+  const worstMkt = Object.values(dayMarket).filter(ms => ms.selections >= 3 && ms.hitRate < 50).sort((a, b) => a.hitRate - b.hitRate)[0];
+  if (worstMkt) bullets.push(`${worstMkt.market} was the weakest market today: ${worstMkt.hitRate}% (${worstMkt.won}W/${worstMkt.lost}L).`);
+  const bestMkt = Object.values(dayMarket).filter(ms => ms.selections >= 3 && ms.hitRate >= 70).sort((a, b) => b.hitRate - a.hitRate)[0];
+  if (bestMkt) bullets.push(`${bestMkt.market} was the strongest market: ${bestMkt.hitRate}% (${bestMkt.won}W/${bestMkt.lost}L).`);
+  const bannedActive = Object.values(dayLeague).filter(ls => ls.banned && ls.selections > 0);
+  if (bannedActive.length) {
+    const bannedLoss = bannedActive.reduce((a, ls) => a + ls.lost, 0);
+    const bannedTotal = bannedActive.reduce((a, ls) => a + ls.selections, 0);
+    bullets.push(`Flagged league${bannedActive.length > 1 ? "s" : ""} ${bannedActive.map(ls => ls.league).join(", ")} caused ${Math.round(bannedLoss / Math.max(1, bannedTotal) * 100)}% loss rate.`);
+  }
+
+  // Insights
+  const insights = [];
+  const bannedCount = results.filter(r => isBannedLeague(r.league)).length;
+  if (bannedCount) insights.push(`${bannedCount} selection${bannedCount !== 1 ? "s" : ""} from flagged leagues were identified — filter before building slips.`);
+  const worstLg = Object.values(dayLeague).filter(ls => !ls.banned && ls.selections >= 3 && ls.hitRate < 50).sort((a, b) => a.hitRate - b.hitRate)[0];
+  if (worstLg) insights.push(`${worstLg.league} caused ${worstLg.lost} loss${worstLg.lost !== 1 ? "es" : ""} today at ${worstLg.hitRate}% — consider down-weighting.`);
+  if (worstMkt) {
+    const alt = worstMkt.market.includes("2.5") ? "Over 1.5" : worstMkt.market === "GG" ? "Double Chance" : null;
+    insights.push(`${worstMkt.market} underperformed at ${worstMkt.hitRate}%.${alt ? ` Historical data suggests ${alt} may be safer.` : ""}`);
+  }
+  const topPunters = Object.values(punterStats).filter(p => p.won + p.lost >= 3).sort((a, b) => b.hitRate - a.hitRate);
+  if (topPunters.length >= 2) {
+    const best = topPunters[0], worst = topPunters[topPunters.length - 1];
+    insights.push(`${best.punter} led all analysts at ${best.hitRate}%. ${worst.punter} had the toughest session at ${worst.hitRate}%.`);
+  }
+  const consensusAnchors = Object.values(matchMap).filter(m => [...new Set(m.selections.map(s => s.punter))].length >= 3);
+  if (consensusAnchors.length) insights.push(`${consensusAnchors.length} match${consensusAnchors.length !== 1 ? "es" : ""} had 3+ punter consensus — treat as anchor selections.`);
+
+  // Headline
+  let headline;
+  if (ticketKillers.length && ticketKillers[0].punterCount >= 3)
+    headline = `${ticketKillers[0].match} was the biggest killer, costing ${ticketKillers[0].punterCount} punters.`;
+  else if (consensusWins.length && consensusWins[0].punterCount >= 3)
+    headline = `${consensusWins[0].match} delivered the biggest consensus win for ${consensusWins[0].punterCount} punters.`;
+  else if (ticketKillers.length)
+    headline = `${ticketKillers[0].match} trapped ${ticketKillers[0].punterCount} punter${ticketKillers[0].punterCount > 1 ? "s" : ""}.`;
+  else {
+    const pct = settled.length > 0 ? Math.round(won.length / settled.length * 100) : 0;
+    headline = `${pct}% of settled selections won on ${date} (${won.length}/${settled.length}).`;
+  }
+
+  return {
+    date, generatedAt: new Date().toISOString(),
+    analysis: {
+      partial: settled.length < 10,
+      headline, bullets, insights,
+      leagueWatch: dayLeague,
+      marketWatch: dayMarket,
+      ticketKillers: ticketKillers.slice(0, 10),
+      consensusWins: consensusWins.slice(0, 10),
+      punterStats,
+      totals: {
+        selections: results.length, settled: settled.length,
+        won: won.length, lost: lost.length,
+        void: results.filter(r => r.verdict === "VOID").length,
+        pending: results.filter(r => r.verdict === "PENDING").length,
+        hitRate: settled.length > 0 ? Math.round(won.length / settled.length * 100) : 0,
+      },
+      allSelections: results.map(r => ({
+        punter: r.punter, code: r.code, codeDate: r.codeDate,
+        homeTeam: r.homeTeam, awayTeam: r.awayTeam, league: r.league,
+        market: r.market, outcome: r.outcome,
+        originalOdds: r.originalOdds, odds: r.odds,
+        kickoff: r.kickoff, verdict: r.verdict,
+        eventId: r.eventId, marketId: r.marketId,
+        outcomeId: r.outcomeId, productId: r.productId, specifier: r.specifier,
+      })),
+    },
+  };
+}
+
 let rescanRunning = false;
 
 app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
@@ -1810,7 +2242,7 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
   try {
     const lb = loadLeaderboard(); // Uses merged data (profiles + code-history + punter-codes)
     const todayCodes = loadPunterCodes();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     const lbMap = new Map(lb.map(p => [p.punter, p]));
 
     // Step 1: Add today's active codes to leaderboard if not present
@@ -1827,6 +2259,10 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
 
     // Step 2: Rescan codes that need updating — skip bulk "Generated" entries
     let scanned = 0, updated = 0, errors = 0;
+    const resultsByDate = {};
+    const oddsBank = loadOddsBank();
+    const scanTs = new Date().toISOString();
+
     for (const entry of lb) {
       if (!entry.codes) continue;
       if (entry.punter === "Generated") continue; // 150+ codes, skip bulk
@@ -1841,17 +2277,36 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
           const ticketSels = json.data.ticket?.selections || [];
           const selections = mapOutcomes(outcomes, ticketSels);
           const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+
+          // Store original pre-match odds (never overwrite existing)
+          storeOriginalOdds(oddsBank, selections, scanTs);
+
+          // Collect enriched results for analysis
+          const codeDate = codeEntry.date || today;
+          if (!resultsByDate[codeDate]) resultsByDate[codeDate] = [];
+          for (const r of results) {
+            resultsByDate[codeDate].push({
+              ...r,
+              punter: entry.punter,
+              code: codeEntry.code,
+              codeDate,
+              originalOdds: getBankOdds(oddsBank, r),
+            });
+          }
+
           const won = results.filter(r => r.verdict === "WON").length;
           const lost = results.filter(r => r.verdict === "LOST").length;
           const voided = results.filter(r => r.verdict === "VOID").length;
           const pending = results.filter(r => r.verdict === "PENDING").length;
           const settled = won + lost;
           const hitRate = settled > 0 ? Math.round(won / settled * 100) : 0;
+          const totalOdds = Math.round(selections.reduce((acc, s) => acc * (s.odds || 1), 1) * 100) / 100;
 
           const changed = codeEntry.won !== won || codeEntry.lost !== lost || codeEntry.pending !== pending;
           codeEntry.games = results.length;
           codeEntry.won = won; codeEntry.lost = lost; codeEntry.void = voided;
           codeEntry.pending = pending; codeEntry.hitRate = hitRate;
+          if (totalOdds > 1) codeEntry.totalOdds = totalOdds;
 
           if (changed) updated++;
           scanned++;
@@ -1900,6 +2355,24 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
 
     fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
     console.log(`[Rescan] Done: ${scanned} scanned, ${updated} updated, ${errors} errors`);
+
+    // Generate analysis reports and update all intelligence files
+    if (Object.keys(resultsByDate).length) {
+      try {
+        clearIntelCache(); // force reload from freshly updated files
+        const leagueIntel  = updateLeagueIntelligence(resultsByDate);
+        const marketIntel  = updateMarketIntelligence(resultsByDate);
+        updateTeamIntelligence(resultsByDate);
+        updateSelectionHistory(resultsByDate);
+        for (const [date, dateResults] of Object.entries(resultsByDate)) {
+          const report = generateDailyAnalysis(dateResults, date, leagueIntel, marketIntel);
+          fs.writeFileSync(path.join(REPORTS_DIR, `${date}.json`), JSON.stringify(report, null, 2));
+        }
+        console.log(`[Rescan] Analysis saved for: ${Object.keys(resultsByDate).join(", ")}`);
+      } catch (e) { console.error("[Rescan] Analysis generation error:", e.message); }
+    } else {
+      clearIntelCache();
+    }
   } catch (e) { console.error("[Rescan] Fatal:", e); }
   finally { rescanRunning = false; }
 });
@@ -1986,6 +2459,390 @@ app.get("/api/session/status", requireAdmin, (req, res) => {
 app.get("/api/session/logs", requireAdmin, (req, res) => {
   const since = parseInt(req.query.since) || 0;
   res.json({ running: sessionRunning, logs: sessionLogs.slice(since), total: sessionLogs.length });
+});
+
+// ── Content Studio Reports ──────────────────────────────────────────────────
+const STUDIO_FILE = path.join(DATA_DIR, 'studio-reports.json');
+
+function loadStudioReports() {
+  try { return JSON.parse(fs.readFileSync(STUDIO_FILE, 'utf8')); } catch { return []; }
+}
+
+function saveStudioReports(reports) {
+  fs.writeFileSync(STUDIO_FILE, JSON.stringify(reports, null, 2));
+}
+
+app.get('/api/studio/reports', requireAdmin, (req, res) => {
+  const reports = loadStudioReports();
+  // Return summaries only (no rankings/insights array to keep response light)
+  res.json(reports.map(r => ({
+    date: r.date,
+    timestamp: r.timestamp,
+    punterCount: r.punterCount,
+    avgHR: r.avgHR,
+    best: r.best,
+    bestHR: r.bestHR
+  })));
+});
+
+app.get('/api/studio/report/:date', requireAdmin, (req, res) => {
+  const reports = loadStudioReports();
+  const report = reports.find(r => r.date === req.params.date);
+  if (!report) return res.status(404).json({ error: 'Report not found for ' + req.params.date });
+  res.json(report);
+});
+
+app.post('/api/studio/report', requireAdmin, (req, res) => {
+  const { date } = req.body;
+  if (!date) return res.status(400).json({ error: 'date required' });
+  let reports = loadStudioReports();
+  const idx = reports.findIndex(r => r.date === date);
+  const entry = { ...req.body, timestamp: new Date().toISOString() };
+  if (idx >= 0) reports[idx] = entry;
+  else reports.unshift(entry);
+  reports = reports.slice(0, 90);
+  saveStudioReports(reports);
+  res.json({ success: true, date });
+});
+
+// ── Analysis Reports ──────────────────────────────────────────────────────────
+
+app.get("/api/analysis/:date", requireAdmin, (req, res) => {
+  const file = path.join(REPORTS_DIR, `${req.params.date}.json`);
+  try { res.json(JSON.parse(fs.readFileSync(file, "utf8"))); }
+  catch { res.status(404).json({ error: "No analysis for " + req.params.date }); }
+});
+
+app.get("/api/intelligence/leagues", requireAdmin, (req, res) => {
+  res.json(loadLeagueIntelligence());
+});
+
+app.get("/api/intelligence/markets", requireAdmin, (req, res) => {
+  res.json(loadMarketIntelligence());
+});
+
+app.get("/api/intelligence/teams", requireAdmin, (req, res) => {
+  res.json(loadTeamIntelligence());
+});
+
+app.get("/api/intelligence/selections", requireAdmin, (req, res) => {
+  res.json(loadSelectionHistory());
+});
+
+// Rebuild all intelligence from historical report files + leaderboard
+app.post("/api/admin/rebuild-intelligence", requireAdmin, (req, res) => {
+  try {
+    clearIntelCache();
+    const resultsByDate = {};
+    // Collect from report files
+    try {
+      for (const f of fs.readdirSync(REPORTS_DIR).filter(f => f.endsWith(".json"))) {
+        const date = f.replace(".json", "");
+        const report = JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, f), "utf8"));
+        if (report.analysis?.allSelections?.length) resultsByDate[date] = report.analysis.allSelections;
+      }
+    } catch {}
+    if (Object.keys(resultsByDate).length) {
+      updateLeagueIntelligence(resultsByDate);
+      updateMarketIntelligence(resultsByDate);
+      updateTeamIntelligence(resultsByDate);
+      updateSelectionHistory(resultsByDate);
+    }
+    res.json({ success: true, daysProcessed: Object.keys(resultsByDate).length, message: `Rebuilt from ${Object.keys(resultsByDate).length} report files.` });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Score a list of selections using all intelligence (used by Manual Ticket Builder)
+app.post("/api/score-selections", requireAdmin, (req, res) => {
+  try {
+    const { selections } = req.body;
+    if (!Array.isArray(selections)) return res.status(400).json({ error: "selections array required" });
+    const lb         = loadLeaderboard();
+    const leagueIntel = loadLeagueIntelligence();
+    const marketIntel = loadMarketIntelligence();
+    const selHistory  = loadSelectionHistory();
+    const weakMatches = (() => { try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "weak-matches.json"), "utf8")); } catch { return {}; } })();
+    const scored = selections.map(s => {
+      let sc = 50, reasons = [], warnings = [];
+      const li = leagueIntel[s.league];
+      if (li) {
+        if (li.hitRate >= 70)     { sc += 10; reasons.push(`${s.league}: ${li.hitRate}% league HR`); }
+        else if (li.hitRate < 50) { sc -= 15; warnings.push(`${s.league}: ${li.hitRate}% league HR`); }
+      }
+      const mi = marketIntel[s.market];
+      if (mi && mi.totalSelections >= 5) {
+        if (mi.hitRate >= 70)     { sc += 8; reasons.push(`${s.market}: ${mi.hitRate}% market HR`); }
+        else if (mi.hitRate < 50) { sc -= 10; warnings.push(`${s.market}: ${mi.hitRate}% market HR`); }
+      }
+      const sh = selHistory[oddsKey(s)];
+      if (sh && sh.appearances >= 2) {
+        if (sh.hitRate >= 70)     { sc += 12; reasons.push(`Historical HR: ${sh.hitRate}% (${sh.appearances} seen)`); }
+        else if (sh.hitRate < 40) { sc -= 15; warnings.push(`Historical HR: ${sh.hitRate}% (${sh.appearances} seen)`); }
+      }
+      const wm = weakMatches[s.eventId];
+      if (wm && wm.failureRate >= 50) { sc -= 10; warnings.push(`High failure rate: ${wm.failureRate}%`); }
+      const odds = s.originalOdds || s.odds;
+      if (odds > 10)      { sc -= 20; warnings.push(`Very high odds (${odds})`); }
+      else if (odds > 5)  { sc -= 10; warnings.push(`High odds (${odds})`); }
+      else if (odds > 0 && odds <= 1.5) { sc += 5; reasons.push("Low-risk odds"); }
+      return { ...s, score: Math.round(Math.max(0, Math.min(100, sc))), reasons, warnings };
+    });
+    res.json({ success: true, selections: scored });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── Smart Slip Builder ────────────────────────────────────────────────────────
+
+app.post("/api/smart-slips", requireAdmin, async (req, res) => {
+  try {
+  const codes       = loadPunterCodes();
+  const lb          = loadLeaderboard();
+  const bank        = loadOddsBank();
+  const leagueIntel = loadLeagueIntelligence();
+  const marketIntel = loadMarketIntelligence();
+  const teamIntel   = loadTeamIntelligence();
+  const selHistory  = loadSelectionHistory();
+  const lbMap       = new Map(lb.map(p => [p.punter, p]));
+  const weakMatches = (() => { try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "weak-matches.json"), "utf8")); } catch { return {}; } })();
+
+  const allSels = [], fetchErrors = [], puntScanned = [];
+
+  for (const [name, code] of Object.entries(codes)) {
+    if (!code || name.startsWith("_")) continue;
+    const codeStr = typeof code === "string" ? code : (Array.isArray(code) ? code[0] : "");
+    if (!codeStr) continue;
+    try {
+      const url  = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(codeStr)}`;
+      const json = await fetchJSON(url);
+      if (!json || json.bizCode !== 10000 || !json.data) continue;
+      const sels = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
+      storeOriginalOdds(bank, sels, new Date().toISOString());
+      for (const s of sels) {
+        allSels.push({ ...s, punter: name, code: codeStr, originalOdds: getBankOdds(bank, s) });
+      }
+      puntScanned.push(name);
+      await new Promise(r => setTimeout(r, 150));
+    } catch (e) { fetchErrors.push(`${name}: ${e.message}`); }
+  }
+
+  if (allSels.length < 3) {
+    const why = puntScanned.length === 0
+      ? "No punter codes returned valid data from SportyBet. Check that codes are set for today."
+      : `Only ${allSels.length} selections fetched from ${puntScanned.length} punters — not enough to build slips.`;
+    return res.json({ success: false, error: why, slips: [] });
+  }
+
+  // Deduplicate by event+market+outcome
+  const selMap = {};
+  for (const s of allSels) {
+    const key = `${s.eventId}|${s.marketId}|${s.outcomeId}`;
+    if (!selMap[key]) selMap[key] = { ...s, punters: [], codes: [], score: 50, reasons: [], warnings: [], removed: false };
+    const e = selMap[key];
+    if (!e.punters.includes(s.punter)) e.punters.push(s.punter);
+    if (!e.codes.includes(s.code))     e.codes.push(s.code);
+  }
+
+  // Kickoff bunching map: count selections per kickoff slot (within 5 min)
+  const kickoffSlots = {};
+  for (const s of Object.values(selMap)) {
+    if (!s.kickoff) continue;
+    const slot = Math.floor(new Date(s.kickoff).getTime() / 300000); // 5-min buckets
+    kickoffSlots[slot] = (kickoffSlots[slot] || 0) + 1;
+  }
+
+  // ── Score each unique selection ───────────────────────────────────────────
+  for (const s of Object.values(selMap)) {
+    if (isBannedLeague(s.league)) { s.removed = true; s.removeReason = `Banned league: ${s.league}`; continue; }
+
+    let sc = 50;
+
+    // Factor 1: Punter lifetime hit rate (weight: 0.3x, capped ±15)
+    const pEntries = s.punters.map(n => lbMap.get(n)).filter(Boolean);
+    const pHRs = pEntries.map(p => p.hitRate || 50);
+    const avgPHR = pHRs.length ? pHRs.reduce((a, b) => a + b, 0) / pHRs.length : 50;
+    const lifetimeAdj = Math.max(-15, Math.min(15, (avgPHR - 50) * 0.3));
+    sc += lifetimeAdj;
+
+    // Factor 2: Punter recent form — last 7 days (weight: 0.5x, capped ±15)
+    const recentForms = pEntries.map(p => getRecentForm(p, 7)).filter(x => x !== null);
+    if (recentForms.length) {
+      const avgRecent = recentForms.reduce((a, b) => a + b, 0) / recentForms.length;
+      const recentAdj = Math.max(-15, Math.min(15, (avgRecent - 50) * 0.5));
+      sc += recentAdj;
+      if (avgRecent >= 75) s.reasons.push(`Hot form: ${Math.round(avgRecent)}% (7d)`);
+      if (avgRecent < 45)  s.warnings.push(`Cold form: only ${Math.round(avgRecent)}% (7d)`);
+    } else {
+      if (avgPHR >= 70) s.reasons.push(`Punters avg ${Math.round(avgPHR)}% lifetime HR`);
+      if (avgPHR < 50)  s.warnings.push(`Punters avg ${Math.round(avgPHR)}% lifetime HR`);
+    }
+
+    // Factor 3: Consensus (capped ±20)
+    const punterCount = s.punters.length;
+    if (punterCount >= 4)      { sc += 20; s.reasons.push(`${punterCount} punters agree — strong consensus`); }
+    else if (punterCount === 3) { sc += 15; s.reasons.push(`3 punters agree`); }
+    else if (punterCount === 2) { sc += 8;  s.reasons.push("2 punters agree"); }
+    else                        { sc -= 5;  }
+
+    // Factor 4: League intelligence (capped ±15)
+    const li = leagueIntel[s.league];
+    if (li && li.totalSelections >= 5) {
+      if (li.hitRate >= 70)     { sc += 12; s.reasons.push(`${s.league}: ${li.hitRate}% historical HR`); }
+      else if (li.hitRate >= 55){ sc += 5;  }
+      else if (li.hitRate < 50) { sc -= 15; s.warnings.push(`${s.league}: only ${li.hitRate}% historically (${li.totalSelections} games)`); }
+      // Best market within league
+      const lm = li.markets?.[s.market];
+      if (lm && (lm.won + lm.lost) >= 3) {
+        if (lm.hitRate >= 75)    { sc += 8; s.reasons.push(`${s.market} in ${s.league}: ${lm.hitRate}% HR`); }
+        else if (lm.hitRate < 45){ sc -= 8; s.warnings.push(`${s.market} underperforms in ${s.league}: ${lm.hitRate}%`); }
+      }
+    } else if (li && li.banned) {
+      s.removed = true; s.removeReason = `Flagged league: ${s.league}`; continue;
+    }
+
+    // Factor 5: Market intelligence (capped ±12)
+    const mi = marketIntel[s.market];
+    if (mi && mi.totalSelections >= 5) {
+      if (mi.hitRate >= 70)     { sc += 10; s.reasons.push(`${s.market}: ${mi.hitRate}% global market HR`); }
+      else if (mi.hitRate >= 55){ sc += 4;  }
+      else if (mi.hitRate < 50) {
+        sc -= 12;
+        const alt = s.market.includes("2.5") ? "Over 1.5" : s.market === "GG" || s.market.toLowerCase().includes("goal") ? "Double Chance" : null;
+        s.warnings.push(alt ? `${s.market} ${mi.hitRate}% — try ${alt}` : `${s.market}: ${mi.hitRate}% market HR`);
+      }
+      // Pricing sanity: if original odds >> average winning odds for this market, be skeptical
+      if (mi.avgWinOdds > 0 && s.originalOdds > 0) {
+        const pricingRatio = s.originalOdds / mi.avgWinOdds;
+        if (pricingRatio > 2.5) { sc -= 8; s.warnings.push(`Priced ${pricingRatio.toFixed(1)}x above typical winning odds`); }
+        else if (pricingRatio < 0.5) { sc += 5; s.reasons.push("Below typical odds for this market — value"); }
+      }
+    }
+
+    // Factor 6: Selection history — this exact match+market+outcome (capped ±15)
+    const sh = selHistory[oddsKey(s)];
+    if (sh && sh.appearances >= 2) {
+      if (sh.hitRate >= 70)     { sc += 12; s.reasons.push(`This pick: ${sh.hitRate}% in ${sh.appearances} appearances`); }
+      else if (sh.hitRate < 40) { sc -= 15; s.warnings.push(`This pick: only ${sh.hitRate}% in ${sh.appearances} appearances — recurring loser`); }
+      else if (sh.hitRate < 55) { sc -= 5; }
+    }
+
+    // Factor 7: Weak matches (penalty only)
+    const wm = weakMatches[s.eventId];
+    if (wm && wm.losses > 0) {
+      const failRate = wm.appearances > 0 ? Math.round(wm.losses / wm.appearances * 100) : 0;
+      if (failRate >= 60)      { sc -= 15; s.warnings.push(`High-risk game: ${failRate}% failure (${wm.losses}/${wm.appearances})`); }
+      else if (failRate >= 40) { sc -= 8;  s.warnings.push(`Risky game: ${failRate}% failure rate`); }
+    }
+
+    // Factor 8: Odds sanity (bookmaker pricing signal, capped ±20)
+    const odds = s.originalOdds || s.odds || 0;
+    if (odds > 10)          { sc -= 20; s.warnings.push(`Very high odds (${odds.toFixed(2)}) — low probability`); }
+    else if (odds > 5)      { sc -= 12; s.warnings.push(`High odds (${odds.toFixed(2)})`); }
+    else if (odds > 3.5)    { sc -= 5; }
+    else if (odds > 0 && odds <= 1.35) { sc += 8;  s.reasons.push("Very low-risk odds"); }
+    else if (odds <= 1.7)   { sc += 4; }
+
+    // Factor 9: Kickoff bunching — correlated exposure penalty
+    if (s.kickoff) {
+      const slot = Math.floor(new Date(s.kickoff).getTime() / 300000);
+      const bunchCount = kickoffSlots[slot] || 0;
+      if (bunchCount >= 5)     { sc -= 8;  s.warnings.push(`${bunchCount} games kick off simultaneously — correlated risk`); }
+      else if (bunchCount >= 3){ sc -= 3; }
+    }
+
+    // Factor 10: Team intelligence
+    const ti = s.homeTeam ? teamIntel[s.homeTeam] : null;
+    const out = (s.outcome || "").toLowerCase();
+    if (ti) {
+      if ((out === "home" || out === "1") && ti.home.hitRate != null && ti.home.won + ti.home.lost >= 3) {
+        if (ti.home.hitRate >= 70)     { sc += 6; s.reasons.push(`${s.homeTeam} strong at home (${ti.home.hitRate}%)`); }
+        else if (ti.home.hitRate < 40) { sc -= 8; s.warnings.push(`${s.homeTeam} weak at home (${ti.home.hitRate}%)`); }
+      }
+    }
+    const tai = s.awayTeam ? teamIntel[s.awayTeam] : null;
+    if (tai) {
+      if ((out === "away" || out === "2") && tai.away.hitRate != null && tai.away.won + tai.away.lost >= 3) {
+        if (tai.away.hitRate >= 70)     { sc += 6; s.reasons.push(`${s.awayTeam} strong away (${tai.away.hitRate}%)`); }
+        else if (tai.away.hitRate < 40) { sc -= 8; s.warnings.push(`${s.awayTeam} weak away (${tai.away.hitRate}%)`); }
+      }
+    }
+
+    s.score = Math.round(Math.max(0, Math.min(100, sc)));
+  }
+
+  const valid = Object.values(selMap)
+    .filter(s => !s.removed)
+    .sort((a, b) => b.score - a.score || b.punters.length - a.punters.length);
+
+  const tierACount = valid.filter(s => s.score >= 60).length;
+  const tierBCount = valid.filter(s => s.score >= 45).length;
+
+  if (valid.length < 3) {
+    const removed = Object.values(selMap).filter(s => s.removed);
+    const why = `Only ${valid.length} selections survived filters (${removed.length} removed — ${removed.slice(0,3).map(s=>s.removeReason).join("; ")}).`;
+    return res.json({ success: false, error: why, removed: removed.map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })), slips: [] });
+  }
+
+  // Tier-A: highest scored (≥60 score preferred)
+  // Tier-B: broader pool (≥45 score)
+  // Tier-C: all valid
+  const poolA = valid.filter(s => s.score >= 60).length >= 8 ? valid.filter(s => s.score >= 60) : valid;
+  const poolB = valid.filter(s => s.score >= 45).length >= 11 ? valid.filter(s => s.score >= 45) : valid;
+  const poolC = valid;
+
+  function buildTier(pool, size, tier) {
+    const slips = [];
+    const maxVariants = Math.min(5, Math.max(1, pool.length - size + 1));
+    for (let i = 0; i < maxVariants; i++) {
+      const slip = pool.slice(i, i + size);
+      if (slip.length < 3) break;
+      const totalOdds = slip.reduce((acc, s) => acc * (s.originalOdds || s.odds || 1), 1);
+      slips.push({
+        tier, variant: i + 1,
+        selections: slip.map(s => ({
+          homeTeam: s.homeTeam, awayTeam: s.awayTeam, league: s.league,
+          market: s.market, outcome: s.outcome,
+          originalOdds: s.originalOdds || (s.odds > 1 ? s.odds : null),
+          punters: s.punters, score: s.score,
+          reasons: s.reasons, warnings: s.warnings,
+          eventId: s.eventId, marketId: s.marketId,
+          outcomeId: s.outcomeId, productId: s.productId || 3,
+          specifier: s.specifier, sportId: s.sportId,
+        })),
+        totalOdds: Math.round(totalOdds * 100) / 100,
+        totalOddsFormatted: formatTotalOdds(totalOdds),
+        avgScore: Math.round(slip.reduce((a, s) => a + s.score, 0) / slip.length),
+      });
+    }
+    return slips;
+  }
+
+  const slips = [
+    ...buildTier(poolA, Math.min(8,  poolA.length), "A"),
+    ...buildTier(poolB, Math.min(11, poolB.length), "B"),
+    ...buildTier(poolC, Math.min(14, poolC.length), "C"),
+  ].slice(0, 15);
+
+  if (!slips.length) {
+    return res.json({ success: false, error: `Only ${valid.length} valid selections — need at least 8 for Tier A. Add more punters or run Rescan All first.`, slips: [] });
+  }
+
+  res.json({
+    success: true,
+    date: new Date().toISOString().slice(0, 10),
+    totalSelections: allSels.length,
+    uniqueSelections: Object.keys(selMap).length,
+    removedCount: Object.values(selMap).filter(s => s.removed).length,
+    tierACount, tierBCount,
+    fetchErrors: fetchErrors.length ? fetchErrors : undefined,
+    removed: Object.values(selMap).filter(s => s.removed).map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })),
+    slips,
+  });
+  } catch (e) {
+    console.error("[smart-slips]", e);
+    res.status(500).json({ success: false, error: e.message || "Internal error" });
+  }
 });
 
 // ── Global error handler (must be last middleware) ──
