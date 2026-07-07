@@ -133,7 +133,8 @@ input:focus{border-color:#00c853}
 
   <div class="tab-row">
     <button class="tab-btn active" data-tab="punters" onclick="switchAdminTab('punters')">Leaderboard</button>
-    <button class="tab-btn" data-tab="session" onclick="switchAdminTab('session')">Daily Session</button>
+    <button class="tab-btn" data-tab="session" onclick="switchAdminTab('session')">Tracked Punters</button>
+    <button class="tab-btn" data-tab="community" onclick="switchAdminTab('community');loadCommunityCodes()">Community Codes</button>
     <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">Codes</button>
     <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
     <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">Settings</button>
@@ -563,44 +564,102 @@ input:focus{border-color:#00c853}
     </div>
   </div>
 
-  <!-- DAILY SESSION -->
+  <!-- TRACKED PUNTERS -->
   <div class="tab-content" id="tab-session">
-    <div class="card">
-      <h2>Daily Session Control</h2>
-      <p style="font-size:11px;color:#8a9e8a;margin-bottom:16px">Manage today's punter codes, run the optimizer engine, and generate 50 diversified booking codes.</p>
 
-      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-        <button class="btn" onclick="runSession()" id="runBtn">▶ Run Generation</button>
-        <button class="btn" style="background:#e53935" onclick="resetSession()" id="resetBtn">↻ Reset Session</button>
-        <span id="sessionStatus" style="font-size:12px;color:#8a9e8a;align-self:center"></span>
-      </div>
-
-      <h3 style="margin-bottom:8px;font-size:14px">Punter Codes</h3>
-      <p style="font-size:11px;color:#8a9e8a;margin-bottom:8px">Enter codes. Use commas for multiple codes per punter.</p>
+    <!-- Today's Codes -->
+    <div class="card" style="margin-bottom:12px">
+      <h2>Today's Codes</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:12px">Enter each punter's booking code for today. Use commas for multiple codes.</p>
       <div id="sessionPunterEditor"></div>
-      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
-        <input type="text" id="newPunterName" placeholder="New punter name" style="max-width:160px" />
-        <button class="btn-sm" onclick="addSessionPunter()">+ Add Punter</button>
+      <button class="btn" onclick="saveSessionCodes()" style="margin-top:12px" id="saveSessionBtn">Save Codes</button>
+      <span id="saveSessionMsg" style="font-size:12px;color:#00c853;margin-left:8px"></span>
+    </div>
+
+    <!-- Quick Add / Quick Remove -->
+    <div class="card" style="margin-bottom:12px">
+      <h2>Quick Add Punter</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="newPunterName" placeholder="Punter name" style="max-width:180px" />
+        <input type="text" id="newPunterCode" placeholder="Code (optional)" style="max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700" />
+        <button class="btn" onclick="addSessionPunter()">+ Add</button>
+      </div>
+      <p style="font-size:11px;color:#8a9e8a;margin-top:8px">Click ✕ next to any punter above to remove them from today's tracking.</p>
+    </div>
+
+    <!-- Generation Engine (collapsed by default) -->
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="document.getElementById('genEngineBody').style.display=document.getElementById('genEngineBody').style.display==='none'?'block':'none'">
+        <h2 style="margin:0">Generation Engine</h2>
+        <span style="color:#8a9e8a;font-size:11px">Click to expand ▼</span>
+      </div>
+      <div id="genEngineBody" style="display:none;margin-top:14px">
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn" onclick="runSession()" id="runBtn">▶ Run Generation</button>
+          <button class="btn" style="background:#e53935" onclick="resetSession()" id="resetBtn">↻ Reset Session</button>
+          <span id="sessionStatus" style="font-size:12px;color:#8a9e8a;align-self:center"></span>
+        </div>
+        <div id="sessionLogCard" style="display:none;margin-bottom:12px">
+          <div id="sessionLogBox" style="font-family:monospace;font-size:11px;color:#8a9e8a;max-height:300px;overflow-y:auto;white-space:pre-wrap;background:#0a0f0a;padding:12px;border-radius:8px;border:1px solid #1e2e1e"></div>
+        </div>
+        <div id="sessionResultCard" style="display:none">
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <button class="btn-sm" onclick="copySessionCodes()">Copy All Codes</button>
+            <button class="btn-sm" onclick="exportSessionCodes()">Export .txt</button>
+          </div>
+          <div id="sessionCodesOutput"></div>
+        </div>
       </div>
     </div>
 
-    <div class="card" id="sessionLogCard" style="display:none">
-      <h2>Engine Log</h2>
-      <div id="sessionLogBox" style="font-family:monospace;font-size:11px;color:#8a9e8a;max-height:350px;overflow-y:auto;white-space:pre-wrap;background:#0a0f0a;padding:12px;border-radius:8px;border:1px solid #1e2e1e"></div>
-    </div>
-
+    <!-- Session History -->
     <div class="card" id="sessionHistoryCard">
       <h2>Session History</h2>
       <div id="sessionHistoryList"><p style="color:#8a9e8a">Loading...</p></div>
     </div>
 
-    <div class="card" id="sessionResultCard" style="display:none">
-      <h2>Generated Codes</h2>
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-        <button class="btn-sm" onclick="copySessionCodes()">Copy All Codes</button>
-        <button class="btn-sm" onclick="exportSessionCodes()">Export .txt</button>
+  </div>
+
+  <!-- COMMUNITY CODES -->
+  <div class="tab-content" id="tab-community">
+    <div class="card" style="margin-bottom:12px">
+      <h2>Community Codes</h2>
+      <p style="font-size:11px;color:#8a9e8a;margin-bottom:16px">Booking codes found online (not punters). Scan, analyse, optimise, or promote to a tracked punter if consistently good.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
+        <div>
+          <label style="font-size:10px;color:#8a9e8a;display:block;margin-bottom:3px">BOOKING CODE</label>
+          <input type="text" id="cc-code" placeholder="e.g. ABC123" style="max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px" />
+        </div>
+        <div>
+          <label style="font-size:10px;color:#8a9e8a;display:block;margin-bottom:3px">SOURCE</label>
+          <input type="text" id="cc-source" placeholder="e.g. @handle or site" style="max-width:160px" />
+        </div>
+        <div>
+          <label style="font-size:10px;color:#8a9e8a;display:block;margin-bottom:3px">PLATFORM</label>
+          <select id="cc-platform" style="padding:8px 10px;background:#0a0f0a;color:#fff;border:1px solid #1e2e1e;border-radius:6px;font-size:12px">
+            <option value="SportyBet">SportyBet</option>
+            <option value="Bet9ja">Bet9ja</option>
+            <option value="1xBet">1xBet</option>
+            <option value="BetKing">BetKing</option>
+            <option value="NairaBet">NairaBet</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;color:#8a9e8a;display:block;margin-bottom:3px">NOTES</label>
+          <input type="text" id="cc-notes" placeholder="Optional notes" style="max-width:200px" />
+        </div>
+        <button class="btn" onclick="addCommunityCode()" style="flex-shrink:0">+ Add Code</button>
       </div>
-      <div id="sessionCodesOutput"></div>
+      <span id="cc-msg" style="font-size:11px;color:#8a9e8a"></span>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <h2 style="margin:0">Saved Community Codes</h2>
+        <button class="btn-sm" onclick="loadCommunityCodes()">↻ Refresh</button>
+      </div>
+      <div id="cc-list"><p style="color:#8a9e8a">Loading...</p></div>
     </div>
   </div>
 
@@ -700,6 +759,7 @@ async function loadAll() {
   try { loadSessionPunters(); } catch(e) { console.error('loadSessionPunters:', e); }
   try { loadSessionResult(); } catch(e) { console.error('loadSessionResult:', e); }
   try { loadSessionHistory(); } catch(e) { console.error('loadSessionHistory:', e); }
+  try { if (typeof ssRestoreLastResult === 'function') ssRestoreLastResult(); } catch(e) { console.error('ssRestoreLastResult:', e); }
 }
 
 function updateQuickStats() {
@@ -1211,15 +1271,33 @@ function renderSessionPunterEditor() {
 function addSessionPunter() {
   const name = document.getElementById('newPunterName').value.trim();
   if (!name) return;
-  sessionPunters[name] = '';
+  const codeEl = document.getElementById('newPunterCode');
+  sessionPunters[name] = codeEl ? codeEl.value.trim().toUpperCase() : '';
   renderSessionPunterEditor();
   document.getElementById('newPunterName').value = '';
+  if (codeEl) codeEl.value = '';
 }
 
-function removeSessionPunter(name) {
-  if (!confirm('Remove ' + name + '?')) return;
+async function saveSessionCodes() {
+  const map = getSessionPunterMap();
+  const btn = document.getElementById('saveSessionBtn');
+  const msg = document.getElementById('saveSessionMsg');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const r = await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(map)});
+    const j = await r.json();
+    if (j.success) { sessionPunters = { ...sessionPunters, ...j.codes }; if (msg) { msg.textContent = 'Saved!'; setTimeout(() => msg.textContent='', 2000); } }
+    else if (msg) msg.textContent = j.error || 'Save failed';
+  } catch(e) { if (msg) msg.textContent = 'Error: ' + e.message; }
+  finally { if (btn) { btn.disabled = false; btn.textContent = 'Save Codes'; } }
+}
+
+async function removeSessionPunter(name) {
+  if (!confirm('Remove ' + name + ' from today\'s tracking?')) return;
   delete sessionPunters[name];
   renderSessionPunterEditor();
+  // Auto-save after removal
+  await saveSessionCodes();
 }
 
 function getSessionPunterMap() {
@@ -1242,7 +1320,9 @@ async function runSession() {
   const map = getSessionPunterMap();
   try { await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(map)}); } catch {}
 
-  // Start generation
+  // Start generation — expand engine section
+  const engBody = document.getElementById('genEngineBody');
+  if (engBody) engBody.style.display = 'block';
   document.getElementById('sessionLogCard').style.display = 'block';
   document.getElementById('sessionResultCard').style.display = 'none';
   const logBox = document.getElementById('sessionLogBox');
@@ -1358,6 +1438,115 @@ async function loadSessionHistory() {
   } catch { document.getElementById('sessionHistoryList').innerHTML = '<p style="color:#8a9e8a">Could not load history.</p>'; }
 }
 
+// ── COMMUNITY CODES ──
+
+let _communityCodes = [];
+
+async function loadCommunityCodes() {
+  const el = document.getElementById('cc-list');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">Loading...</p>';
+  try {
+    const r = await fetch('/api/admin/community-codes', {headers:{'x-admin-password':adminPw}});
+    _communityCodes = await r.json();
+    renderCommunityCodes();
+  } catch(e) { el.innerHTML = `<p style="color:#e53935;font-size:12px">${e.message}</p>`; }
+}
+
+function renderCommunityCodes() {
+  const el = document.getElementById('cc-list');
+  if (!el) return;
+  if (!_communityCodes.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No community codes yet. Add one above.</p>'; return; }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="color:#8a9e8a;border-bottom:1px solid #1e2e1e">
+      <th style="text-align:left;padding:6px 8px">Code</th>
+      <th style="text-align:left;padding:6px 8px">Source</th>
+      <th style="text-align:left;padding:6px 8px">Platform</th>
+      <th style="text-align:left;padding:6px 8px">Status</th>
+      <th style="text-align:left;padding:6px 8px">Added</th>
+      <th style="text-align:right;padding:6px 8px">Actions</th>
+    </tr></thead>
+    <tbody>${_communityCodes.map(cc => `
+      <tr style="border-bottom:1px solid rgba(255,255,255,.04)" id="ccrow-${cc.id}">
+        <td style="padding:8px;font-family:monospace;font-weight:800;color:#69f0ae;letter-spacing:1px">${esc(cc.code)}</td>
+        <td style="padding:8px;color:#8a9e8a">${esc(cc.source||'-')}</td>
+        <td style="padding:8px">${esc(cc.platform||'SportyBet')}</td>
+        <td style="padding:8px"><span id="cc-status-${cc.id}" style="font-size:10px;padding:2px 6px;border-radius:3px;background:${cc.status==='promoted'?'#1b5e20':cc.status==='scanned'?'#0d2b4a':'#2a1a00'};color:${cc.status==='promoted'?'#69f0ae':cc.status==='scanned'?'#29b6f6':'#ffb300'}">${cc.status||'pending'}</span></td>
+        <td style="padding:8px;color:#8a9e8a">${cc.dateAdded||''}</td>
+        <td style="padding:8px;text-align:right;white-space:nowrap">
+          <button class="btn-sm" onclick="ccScan('${cc.id}')" style="margin-right:4px">Scan</button>
+          <button class="btn-sm" onclick="ccPromote('${cc.id}')" style="margin-right:4px;border-color:#00c853;color:#00c853">Promote</button>
+          <button class="btn-sm" onclick="ccDelete('${cc.id}')" style="border-color:#e53935;color:#e53935">Delete</button>
+        </td>
+      </tr>
+      ${cc.scanResult ? `<tr style="border-bottom:1px solid rgba(255,255,255,.04)"><td colspan="6" style="padding:4px 8px 8px;color:#8a9e8a;font-size:11px">↳ Scan: ${cc.scanResult.won||0}W / ${cc.scanResult.lost||0}L / ${cc.scanResult.pending||0} pending — Hit Rate ${cc.scanResult.hitRate||0}% (${cc.scanResult.total||0} games)</td></tr>` : ''}
+      ${cc.notes ? `<tr><td colspan="6" style="padding:0 8px 8px;color:#6e7a6e;font-size:11px;font-style:italic">Notes: ${esc(cc.notes)}</td></tr>` : ''}
+    `).join('')}</tbody>
+  </table>`;
+}
+
+async function addCommunityCode() {
+  const code = (document.getElementById('cc-code')?.value||'').trim().toUpperCase();
+  const source = (document.getElementById('cc-source')?.value||'').trim();
+  const platform = document.getElementById('cc-platform')?.value || 'SportyBet';
+  const notes = (document.getElementById('cc-notes')?.value||'').trim();
+  const msg = document.getElementById('cc-msg');
+  if (!code) { if (msg) msg.textContent = 'Booking code is required.'; return; }
+  try {
+    const r = await fetch('/api/admin/community-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code,source,platform,notes})});
+    const j = await r.json();
+    if (j.success) {
+      _communityCodes.unshift(j.entry);
+      renderCommunityCodes();
+      document.getElementById('cc-code').value = '';
+      document.getElementById('cc-source').value = '';
+      document.getElementById('cc-notes').value = '';
+      if (msg) { msg.textContent = 'Added!'; setTimeout(()=>msg.textContent='',2000); }
+    } else if (msg) msg.textContent = j.error || 'Failed to add';
+  } catch(e) { if (msg) { msg.textContent = 'Error: '+e.message; } }
+}
+
+async function ccScan(id) {
+  const statusEl = document.getElementById('cc-status-' + id);
+  if (statusEl) { statusEl.textContent = 'scanning…'; statusEl.style.color='#ffb300'; }
+  try {
+    const r = await fetch(`/api/admin/community-codes/${id}/scan`, {method:'POST', headers:{'x-admin-password':adminPw}});
+    const j = await r.json();
+    if (j.success) {
+      const idx = _communityCodes.findIndex(c => c.id === id);
+      if (idx >= 0) { _communityCodes[idx] = j.entry; renderCommunityCodes(); }
+    } else alert('Scan failed: ' + (j.error||'unknown error'));
+  } catch(e) { alert('Scan error: ' + e.message); }
+}
+
+async function ccPromote(id) {
+  const cc = _communityCodes.find(c => c.id === id);
+  if (!cc) return;
+  const name = prompt('Promote this code as which punter name?', cc.source || '');
+  if (!name) return;
+  try {
+    const r = await fetch(`/api/admin/community-codes/${id}/promote`, {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({punterName:name})});
+    const j = await r.json();
+    if (j.success) {
+      const idx = _communityCodes.findIndex(c => c.id === id);
+      if (idx >= 0) { _communityCodes[idx] = j.entry; renderCommunityCodes(); }
+      alert(`Promoted! ${cc.code} is now tracked as "${name}".`);
+    } else alert('Promote failed: ' + (j.error||'unknown'));
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function ccDelete(id) {
+  if (!confirm('Delete this community code?')) return;
+  try {
+    const r = await fetch(`/api/admin/community-codes/${id}`, {method:'DELETE', headers:{'x-admin-password':adminPw}});
+    const j = await r.json();
+    if (j.success) {
+      _communityCodes = _communityCodes.filter(c => c.id !== id);
+      renderCommunityCodes();
+    }
+  } catch(e) { alert('Error: '+e.message); }
+}
+
 // Ctrl+Shift+A → instant admin access
 document.addEventListener('keydown', function(e) {
   if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
@@ -1428,11 +1617,35 @@ async function ssGenerate() {
 
     ssRenderSlips(data.slips);
     document.getElementById('ss-output').style.display = 'block';
+    // Persist result for refresh survival
+    try { localStorage.setItem('ss_last_result', JSON.stringify({ data, savedAt: new Date().toISOString() })); } catch {}
   } catch (e) {
     ssStatus('Error: ' + e.message, '#F87171');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Generate Smart Slips'; }
   }
+}
+
+function ssRestoreLastResult() {
+  try {
+    const saved = localStorage.getItem('ss_last_result');
+    if (!saved) return;
+    const { data, savedAt } = JSON.parse(saved);
+    if (!data?.slips?.length) return;
+    // Only restore if saved today
+    const today = new Date().toLocaleDateString('en-CA');
+    const saveDay = (savedAt || '').slice(0, 10);
+    if (saveDay !== today) return;
+    ssStatus(`${data.slips.length} slips restored (from earlier session)  ·  ${data.uniqueSelections} unique selections`, '#94A3B8');
+    if (data.removed?.length) {
+      const el = document.getElementById('ss-removed');
+      el.style.display = 'block';
+      el.innerHTML = `<strong>Removed (${data.removed.length}):</strong> ` +
+        data.removed.map(r => `${r.match} — ${r.reason}`).join(' &nbsp;·&nbsp; ');
+    }
+    ssRenderSlips(data.slips);
+    document.getElementById('ss-output').style.display = 'block';
+  } catch {}
 }
 
 function ssRenderSlips(slips) {

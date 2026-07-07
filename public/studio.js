@@ -897,9 +897,25 @@ async function _buildReportPayload(type) {
     rangeLabel = fmtLong(targetDate);
     if (!data.punters.length)
       throw new Error(
-        'No completed analysis for ' + targetDate + '. ' +
-        'Run Rescan All from the Admin panel first.'
+        'No punter data found for ' + targetDate + '. ' +
+        'Ensure codes are saved and run Rescan All.'
       );
+    // Guard against 0% — all punters have no settled games
+    const _totalSettled = data.punters.reduce((s, p) => s + (p.settled || 0), 0);
+    const _totalGames   = data.punters.reduce((s, p) => s + (p.games   || 0), 0);
+    if (_totalSettled === 0) {
+      if (_totalGames > 0) {
+        throw new Error(
+          _totalGames + ' games are still pending settlement for ' + targetDate + '. ' +
+          'Run Rescan All once the matches have finished.'
+        );
+      } else {
+        throw new Error(
+          data.punters.length + ' punter(s) tracked for ' + targetDate + ' but no scan data found. ' +
+          'Run Rescan All from the Admin panel to fetch results.'
+        );
+      }
+    }
   } else if (type === 'weekly') {
     const range = getWeekRange();
     const agg   = aggregateLeaderboard(raw, range.start, range.end);

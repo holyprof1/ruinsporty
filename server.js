@@ -1378,7 +1378,7 @@ app.post("/api/punters/:name/add-code", requireAdmin, async (req, res) => {
 
     // Also write to punter-codes.json if the date is today (so it shows in Today's Punter Codes)
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localToday();
       const codeDate = date || today;
       if (codeDate === today) {
         const pc = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8").replace(/^﻿/, ""));
@@ -1533,19 +1533,18 @@ const PUNTER_CODES_FILE = path.join(DATA_DIR, "punter-codes.json");
 function loadPunterCodes() {
   try {
     const raw = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8").replace(/^﻿/, ""));
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     if (!raw._date || raw._date !== today) {
-      const cleared = { _date: today };
-      for (const k of Object.keys(raw)) { if (k !== "_date") cleared[k] = ""; }
-      fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(cleared, null, 2));
-      const c2 = { ...cleared }; delete c2._date;
-      return c2;
+      // Date has changed — return empty codes without writing (caller must explicitly save)
+      const clean = {};
+      for (const k of Object.keys(raw)) { if (k !== "_date") clean[k] = ""; }
+      return clean;
     }
     const clean = { ...raw };
     delete clean._date;
     return clean;
   }
-  catch { return { _date: new Date().toISOString().slice(0, 10), "39 Billion": "", "9Z": "", "Big Strategic": "", "Ayo Jordan": "", "Bayo Bets": "", "OY": "", "Princewill": "", "Sirtee": "" }; }
+  catch { return { "39 Billion": "", "9Z": "", "Big Strategic": "", "Ayo Jordan": "", "Bayo Bets": "", "OY": "", "Princewill": "", "Sirtee": "" }; }
 }
 
 app.get("/api/admin/punter-codes", requireAdmin, (req, res) => {
@@ -1564,7 +1563,7 @@ const PUNTER_ALIASES = {
 
 app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
   const current = loadPunterCodes();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const merged = { ...current, ...req.body, _date: today };
   // Collapse aliases into canonical names, delete alias keys
   for (const [alias, canonical] of Object.entries(PUNTER_ALIASES)) {
@@ -1576,6 +1575,96 @@ app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
   fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(merged, null, 2));
   const clean = { ...merged }; delete clean._date;
   res.json({ success: true, codes: clean });
+});
+
+// ── Community Codes ──
+
+const COMMUNITY_CODES_FILE = path.join(DATA_DIR, "community-codes.json");
+
+function loadCommunityCodes() {
+  try { return JSON.parse(fs.readFileSync(COMMUNITY_CODES_FILE, "utf-8")); }
+  catch { return []; }
+}
+function saveCommunityCodes(list) {
+  fs.writeFileSync(COMMUNITY_CODES_FILE, JSON.stringify(list, null, 2));
+}
+
+app.get("/api/admin/community-codes", requireAdmin, (req, res) => {
+  res.json(loadCommunityCodes());
+});
+
+app.post("/api/admin/community-codes", requireAdmin, (req, res) => {
+  const { code, source, platform, notes } = req.body;
+  if (!code) return res.status(400).json({ error: "code required" });
+  const list = loadCommunityCodes();
+  const entry = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    code: code.trim().toUpperCase(),
+    source: (source || "").trim(),
+    platform: platform || "SportyBet",
+    addedBy: "admin",
+    dateAdded: localToday(),
+    notes: (notes || "").trim(),
+    status: "pending",
+    scanResult: null,
+    promoted: false,
+    promotedAs: null,
+  };
+  list.unshift(entry);
+  saveCommunityCodes(list);
+  res.json({ success: true, entry });
+});
+
+app.delete("/api/admin/community-codes/:id", requireAdmin, (req, res) => {
+  const list = loadCommunityCodes().filter(c => c.id !== req.params.id);
+  saveCommunityCodes(list);
+  res.json({ success: true });
+});
+
+app.post("/api/admin/community-codes/:id/scan", requireAdmin, async (req, res) => {
+  const list = loadCommunityCodes();
+  const entry = list.find(c => c.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: "Not found" });
+  try {
+    const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(entry.code)}`;
+    const json = await fetchJSON(url);
+    if (!json || json.bizCode !== 10000 || !json.data) throw new Error("SportyBet returned no data");
+    const outcomes = json.data.outcomes || [];
+    const ticketSels = json.data.ticket?.selections || [];
+    const selections = mapOutcomes(outcomes, ticketSels);
+    const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+    const won = results.filter(r => r.verdict === "WON").length;
+    const lost = results.filter(r => r.verdict === "LOST").length;
+    const pending = results.filter(r => r.verdict === "PENDING").length;
+    const voided = results.filter(r => r.verdict === "VOID").length;
+    const settled = won + lost;
+    entry.scanResult = { total: results.length, won, lost, void: voided, pending, hitRate: settled > 0 ? Math.round(won / settled * 100) : 0, scannedAt: new Date().toISOString() };
+    entry.status = "scanned";
+    saveCommunityCodes(list);
+    res.json({ success: true, entry });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/admin/community-codes/:id/promote", requireAdmin, (req, res) => {
+  const { punterName } = req.body;
+  if (!punterName) return res.status(400).json({ error: "punterName required" });
+  const list = loadCommunityCodes();
+  const entry = list.find(c => c.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: "Not found" });
+
+  // Add to punter-codes.json so it gets tracked
+  try {
+    const pc = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8").replace(/^﻿/, ""));
+    pc[punterName] = entry.code;
+    pc._date = localToday();
+    fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(pc, null, 2));
+  } catch {}
+
+  entry.status = "promoted";
+  entry.promoted = true;
+  entry.promotedAs = punterName;
+  saveCommunityCodes(list);
+  res.json({ success: true, entry });
 });
 
 // ── Social Links (editable from admin) ──

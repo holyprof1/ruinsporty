@@ -252,3 +252,96 @@ function xaReopen(id) {
   document.getElementById('xa-input').value = item.tweetUrl || item.tweetText || '';
   xaRenderResult(item);
 }
+
+// ── Daily Post ────────────────────────────────────────────────────────────────
+
+async function loadDailyPost() {
+  const el = document.getElementById('dp-punters');
+  try {
+    const r = await fetch('/api/admin/punter-codes', { headers: { 'x-admin-password': adminPw } });
+    const codes = await r.json();
+    const entries = Object.entries(codes).filter(([, v]) => v);
+    if (!entries.length) {
+      el.innerHTML = '<p style="color:#8a9e8a;font-size:12px;margin:0">No punter codes saved yet for today.</p>';
+    } else {
+      el.innerHTML = entries.map(([name, code]) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e2e1e">
+          <span style="font-size:12px;font-weight:600">${esc(name)}</span>
+          <span style="font-family:monospace;font-size:13px;font-weight:800;color:#69f0ae;letter-spacing:1px">${esc(code)}</span>
+        </div>`
+      ).join('');
+    }
+  } catch (e) {
+    el.innerHTML = `<p style="color:#e53935;font-size:12px;margin:0">${e.message}</p>`;
+  }
+}
+
+async function generateDailyPost() {
+  const msg = document.getElementById('dp-msg');
+  const btn = document.getElementById('dp-gen-btn');
+  const out = document.getElementById('dp-output');
+
+  btn.disabled = true;
+  btn.textContent = 'Merging codes…';
+  msg.textContent = '';
+  out.style.display = 'none';
+
+  try {
+    // 1. Get today's punter codes
+    const codesRes = await fetch('/api/admin/punter-codes', { headers: { 'x-admin-password': adminPw } });
+    const codes = await codesRes.json();
+    const entries = Object.entries(codes).filter(([, v]) => v);
+
+    if (!entries.length) {
+      msg.textContent = 'No punter codes saved for today yet.';
+      btn.disabled = false; btn.textContent = 'Generate Post';
+      return;
+    }
+
+    // 2. Auto-merge all today's codes into one slip
+    let merged = '';
+    try {
+      const mergeRes = await fetch('/api/admin/regen-merged', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw } });
+      const mj = await mergeRes.json();
+      if (mj.success && mj.codes && mj.codes.length) {
+        merged = mj.codes[0].code;
+      }
+    } catch {}
+
+    // 3. Build the post
+    const today = new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' });
+    const lines = [
+      `🌅 Good morning! ${today} picks are LIVE 🔥`,
+      '',
+      "Today's punters 📋",
+      ...entries.map(([name, code]) => `• ${name} — ${code}`),
+    ];
+
+    if (merged) {
+      lines.push('');
+      lines.push(`🔗 MERGED — ${merged}`);
+      lines.push('');
+      lines.push('✏️ Edit merged slip: slippilot.com.ng/#convert');
+    }
+
+    lines.push('');
+    lines.push('🎯 Track all punters live at slippilot.com.ng');
+
+    document.getElementById('dp-text').value = lines.join('\n');
+    out.style.display = 'block';
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Generate Post';
+}
+
+function copyDailyPost() {
+  const ta = document.getElementById('dp-text');
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const msg = document.getElementById('dp-msg');
+    msg.textContent = 'Copied!';
+    setTimeout(() => msg.textContent = '', 2000);
+  });
+}
