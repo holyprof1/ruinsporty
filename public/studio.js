@@ -323,8 +323,10 @@ function buildLeagueWatch(raw) {
 
 // ── Caption Builder ───────────────────────────────────────────────────────────
 // analysis = saved daily analysis object from /api/analysis/:date
+// idx 0 = Full intelligence  |  idx 1 = Punter focus  |  idx 2 = Market/League focus
 function buildCaption(data, idx, type, analysis) {
   type = type || 'daily';
+  idx  = (idx || 0) % 3;
   const { punters, avgHR, date } = data;
   if (!punters || !punters.length) return 'No data available.';
 
@@ -336,6 +338,64 @@ function buildCaption(data, idx, type, analysis) {
   const settled = punters.filter(p => p.settled > 0);
   const best = settled[0] || punters[0];
 
+  // ── Variant 1: Punter Performance Focus ─────────────────────────────────────
+  if (idx === 1) {
+    let cap = `👥 SLIPPILOT PUNTER REPORT — ${dateStr.toUpperCase()}\n\n`;
+    if (settled.length >= 1) {
+      cap += `🥇 BEST TODAY\n${settled[0].name} — ${settled[0].hitRate}% (${settled[0].won}W / ${settled[0].lost}L)\n\n`;
+    }
+    if (settled.length >= 2) {
+      cap += `🥈 RUNNER UP\n${settled[1].name} — ${settled[1].hitRate}%\n\n`;
+    }
+    if (settled.length >= 3) {
+      cap += `🥉 THIRD PLACE\n${settled[2].name} — ${settled[2].hitRate}%\n\n`;
+    }
+    const worst = [...settled].sort((a, b) => a.hitRate - b.hitRate)[0];
+    if (worst && worst !== settled[0]) {
+      cap += `📉 TOUGH DAY\n${worst.name} — only ${worst.hitRate}% today\n\n`;
+    }
+    cap += `Avg hit rate: ${avgHR}%  ·  ${punters.length} analysts tracked\n\n`;
+    if (analysis?.insights?.length) {
+      cap += `💡 ${analysis.insights[0]}\n\n`;
+    }
+    cap += tags;
+    return cap;
+  }
+
+  // ── Variant 2: Market & League Intel Focus ───────────────────────────────────
+  if (idx === 2) {
+    let cap = `📈 SLIPPILOT MARKET INTEL — ${dateStr.toUpperCase()}\n`;
+    cap += `What won, what lost, what to avoid next time\n\n`;
+    if (analysis) {
+      const mktWatch = analysis.marketWatch || {};
+      const lgWatch  = analysis.leagueWatch  || {};
+      const mktEntries = Object.entries(mktWatch).filter(([, v]) => (v.won || 0) + (v.lost || 0) >= 3);
+      const lgEntries  = Object.entries(lgWatch).filter(([, v]) => (v.won || 0) + (v.lost || 0) >= 3);
+      const bestMkt  = [...mktEntries].sort((a, b) => b[1].hitRate - a[1].hitRate)[0];
+      const worstMkt = [...mktEntries].sort((a, b) => a[1].hitRate - b[1].hitRate)[0];
+      const bestLg   = [...lgEntries].sort((a, b) => b[1].hitRate - a[1].hitRate)[0];
+      const worstLg  = [...lgEntries].sort((a, b) => a[1].hitRate - b[1].hitRate)[0];
+      if (bestMkt) {
+        cap += `✅ MARKET OF THE DAY\n"${bestMkt[0]}" — ${bestMkt[1].hitRate}% hit rate (${bestMkt[1].won}W/${bestMkt[1].lost}L)\n\n`;
+      }
+      if (worstMkt && (!bestMkt || worstMkt[0] !== bestMkt[0])) {
+        cap += `❌ MARKET TO AVOID\n"${worstMkt[0]}" — only ${worstMkt[1].hitRate}% today\n\n`;
+      }
+      if (bestLg) {
+        cap += `📈 BEST LEAGUE\n${bestLg[0]} — ${bestLg[1].hitRate}% (${bestLg[1].won}W/${bestLg[1].lost}L)\n\n`;
+      }
+      if (worstLg && (!bestLg || worstLg[0] !== bestLg[0])) {
+        cap += `⚠ RISKY LEAGUE\n${worstLg[0]} — ${worstLg[1].hitRate}%${worstLg[1].banned ? ' 🚫 BANNED' : ''}\n\n`;
+      }
+    } else {
+      cap += `Run Rescan All to unlock market intelligence.\n\n`;
+    }
+    cap += `Overall avg: ${avgHR}%  ·  ${punters.length} analysts\n\n`;
+    cap += tags;
+    return cap;
+  }
+
+  // ── Variant 0 (default): Full Intelligence ────────────────────────────────────
   let cap = `📊 SLIPPILOT DAILY INTEL — ${dateStr.toUpperCase()}\n`;
   cap += `Top: ${best.name} ${best.hitRate}%  ·  Avg: ${avgHR}%  ·  ${punters.length} analysts\n\n`;
 
@@ -959,6 +1019,34 @@ function csDisplayReport(report) {
   const repEl = document.getElementById('cs-reply-text');
   if (repEl) repEl.textContent = report.reply || '';
 
+  // ── Render additional category cards (from real analysis only) ────────────
+  const an = report.analysis || null;
+  const c2 = document.getElementById('cs-canvas-killer');
+  if (c2) { try { renderKillerCard(c2, an); } catch {} }
+  const c3 = document.getElementById('cs-canvas-consensus');
+  if (c3) { try { renderConsensusCard(c3, an); } catch {} }
+  const c4 = document.getElementById('cs-canvas-league');
+  if (c4) { try { renderLeagueWatchCard(c4, an); } catch {} }
+  const c5 = document.getElementById('cs-canvas-market');
+  if (c5) { try { renderMarketWatchCard(c5, an); } catch {} }
+  const c6 = document.getElementById('cs-canvas-performer');
+  if (c6) { try { renderPerformerCard(c6, data, an); } catch {} }
+
+  // Category-specific captions
+  const killerCap = document.getElementById('cs-killer-caption');
+  if (killerCap) killerCap.textContent = buildKillerCaption(an);
+  const consensusCap = document.getElementById('cs-consensus-caption');
+  if (consensusCap) consensusCap.textContent = buildConsensusCaption(an);
+  const performerCap = document.getElementById('cs-performer-caption');
+  if (performerCap) performerCap.textContent = buildBestPerformerCaption(data, an);
+  const leagueCap = document.getElementById('cs-league-caption');
+  if (leagueCap) leagueCap.textContent = buildLeagueWatchCaption(an);
+  const marketCap = document.getElementById('cs-market-caption');
+  if (marketCap) marketCap.textContent = buildMarketWatchCaption(an);
+
+  // Special posts
+  csRenderSpecialPosts(data, an);
+
   csShowReport();
   csStatus('');
 }
@@ -1204,13 +1292,536 @@ function switchStudioTab(tab) {
   // 'slips' tab is self-contained — user clicks Generate manually
 }
 
+// ── Content Category Captions ─────────────────────────────────────────────────
+
+function buildKillerCaption(analysis) {
+  if (!analysis) return 'Run Rescan All to generate the Ticket Killer report.';
+  const killers = analysis.ticketKillers || [];
+  const date = analysis.date || '';
+  const dateStr = date ? fmtShort(date) : 'Today';
+  if (!killers.length) return `No ticket killers recorded for ${dateStr}. Clean day!`;
+  const top = killers[0];
+  const sel = top.selections?.[0];
+  const mkt = sel ? (sel.outcome ? `${sel.market} — ${sel.outcome}` : sel.market) : '';
+  const odds = sel?.originalOdds ? ` @ ${sel.originalOdds}` : '';
+  let cap = `☠️ TICKET KILLER — ${dateStr.toUpperCase()}\n\n`;
+  cap += `${top.match}${odds}\n`;
+  if (mkt) cap += `${mkt}\n`;
+  cap += `Killed ${top.codeCount} slip${top.codeCount !== 1 ? 's' : ''} across ${top.punterCount} punter${top.punterCount !== 1 ? 's' : ''}\n\n`;
+  if (top.reasons?.length) cap += `Why it failed:\n${top.reasons.map(r => '• ' + r).join('\n')}\n\n`;
+  if (killers.length > 1) {
+    cap += `Also killed slips today:\n`;
+    killers.slice(1, 4).forEach(k => {
+      const ks = k.selections?.[0];
+      cap += `• ${k.match} — ${k.codeCount} slip${k.codeCount !== 1 ? 's' : ''}\n`;
+    });
+    cap += '\n';
+  }
+  cap += `#FootballBetting #TicketKiller #SlipPilot #BettingAnalysis`;
+  return cap;
+}
+
+function buildConsensusCaption(analysis) {
+  if (!analysis) return 'Run Rescan All to generate the Consensus Picks report.';
+  const wins  = analysis.consensusWins  || [];
+  const all   = analysis.allSelections  || [];
+  const date  = analysis.date || '';
+  const dateStr = date ? fmtShort(date) : 'Today';
+  const multiPunter = all.filter
+    ? [...new Set(all.map(s => `${s.homeTeam}|${s.awayTeam}`))]
+        .map(key => {
+          const sels = all.filter(s => `${s.homeTeam}|${s.awayTeam}` === key);
+          return { match: key.replace('|', ' vs '), punters: [...new Set(sels.map(s => s.punter))].length };
+        }).filter(m => m.punters >= 3).sort((a, b) => b.punters - a.punters)
+    : [];
+  if (!wins.length && !multiPunter.length) return `No strong consensus picks recorded for ${dateStr}.`;
+  let cap = `🤝 CONSENSUS PICKS — ${dateStr.toUpperCase()}\n`;
+  cap += `Matches where multiple punters agreed\n\n`;
+  if (wins.length) {
+    cap += `✅ PICKS THAT CAME THROUGH\n`;
+    wins.slice(0, 3).forEach(w => {
+      const selStr = [...new Set((w.selections || []).map(s => s.outcome || s.market))].slice(0, 2).join(', ');
+      cap += `${w.match}${selStr ? ` (${selStr})` : ''} — ${w.punterCount} punters agreed ✓\n`;
+    });
+    cap += '\n';
+  }
+  if (multiPunter.length) {
+    cap += `📌 Most backed matches:\n`;
+    multiPunter.slice(0, 3).forEach(m => cap += `• ${m.match} — ${m.punters} punters\n`);
+    cap += '\n';
+  }
+  cap += `#FootballBetting #ConsensusPicks #SlipPilot #BettingTips`;
+  return cap;
+}
+
+function buildBestPerformerCaption(data, analysis) {
+  const { punters, date } = data;
+  const settled = (punters || []).filter(p => p.settled > 0);
+  if (!settled.length) return 'No settled results yet for this date.';
+  const dateStr = date ? fmtShort(date) : 'Today';
+  const best  = settled[0];
+  const worst = [...settled].sort((a, b) => a.hitRate - b.hitRate)[0];
+  let cap = `🏆 PERFORMER SPOTLIGHT — ${dateStr.toUpperCase()}\n\n`;
+  cap += `🥇 BEST TODAY\n${best.name}\n${best.hitRate}% hit rate — ${best.won}W / ${best.lost}L`;
+  if (best.totalOdds) cap += ` — ${typeof best.totalOdds === 'number' ? best.totalOdds.toFixed(0) + 'x odds' : best.totalOdds}`;
+  cap += '\n\n';
+  if (worst && worst.name !== best.name) {
+    cap += `📉 TOUGHEST DAY\n${worst.name}\n${worst.hitRate}% — ${worst.won}W / ${worst.lost}L\n\n`;
+  }
+  if (settled.length >= 3) {
+    const mid = settled[Math.floor(settled.length / 2)];
+    cap += `Field avg: ${Math.round(settled.reduce((a, p) => a + p.hitRate, 0) / settled.length)}%  ·  ${settled.length} analysts\n\n`;
+  }
+  if (analysis?.insights?.length) cap += `💡 ${analysis.insights[0]}\n\n`;
+  cap += `#FootballBetting #BettingPerformance #SlipPilot #BettingTips`;
+  return cap;
+}
+
+function buildLeagueWatchCaption(analysis) {
+  if (!analysis) return 'Run Rescan All to generate League Watch data.';
+  const lgWatch = analysis.leagueWatch || {};
+  const lgEntries = Object.entries(lgWatch).filter(([, v]) => (v.won || 0) + (v.lost || 0) >= 3);
+  const date = analysis.date || '';
+  const dateStr = date ? fmtShort(date) : 'Today';
+  if (!lgEntries.length) return `Not enough league data for ${dateStr} — need 3+ selections per league.`;
+  const sorted  = [...lgEntries].sort((a, b) => b[1].hitRate - a[1].hitRate);
+  const best    = sorted[0];
+  const worst   = sorted[sorted.length - 1];
+  const banned  = lgEntries.filter(([, v]) => v.banned);
+  let cap = `🏟️ LEAGUE WATCH — ${dateStr.toUpperCase()}\n`;
+  cap += `Hit rate breakdown by competition\n\n`;
+  cap += `📈 BEST LEAGUES TODAY\n`;
+  sorted.slice(0, 4).forEach(([league, stats]) =>
+    cap += `${league} — ${stats.hitRate}% (${stats.won}W/${stats.lost}L)${stats.banned ? ' 🚫' : ''}\n`
+  );
+  cap += '\n';
+  if (banned.length) {
+    cap += `🚫 BLACKLISTED LEAGUES STILL ACTIVE\n`;
+    banned.forEach(([l]) => cap += `• ${l}\n`);
+    cap += `Remove these from slips immediately\n\n`;
+  }
+  cap += `#FootballBetting #LeagueWatch #SlipPilot #BettingAnalysis`;
+  return cap;
+}
+
+function buildMarketWatchCaption(analysis) {
+  if (!analysis) return 'Run Rescan All to generate Market Watch data.';
+  const mktWatch = analysis.marketWatch || {};
+  const mktEntries = Object.entries(mktWatch).filter(([, v]) => (v.won || 0) + (v.lost || 0) >= 3);
+  const date = analysis.date || '';
+  const dateStr = date ? fmtShort(date) : 'Today';
+  if (!mktEntries.length) return `Not enough market data for ${dateStr}.`;
+  const sorted  = [...mktEntries].sort((a, b) => b[1].hitRate - a[1].hitRate);
+  const best    = sorted[0];
+  const worst   = sorted[sorted.length - 1];
+  let cap = `📊 MARKET WATCH — ${dateStr.toUpperCase()}\n`;
+  cap += `Which bet types performed — and which didn't\n\n`;
+  if (best) cap += `✅ HOT MARKET\n"${best[0]}" — ${best[1].hitRate}% (${best[1].won}W/${best[1].lost}L)\n\n`;
+  if (worst && worst[0] !== best?.[0]) cap += `❌ COLD MARKET\n"${worst[0]}" — only ${worst[1].hitRate}% today\n\n`;
+  if (sorted.length > 2) {
+    cap += `Full breakdown:\n`;
+    sorted.slice(0, 5).forEach(([mkt, stats]) =>
+      cap += `${mkt}: ${stats.hitRate}% (${stats.won}W/${stats.lost}L)\n`
+    );
+    cap += '\n';
+  }
+  cap += `#FootballBetting #MarketWatch #SlipPilot #BettingAnalysis`;
+  return cap;
+}
+
+// ── Special Post Builder (auto-generates from real analysis) ──────────────────
+function buildSpecialPosts(data, analysis) {
+  const posts = [];
+  if (!analysis) return posts;
+  const killers     = analysis.ticketKillers || [];
+  const wins        = analysis.consensusWins  || [];
+  const allSels     = analysis.allSelections  || [];
+  const punterStats = analysis.punterStats    || {};
+  const lgWatch     = analysis.leagueWatch    || {};
+  const mktWatch    = analysis.marketWatch    || {};
+  const date        = analysis.date || data.date || '';
+  const dateStr     = date ? fmtShort(date) : 'Today';
+  const tags = '#SlipPilot #FootballBetting #BettingTips';
+
+  // 1. Team that destroyed the most punters
+  const topKiller = killers[0];
+  if (topKiller && topKiller.punterCount >= 2) {
+    const teamName = topKiller.match.split(' vs ')[0] || topKiller.match;
+    posts.push({
+      type: 'Special: Ticket Killer',
+      caption: `${topKiller.punterCount} punters all had ${teamName} — and all lost.\n\n`
+        + `${topKiller.match}\n`
+        + (topKiller.selections?.[0]?.originalOdds ? `Odds: ${topKiller.selections[0].originalOdds}\n` : '')
+        + `Killed ${topKiller.codeCount} slip${topKiller.codeCount !== 1 ? 's' : ''} on ${dateStr}.\n\n${tags}`,
+      reply: topKiller.reasons?.length
+        ? `Why it failed: ${topKiller.reasons.join(' / ')}.\n${topKiller.recommendation || ''}`
+        : `Another day, another reminder — no pick is ever guaranteed.`,
+    });
+  }
+
+  // 2. Most agreed-upon match
+  const matchCount = {};
+  for (const s of allSels) {
+    const key = `${s.homeTeam} vs ${s.awayTeam}`;
+    if (!matchCount[key]) matchCount[key] = new Set();
+    matchCount[key].add(s.punter);
+  }
+  const topConsensus = Object.entries(matchCount).sort((a, b) => b[1].size - a[1].size)[0];
+  if (topConsensus && topConsensus[1].size >= 4) {
+    const selsForMatch = allSels.filter(s => `${s.homeTeam} vs ${s.awayTeam}` === topConsensus[0]);
+    const verdicts = [...new Set(selsForMatch.map(s => s.verdict))];
+    const won = selsForMatch.every(s => s.verdict === 'WON' || s.verdict === 'PENDING');
+    posts.push({
+      type: 'Special: Mass Consensus',
+      caption: `${topConsensus[1].size} punters all backed the same match on ${dateStr}.\n\n`
+        + `${topConsensus[0]}\n`
+        + (verdicts.includes('WON') ? '✅ It came through.\n' : verdicts.includes('LOST') ? '❌ It let everyone down.\n' : '⏳ Still pending.\n')
+        + `\n${tags}`,
+      reply: `When ${topConsensus[1].size} analysts agree on something — pay attention.\n`
+        + `Punters: ${[...topConsensus[1]].join(', ')}`,
+    });
+  }
+
+  // 3. Biggest blacklisted league offender
+  const bannedActive = Object.entries(lgWatch).filter(([, v]) => v.banned && v.selections > 0);
+  if (bannedActive.length) {
+    const worst = bannedActive.sort((a, b) => a[1].hitRate - b[1].hitRate)[0];
+    posts.push({
+      type: 'Special: Blacklisted League Warning',
+      caption: `⚠️ BLACKLISTED LEAGUE STILL COSTING PUNTERS — ${dateStr}\n\n`
+        + `${worst[0]} has a ${worst[1].hitRate}% hit rate (${worst[1].won}W/${worst[1].lost}L).\n`
+        + `This league is on our banned list for exactly this reason.\n\n`
+        + `Remove it from your slip builder.\n\n${tags}`,
+      reply: bannedActive.length > 1
+        ? `Other active banned leagues today: ${bannedActive.slice(1, 3).map(([l]) => l).join(', ')}`
+        : `One bad league can wreck an entire slip.`,
+    });
+  }
+
+  // 4. Best market vs worst market contrast post
+  const mktEntries = Object.entries(mktWatch).filter(([, v]) => (v.won || 0) + (v.lost || 0) >= 3);
+  if (mktEntries.length >= 2) {
+    const bestMkt  = [...mktEntries].sort((a, b) => b[1].hitRate - a[1].hitRate)[0];
+    const worstMkt = [...mktEntries].sort((a, b) => a[1].hitRate - b[1].hitRate)[0];
+    if (bestMkt[0] !== worstMkt[0]) {
+      posts.push({
+        type: 'Special: Market Contrast',
+        caption: `📊 SAME DAY, VERY DIFFERENT RESULTS — ${dateStr}\n\n`
+          + `✅ "${bestMkt[0]}" hit ${bestMkt[1].hitRate}% today (${bestMkt[1].won}W/${bestMkt[1].lost}L)\n`
+          + `❌ "${worstMkt[0]}" only managed ${worstMkt[1].hitRate}% (${worstMkt[1].won}W/${worstMkt[1].lost}L)\n\n`
+          + `The market you pick matters as much as the match.\n\n${tags}`,
+        reply: `SlipPilot tracks every market type daily to help you bet smarter, not harder.`,
+      });
+    }
+  }
+
+  // 5. Punter contrast — best vs worst day
+  const punterArr = Object.values(punterStats).filter(p => (p.won + p.lost) >= 3);
+  if (punterArr.length >= 2) {
+    const bestP  = [...punterArr].sort((a, b) => b.hitRate - a.hitRate)[0];
+    const worstP = [...punterArr].sort((a, b) => a.hitRate - b.hitRate)[0];
+    if (bestP.punter !== worstP.punter) {
+      posts.push({
+        type: 'Special: Punter Contrast',
+        caption: `⚡ THE GAP WAS MASSIVE TODAY — ${dateStr}\n\n`
+          + `${bestP.punter}: ${bestP.hitRate}% (${bestP.won}W/${bestP.lost}L)\n`
+          + `${worstP.punter}: ${worstP.hitRate}% (${worstP.won}W/${worstP.lost}L)\n\n`
+          + `Same day. Same leagues. Very different decisions.\n\n${tags}`,
+        reply: `Follow the data — not the hype. Track all punters at slippilot.com.ng`,
+      });
+    }
+  }
+
+  return posts;
+}
+
+// ── New Category Canvas Renderers ─────────────────────────────────────────────
+
+function renderKillerCard(canvas, analysis) {
+  const W = 1080, CARD_H = 520;
+  canvas.width  = W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d');
+  _rect(ctx, 0, 0, W, CARD_H, P.bg);
+  _rect(ctx, 0, 0, W, 3, P.red);
+  _rect(ctx, 0, 0, W, 64, P.hdr);
+  _t(ctx, 'SLIPPILOT  ·  TICKET KILLER REPORT', 22, 22, { size: 13, weight: '900', color: P.text });
+  if (analysis?.date) _t(ctx, fmtShort(analysis.date).toUpperCase(), W - 22, 22, { size: 12, color: P.muted, align: 'right' });
+  _line(ctx, 0, 64, W, 64, P.border);
+
+  const killers = (analysis?.ticketKillers || []).slice(0, 4);
+  if (!killers.length) {
+    _t(ctx, 'No ticket killers recorded today', W / 2, CARD_H / 2, { size: 18, color: P.muted, align: 'center' });
+    return;
+  }
+
+  let y = 90;
+  killers.forEach((k, i) => {
+    const bh = i === 0 ? 130 : 70;
+    _rect(ctx, 20, y, W - 40, bh, i === 0 ? '#1a0505' : P.surf);
+    if (i === 0) _rect(ctx, 20, y, 4, bh, P.red);
+    const sel = k.selections?.[0];
+    const odds = sel?.originalOdds ? ` @ ${sel.originalOdds}` : '';
+    const mktStr = sel ? (sel.outcome ? `${sel.market} — ${sel.outcome}` : sel.market) : '';
+    if (i === 0) {
+      _t(ctx, '☠ #1 KILLER', 34, y + 20, { size: 10, weight: '700', color: P.red });
+      _t(ctx, k.match + odds, 34, y + 46, { size: 17, weight: '700', color: '#fff' });
+      if (mktStr) _t(ctx, mktStr, 34, y + 72, { size: 13, color: P.muted });
+      _t(ctx, `${k.punterCount} punters  ·  ${k.codeCount} slips destroyed`, 34, y + 100, { size: 12, color: P.red });
+    } else {
+      _t(ctx, `#${i + 1}  ${k.match}${odds}`, 34, y + 24, { size: 14, weight: '600', color: P.text });
+      _t(ctx, `${k.punterCount} punters  ·  ${k.codeCount} slips`, 34, y + 48, { size: 12, color: P.muted });
+    }
+    y += bh + 10;
+  });
+
+  _rect(ctx, 0, CARD_H - 38, W, 38, P.hdr);
+  _t(ctx, 'slippilot.com.ng', 22, CARD_H - 19, { size: 11, weight: '600', color: P.blue });
+  _t(ctx, 'Know your killers. Avoid them tomorrow.', W - 22, CARD_H - 19, { size: 11, color: P.muted, align: 'right' });
+}
+
+function renderConsensusCard(canvas, analysis) {
+  const W = 1080, CARD_H = 520;
+  canvas.width  = W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d');
+  _rect(ctx, 0, 0, W, CARD_H, P.bg);
+  _rect(ctx, 0, 0, W, 3, P.green);
+  _rect(ctx, 0, 0, W, 64, P.hdr);
+  _t(ctx, 'SLIPPILOT  ·  CONSENSUS PICKS', 22, 22, { size: 13, weight: '900', color: P.text });
+  if (analysis?.date) _t(ctx, fmtShort(analysis.date).toUpperCase(), W - 22, 22, { size: 12, color: P.muted, align: 'right' });
+  _line(ctx, 0, 64, W, 64, P.border);
+
+  const wins = (analysis?.consensusWins || []).slice(0, 5);
+  if (!wins.length) {
+    _t(ctx, 'No consensus wins recorded today', W / 2, CARD_H / 2, { size: 18, color: P.muted, align: 'center' });
+    return;
+  }
+
+  let y = 88;
+  wins.forEach((w, i) => {
+    const selStr = [...new Set((w.selections || []).map(s => s.outcome || s.market))].slice(0, 2).join(', ');
+    _rect(ctx, 20, y, W - 40, 78, P.surf);
+    _rect(ctx, 20, y, 4, 78, P.green);
+    _t(ctx, `✅ ${w.match}`, 34, y + 22, { size: 15, weight: '700', color: '#fff' });
+    _t(ctx, selStr ? selStr : 'See slip for details', 34, y + 46, { size: 12, color: P.muted });
+    _t(ctx, `${w.punterCount} punters agreed`, W - 30, y + 34, { size: 12, color: P.green, align: 'right' });
+    y += 90;
+  });
+
+  _rect(ctx, 0, CARD_H - 38, W, 38, P.hdr);
+  _t(ctx, 'slippilot.com.ng', 22, CARD_H - 19, { size: 11, weight: '600', color: P.blue });
+  _t(ctx, 'Agreement = confidence. Consensus = signal.', W - 22, CARD_H - 19, { size: 11, color: P.muted, align: 'right' });
+}
+
+function renderLeagueWatchCard(canvas, analysis) {
+  const W = 1080, CARD_H = 520;
+  canvas.width  = W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d');
+  _rect(ctx, 0, 0, W, CARD_H, P.bg);
+  _rect(ctx, 0, 0, W, 3, P.blue);
+  _rect(ctx, 0, 0, W, 64, P.hdr);
+  _t(ctx, 'SLIPPILOT  ·  LEAGUE INTELLIGENCE', 22, 22, { size: 13, weight: '900', color: P.text });
+  if (analysis?.date) _t(ctx, fmtShort(analysis.date).toUpperCase(), W - 22, 22, { size: 12, color: P.muted, align: 'right' });
+  _line(ctx, 0, 64, W, 64, P.border);
+
+  const lgWatch = analysis?.leagueWatch || {};
+  const entries = Object.entries(lgWatch)
+    .filter(([, v]) => (v.won || 0) + (v.lost || 0) >= 2)
+    .sort((a, b) => b[1].hitRate - a[1].hitRate)
+    .slice(0, 6);
+
+  if (!entries.length) {
+    _t(ctx, 'Not enough league data yet', W / 2, CARD_H / 2, { size: 18, color: P.muted, align: 'center' });
+    return;
+  }
+
+  _t(ctx, 'LEAGUE', 22, 80, { size: 10, weight: '700', color: P.muted });
+  _t(ctx, 'W', 720, 80, { size: 10, weight: '700', color: P.muted, align: 'right' });
+  _t(ctx, 'L', 790, 80, { size: 10, weight: '700', color: P.muted, align: 'right' });
+  _t(ctx, 'HIT RATE', W - 22, 80, { size: 10, weight: '700', color: P.muted, align: 'right' });
+  _line(ctx, 20, 94, W - 20, 94, P.border);
+
+  let y = 110;
+  entries.forEach(([league, stats], i) => {
+    _rect(ctx, 0, y - 8, W, 50, i % 2 === 0 ? P.rowA : P.rowB);
+    if (stats.banned) _rect(ctx, 0, y - 8, 4, 50, P.red);
+    const hrColor = stats.hitRate >= 70 ? P.green : stats.hitRate >= 50 ? P.yellow : P.red;
+    ctx.save(); ctx.font = `600 14px ${F.sans}`;
+    _t(ctx, _trunc(ctx, league + (stats.banned ? ' 🚫' : ''), 650), 22, y + 17, { size: 14, weight: '600', color: stats.banned ? P.red : P.text });
+    ctx.restore();
+    _t(ctx, String(stats.won ?? 0), 720, y + 17, { size: 14, weight: '700', color: P.green, align: 'right' });
+    _t(ctx, String(stats.lost ?? 0), 790, y + 17, { size: 14, weight: '700', color: P.red, align: 'right' });
+    _t(ctx, `${stats.hitRate}%`, W - 22, y + 17, { size: 15, weight: '700', color: hrColor, align: 'right' });
+    y += 56;
+  });
+
+  _rect(ctx, 0, CARD_H - 38, W, 38, P.hdr);
+  _t(ctx, 'slippilot.com.ng', 22, CARD_H - 19, { size: 11, weight: '600', color: P.blue });
+  _t(ctx, 'League intelligence updated daily', W - 22, CARD_H - 19, { size: 11, color: P.muted, align: 'right' });
+}
+
+function renderMarketWatchCard(canvas, analysis) {
+  const W = 1080, CARD_H = 520;
+  canvas.width  = W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d');
+  _rect(ctx, 0, 0, W, CARD_H, P.bg);
+  _rect(ctx, 0, 0, W, 3, P.yellow);
+  _rect(ctx, 0, 0, W, 64, P.hdr);
+  _t(ctx, 'SLIPPILOT  ·  MARKET WATCH', 22, 22, { size: 13, weight: '900', color: P.text });
+  if (analysis?.date) _t(ctx, fmtShort(analysis.date).toUpperCase(), W - 22, 22, { size: 12, color: P.muted, align: 'right' });
+  _line(ctx, 0, 64, W, 64, P.border);
+
+  const mktWatch = analysis?.marketWatch || {};
+  const entries = Object.entries(mktWatch)
+    .filter(([, v]) => (v.won || 0) + (v.lost || 0) >= 2)
+    .sort((a, b) => b[1].hitRate - a[1].hitRate)
+    .slice(0, 7);
+
+  if (!entries.length) {
+    _t(ctx, 'Not enough market data yet', W / 2, CARD_H / 2, { size: 18, color: P.muted, align: 'center' });
+    return;
+  }
+
+  _t(ctx, 'MARKET TYPE', 22, 80, { size: 10, weight: '700', color: P.muted });
+  _t(ctx, 'W', 680, 80, { size: 10, weight: '700', color: P.muted, align: 'right' });
+  _t(ctx, 'L', 760, 80, { size: 10, weight: '700', color: P.muted, align: 'right' });
+  _t(ctx, 'HIT RATE', W - 22, 80, { size: 10, weight: '700', color: P.muted, align: 'right' });
+  _line(ctx, 20, 94, W - 20, 94, P.border);
+
+  let y = 110;
+  entries.forEach(([mkt, stats], i) => {
+    _rect(ctx, 0, y - 8, W, 48, i % 2 === 0 ? P.rowA : P.rowB);
+    const hrColor = stats.hitRate >= 70 ? P.green : stats.hitRate >= 50 ? P.yellow : P.red;
+    const barW = Math.round((stats.hitRate / 100) * 200);
+    _rect(ctx, 840, y + 8, barW, 14, hrColor + '33');
+    _rect(ctx, 840, y + 8, barW, 14, hrColor + '22');
+    ctx.save(); ctx.font = `600 14px ${F.sans}`;
+    _t(ctx, _trunc(ctx, mkt, 630), 22, y + 16, { size: 14, weight: '600', color: P.text });
+    ctx.restore();
+    _t(ctx, String(stats.won ?? 0), 680, y + 16, { size: 14, weight: '700', color: P.green, align: 'right' });
+    _t(ctx, String(stats.lost ?? 0), 760, y + 16, { size: 14, weight: '700', color: P.red, align: 'right' });
+    _t(ctx, `${stats.hitRate}%`, W - 22, y + 16, { size: 15, weight: '700', color: hrColor, align: 'right' });
+    y += 54;
+  });
+
+  _rect(ctx, 0, CARD_H - 38, W, 38, P.hdr);
+  _t(ctx, 'slippilot.com.ng', 22, CARD_H - 19, { size: 11, weight: '600', color: P.blue });
+  _t(ctx, 'Market selection shapes your results', W - 22, CARD_H - 19, { size: 11, color: P.muted, align: 'right' });
+}
+
+function renderPerformerCard(canvas, data, analysis) {
+  const W = 1080, CARD_H = 520;
+  canvas.width  = W;
+  canvas.height = CARD_H;
+  const ctx = canvas.getContext('2d');
+  _rect(ctx, 0, 0, W, CARD_H, P.bg);
+  _rect(ctx, 0, 0, W, 3, P.gold);
+  _rect(ctx, 0, 0, W, 64, P.hdr);
+  _t(ctx, 'SLIPPILOT  ·  PERFORMER SPOTLIGHT', 22, 22, { size: 13, weight: '900', color: P.text });
+  const dateLabel = data.rangeLabel || (data.date ? fmtShort(data.date).toUpperCase() : '');
+  if (dateLabel) _t(ctx, dateLabel, W - 22, 22, { size: 12, color: P.muted, align: 'right' });
+  _line(ctx, 0, 64, W, 64, P.border);
+
+  const settled = (data.punters || []).filter(p => p.settled > 0);
+  if (!settled.length) {
+    _t(ctx, 'No settled results yet', W / 2, CARD_H / 2, { size: 18, color: P.muted, align: 'center' });
+    return;
+  }
+
+  const best  = settled[0];
+  const worst = [...settled].sort((a, b) => a.hitRate - b.hitRate)[0];
+  const avg   = Math.round(settled.reduce((a, p) => a + p.hitRate, 0) / settled.length);
+
+  // Best performer card
+  _rect(ctx, 20, 86, 500, 180, '#0f1a0f');
+  _rect(ctx, 20, 86, 4, 180, P.gold);
+  _t(ctx, '🥇 BEST TODAY', 36, 110, { size: 11, weight: '700', color: P.gold });
+  _t(ctx, best.name, 36, 148, { size: 22, weight: '800', color: '#fff' });
+  _t(ctx, `${best.hitRate}% HIT RATE`, 36, 182, { size: 16, weight: '700', color: P.green });
+  _t(ctx, `${best.won}W  /  ${best.lost}L`, 36, 212, { size: 13, color: P.muted });
+  if (best.totalOdds) _t(ctx, `${typeof best.totalOdds === 'number' ? best.totalOdds.toFixed(0) + 'x' : best.totalOdds} odds`, 36, 238, { size: 12, color: P.muted });
+
+  // Worst performer card
+  if (worst && worst.name !== best.name) {
+    _rect(ctx, 560, 86, 500, 180, '#1a0505');
+    _rect(ctx, 560, 86, 4, 180, P.red);
+    _t(ctx, '📉 TOUGHEST DAY', 576, 110, { size: 11, weight: '700', color: P.red });
+    _t(ctx, worst.name, 576, 148, { size: 22, weight: '800', color: '#fff' });
+    _t(ctx, `${worst.hitRate}% HIT RATE`, 576, 182, { size: 16, weight: '700', color: P.red });
+    _t(ctx, `${worst.won}W  /  ${worst.lost}L`, 576, 212, { size: 13, color: P.muted });
+  }
+
+  // Field stats
+  _rect(ctx, 20, 286, W - 40, 60, P.surf);
+  _t(ctx, `${settled.length} analysts tracked  ·  Field avg: ${avg}%  ·  ${data.date ? fmtShort(data.date) : ''}`, 36, 316, { size: 13, color: P.muted });
+
+  // Runner-up row
+  if (settled.length >= 2) {
+    _t(ctx, 'FULL RANKINGS', 22, 374, { size: 10, weight: '700', color: P.muted });
+    _line(ctx, 20, 386, W - 20, 386, P.border);
+    settled.slice(0, Math.min(4, settled.length)).forEach((p, i) => {
+      const rx = 22 + i * 260;
+      const hrC = p.hitRate >= 70 ? P.green : p.hitRate >= 50 ? P.yellow : P.red;
+      _t(ctx, `#${i + 1} ${p.name}`, rx, 412, { size: 13, weight: '600', color: P.text });
+      _t(ctx, `${p.hitRate}%`, rx, 436, { size: 14, weight: '700', color: hrC });
+    });
+  }
+
+  _rect(ctx, 0, CARD_H - 38, W, 38, P.hdr);
+  _t(ctx, 'slippilot.com.ng', 22, CARD_H - 19, { size: 11, weight: '600', color: P.blue });
+  _t(ctx, 'Track punter performance daily', W - 22, CARD_H - 19, { size: 11, color: P.muted, align: 'right' });
+}
+
+// ── Download helper (all numbered canvases) ───────────────────────────────────
+function csDownloadCanvas(id, filename) {
+  const canvas = document.getElementById(id);
+  if (!canvas || canvas.width < 100) { alert('Card not rendered yet.'); return; }
+  canvas.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename || id + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }, 'image/png');
+}
+
+// ── Special Posts UI ──────────────────────────────────────────────────────────
+function csRenderSpecialPosts(data, analysis) {
+  const container = document.getElementById('cs-special-posts');
+  if (!container) return;
+  const posts = buildSpecialPosts(data, analysis);
+  if (!posts.length) {
+    container.innerHTML = '<p style="color:#64748B;font-size:13px;padding:16px">No special posts generated for this date — need more settled data.</p>';
+    return;
+  }
+  container.innerHTML = posts.map((p, i) => `
+    <div class="cs-social-section" style="margin-bottom:12px">
+      <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700;color:#F1F5F9">${p.type}</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="cs-copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('sp-cap-${i}').textContent)">Copy Caption</button>
+          <button class="cs-copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('sp-rep-${i}').textContent)">Copy Reply</button>
+        </div>
+      </div>
+      <div style="padding:14px 18px">
+        <pre id="sp-cap-${i}" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:8px;padding:14px;margin:0 0 10px">${p.caption}</pre>
+        <div style="font-size:11px;color:#64748B;margin-bottom:6px;font-weight:600">FIRST REPLY</div>
+        <pre id="sp-rep-${i}" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:12px;color:#94A3B8;line-height:1.6;background:#040810;border-radius:8px;padding:12px;margin:0">${p.reply}</pre>
+      </div>
+    </div>
+  `).join('');
+}
+
 // ── Entry Point ───────────────────────────────────────────────────────────────
 async function loadStudio() {
   csHideError();
   csStatus('Loading…', P.blue);
-  // Default date picker to today so reports load for today, not yesterday
+  // Default to yesterday — today's data is never complete yet
   const picker = document.getElementById('cs-date-picker');
-  if (picker && !picker.value) picker.value = getToday();
+  if (picker && !picker.value) picker.value = getYesterday();
   await _loadLogo();
   try {
     const reports = await safeFetch('/api/studio/reports');

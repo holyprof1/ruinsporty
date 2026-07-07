@@ -177,7 +177,7 @@ function saveStats(data) {
 function incrementStat(key) {
   let raw;
   try { raw = JSON.parse(fs.readFileSync(STATS_FILE, "utf-8")); } catch { raw = {}; }
-  raw[key] = (raw[key] || 0) + 1 + Math.floor(Math.random() * 3);
+  raw[key] = (raw[key] || 0) + 1;
   saveStats(raw);
 }
 
@@ -396,12 +396,10 @@ app.post("/api/generate", checkGenerateRate, async (req, res) => {
   });
 
   try {
-    console.log("[Generate] POST", payload.length, "selections");
     const json = await postJSON(
       "https://www.sportybet.com/api/ng/orders/share",
       { selections: payload }
     );
-    console.log("[Generate] Response:", JSON.stringify(json).slice(0, 300));
 
     if (json.bizCode === 10000 && json.data?.shareCode) {
       incrementStat("codesGenerated");
@@ -1095,7 +1093,6 @@ app.get("/merger", (req, res) => res.redirect("/#merger"));
 app.get("/optimize-sportybet-slip", (req, res) => res.sendFile(path.join(__dirname, "public", "optimize-sportybet-slip.html")));
 app.get("/sportybet-booking-code-converter", (req, res) => res.sendFile(path.join(__dirname, "public", "sportybet-booking-code-converter.html")));
 app.get("/check-sportybet-slip-result", (req, res) => res.sendFile(path.join(__dirname, "public", "check-sportybet-slip-result.html")));
-app.get("/check-sportybet-slip-result", (req, res) => res.sendFile(path.join(__dirname, "public", "check-sportybet-slip-result.html")));
 
 // ── Admin Panel ──
 
@@ -1379,6 +1376,18 @@ app.post("/api/punters/:name/add-code", requireAdmin, async (req, res) => {
       fs.writeFileSync(path.join(DATA_DIR, "leaderboard.json"), JSON.stringify(lb, null, 2));
     } catch {}
 
+    // Also write to punter-codes.json if the date is today (so it shows in Today's Punter Codes)
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const codeDate = date || today;
+      if (codeDate === today) {
+        const pc = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8").replace(/^﻿/, ""));
+        pc[name] = code.trim().toUpperCase();
+        pc._date = today;
+        fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(pc, null, 2));
+      }
+    } catch {}
+
     res.json({ success: true, won, lost, void: voided, pending, hitRate, total: results.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1479,6 +1488,27 @@ app.post("/api/admin/header-code", requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Daily Post (morning X post generator) ────────────────────────────────────
+const DAILY_MERGED_FILE = path.join(DATA_DIR, "daily-merged.json");
+
+app.get("/api/admin/daily-post-data", requireAdmin, (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const codes = loadPunterCodes();
+  let merged = "";
+  try {
+    const dm = JSON.parse(fs.readFileSync(DAILY_MERGED_FILE, "utf-8"));
+    if (dm.date === today) merged = dm.code || "";
+  } catch {}
+  res.json({ date: today, codes, merged });
+});
+
+app.post("/api/admin/daily-merged", requireAdmin, (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const { code } = req.body;
+  fs.writeFileSync(DAILY_MERGED_FILE, JSON.stringify({ date: today, code: (code || "").trim().toUpperCase() }, null, 2));
+  res.json({ success: true });
+});
+
 // Serve header code injection for index.html
 app.get("/api/header-inject", (req, res) => {
   try { res.type("text/plain").send(fs.readFileSync(HEADER_CODE_FILE, "utf-8")); }
@@ -1504,14 +1534,13 @@ function loadPunterCodes() {
   try {
     const raw = JSON.parse(fs.readFileSync(PUNTER_CODES_FILE, "utf-8").replace(/^﻿/, ""));
     const today = new Date().toISOString().slice(0, 10);
-    if (raw._date && raw._date !== today) {
+    if (!raw._date || raw._date !== today) {
       const cleared = { _date: today };
       for (const k of Object.keys(raw)) { if (k !== "_date") cleared[k] = ""; }
       fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(cleared, null, 2));
       const c2 = { ...cleared }; delete c2._date;
       return c2;
     }
-    if (!raw._date) { raw._date = today; fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(raw, null, 2)); }
     const clean = { ...raw };
     delete clean._date;
     return clean;
@@ -1526,11 +1555,27 @@ app.get("/api/admin/punter-codes", requireAdmin, (req, res) => {
   res.json(clean);
 });
 
+// Aliases that must never appear as standalone keys — always merged into canonical
+const PUNTER_ALIASES = {
+  "Bayobet": "Bayo Bets", "Bayobets": "Bayo Bets",
+  "Top Boy Comrade": "Top Boy",
+  "SuperMario": "Super Mario",
+};
+
 app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
   const current = loadPunterCodes();
-  const updated = { ...current, ...req.body };
-  fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(updated, null, 2));
-  res.json({ success: true, codes: updated });
+  const today = new Date().toISOString().slice(0, 10);
+  const merged = { ...current, ...req.body, _date: today };
+  // Collapse aliases into canonical names, delete alias keys
+  for (const [alias, canonical] of Object.entries(PUNTER_ALIASES)) {
+    if (alias in merged) {
+      if (merged[alias] && !merged[canonical]) merged[canonical] = merged[alias];
+      delete merged[alias];
+    }
+  }
+  fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(merged, null, 2));
+  const clean = { ...merged }; delete clean._date;
+  res.json({ success: true, codes: clean });
 });
 
 // ── Social Links (editable from admin) ──
@@ -1674,7 +1719,7 @@ app.get("/api/leaderboard", (req, res) => {
 
   const dir = order === "asc" ? 1 : -1;
   const sortFns = {
-    wins: (a, b) => ((a.wins || 0) - (b.wins || 0)) * dir,
+    wins: (a, b) => ((a.won || 0) - (b.won || 0)) * dir,
     winPct: (a, b) => ((a.consensusRate || 0) - (b.consensusRate || 0)) * dir,
     totalBets: (a, b) => ((a.totalGames || 0) - (b.totalGames || 0)) * dir,
     roi: (a, b) => ((a.roi || 0) - (b.roi || 0)) * dir,
@@ -1687,7 +1732,6 @@ app.get("/api/leaderboard", (req, res) => {
     avgOdds: (a, b) => ((a.avgOdds || 0) - (b.avgOdds || 0)) * dir,
     trust: (a, b) => ((a.trustScore || 0) - (b.trustScore || 0)) * dir,
     hitRate: (a, b) => ((a.hitRate || 0) - (b.hitRate || 0)) * dir,
-    wins: (a, b) => ((a.won || 0) - (b.won || 0)) * dir,
   };
   // Split humans and AI, sort humans, AI always at bottom
   const isAIPunter = (p) => p.isAI || p.punter === "Generated" || p.punter.startsWith("AI (") || p.punter === "SlipPilot";
@@ -2634,6 +2678,7 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
   const weakMatches = (() => { try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "weak-matches.json"), "utf8")); } catch { return {}; } })();
 
   const allSels = [], fetchErrors = [], puntScanned = [];
+  const now = Date.now();
 
   for (const [name, code] of Object.entries(codes)) {
     if (!code || name.startsWith("_")) continue;
@@ -2646,6 +2691,8 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
       const sels = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
       storeOriginalOdds(bank, sels, new Date().toISOString());
       for (const s of sels) {
+        // Only include matches that haven't started yet (next-24h window)
+        if (s.kickoff && new Date(s.kickoff).getTime() <= now) continue;
         allSels.push({ ...s, punter: name, code: codeStr, originalOdds: getBankOdds(bank, s) });
       }
       puntScanned.push(name);

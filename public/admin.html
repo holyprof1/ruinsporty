@@ -303,7 +303,7 @@ input:focus{border-color:#00c853}
           <button class="cs-rtype-btn active" data-type="daily"   onclick="setReportType('daily')">Daily</button>
           <button class="cs-rtype-btn"        data-type="weekly"  onclick="setReportType('weekly')">Weekly</button>
           <button class="cs-rtype-btn"        data-type="monthly" onclick="setReportType('monthly')">Monthly</button>
-          <span id="cs-rtype-hint" style="font-size:11px;color:#64748B;margin-left:6px">Pick any date — defaults to today</span>
+          <span id="cs-rtype-hint" style="font-size:11px;color:#64748B;margin-left:6px">Yesterday's completed session</span>
         </div>
 
         <!-- Onboarding -->
@@ -364,6 +364,128 @@ input:focus{border-color:#00c853}
               <pre id="cs-reply-text" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:16px;margin:0;max-height:320px;overflow-y:auto"></pre>
             </div>
           </div>
+
+          <!-- ── SECTION DIVIDER: Daily Content Categories ──────────────────── -->
+          <div style="margin:32px 0 20px;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;height:1px;background:rgba(37,99,235,0.2)"></div>
+            <span style="font-size:11px;font-weight:700;color:#60A5FA;text-transform:uppercase;letter-spacing:.06em">Daily Content Categories</span>
+            <div style="flex:1;height:1px;background:rgba(37,99,235,0.2)"></div>
+          </div>
+          <p style="font-size:11px;color:#64748B;margin-bottom:20px">Each card below is auto-generated from real analysis — never invented. Download the image and copy the caption directly.</p>
+
+          <!-- Image 2: Ticket Killer -->
+          <div class="cs-gcard" style="margin-bottom:20px">
+            <div class="cs-gcard-hdr">
+              <span class="cs-gcard-title">☠ Ticket Killer of the Day</span>
+              <span style="font-size:10px;color:#64748B">The match that destroyed the most slips</span>
+            </div>
+            <div class="cs-gcard-preview" style="height:300px">
+              <canvas id="cs-canvas-killer" style="max-width:100%;max-height:100%;object-fit:contain"></canvas>
+            </div>
+            <div class="cs-gcard-footer">
+              <button class="cs-dl-btn" onclick="csDownloadCanvas('cs-canvas-killer','slippilot-killer.png')">Download PNG</button>
+            </div>
+          </div>
+          <div class="cs-social-section" style="margin-bottom:20px">
+            <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;font-weight:700;color:#F1F5F9">Killer Caption</span>
+              <button class="cs-copy-btn" style="margin-left:auto" onclick="navigator.clipboard.writeText(document.getElementById('cs-killer-caption').textContent)">Copy</button>
+            </div>
+            <div style="padding:14px 18px"><pre id="cs-killer-caption" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:14px;margin:0;max-height:280px;overflow-y:auto"></pre></div>
+          </div>
+
+          <!-- Image 3: Consensus Picks -->
+          <div class="cs-gcard" style="margin-bottom:20px">
+            <div class="cs-gcard-hdr">
+              <span class="cs-gcard-title">🤝 Consensus Picks</span>
+              <span style="font-size:10px;color:#64748B">Picks where multiple punters agreed</span>
+            </div>
+            <div class="cs-gcard-preview" style="height:300px">
+              <canvas id="cs-canvas-consensus" style="max-width:100%;max-height:100%;object-fit:contain"></canvas>
+            </div>
+            <div class="cs-gcard-footer">
+              <button class="cs-dl-btn" onclick="csDownloadCanvas('cs-canvas-consensus','slippilot-consensus.png')">Download PNG</button>
+            </div>
+          </div>
+          <div class="cs-social-section" style="margin-bottom:20px">
+            <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;font-weight:700;color:#F1F5F9">Consensus Caption</span>
+              <button class="cs-copy-btn" style="margin-left:auto" onclick="navigator.clipboard.writeText(document.getElementById('cs-consensus-caption').textContent)">Copy</button>
+            </div>
+            <div style="padding:14px 18px"><pre id="cs-consensus-caption" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:14px;margin:0;max-height:280px;overflow-y:auto"></pre></div>
+          </div>
+
+          <!-- Image 4: Performer Spotlight -->
+          <div class="cs-gcard" style="margin-bottom:20px">
+            <div class="cs-gcard-hdr">
+              <span class="cs-gcard-title">🏆 Performer Spotlight</span>
+              <span style="font-size:10px;color:#64748B">Best & worst punter of the day</span>
+            </div>
+            <div class="cs-gcard-preview" style="height:300px">
+              <canvas id="cs-canvas-performer" style="max-width:100%;max-height:100%;object-fit:contain"></canvas>
+            </div>
+            <div class="cs-gcard-footer">
+              <button class="cs-dl-btn" onclick="csDownloadCanvas('cs-canvas-performer','slippilot-performer.png')">Download PNG</button>
+            </div>
+          </div>
+          <div class="cs-social-section" style="margin-bottom:20px">
+            <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;font-weight:700;color:#F1F5F9">Performer Caption</span>
+              <button class="cs-copy-btn" style="margin-left:auto" onclick="navigator.clipboard.writeText(document.getElementById('cs-performer-caption').textContent)">Copy</button>
+            </div>
+            <div style="padding:14px 18px"><pre id="cs-performer-caption" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:14px;margin:0;max-height:280px;overflow-y:auto"></pre></div>
+          </div>
+
+          <!-- Image 5: League Watch -->
+          <div class="cs-gcard" style="margin-bottom:20px">
+            <div class="cs-gcard-hdr">
+              <span class="cs-gcard-title">🏟️ League Watch</span>
+              <span style="font-size:10px;color:#64748B">Hit rate breakdown by competition</span>
+            </div>
+            <div class="cs-gcard-preview" style="height:300px">
+              <canvas id="cs-canvas-league" style="max-width:100%;max-height:100%;object-fit:contain"></canvas>
+            </div>
+            <div class="cs-gcard-footer">
+              <button class="cs-dl-btn" onclick="csDownloadCanvas('cs-canvas-league','slippilot-league-watch.png')">Download PNG</button>
+            </div>
+          </div>
+          <div class="cs-social-section" style="margin-bottom:20px">
+            <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;font-weight:700;color:#F1F5F9">League Watch Caption</span>
+              <button class="cs-copy-btn" style="margin-left:auto" onclick="navigator.clipboard.writeText(document.getElementById('cs-league-caption').textContent)">Copy</button>
+            </div>
+            <div style="padding:14px 18px"><pre id="cs-league-caption" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:14px;margin:0;max-height:280px;overflow-y:auto"></pre></div>
+          </div>
+
+          <!-- Image 6: Market Watch -->
+          <div class="cs-gcard" style="margin-bottom:20px">
+            <div class="cs-gcard-hdr">
+              <span class="cs-gcard-title">📊 Market Watch</span>
+              <span style="font-size:10px;color:#64748B">Which bet types won and which didn't</span>
+            </div>
+            <div class="cs-gcard-preview" style="height:300px">
+              <canvas id="cs-canvas-market" style="max-width:100%;max-height:100%;object-fit:contain"></canvas>
+            </div>
+            <div class="cs-gcard-footer">
+              <button class="cs-dl-btn" onclick="csDownloadCanvas('cs-canvas-market','slippilot-market-watch.png')">Download PNG</button>
+            </div>
+          </div>
+          <div class="cs-social-section" style="margin-bottom:20px">
+            <div style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;font-weight:700;color:#F1F5F9">Market Watch Caption</span>
+              <button class="cs-copy-btn" style="margin-left:auto" onclick="navigator.clipboard.writeText(document.getElementById('cs-market-caption').textContent)">Copy</button>
+            </div>
+            <div style="padding:14px 18px"><pre id="cs-market-caption" style="white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:13px;color:#CBD5E1;line-height:1.65;background:#040810;border-radius:10px;padding:14px;margin:0;max-height:280px;overflow-y:auto"></pre></div>
+          </div>
+
+          <!-- Special Posts (auto-generated from real analysis) -->
+          <div style="margin:32px 0 20px;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;height:1px;background:rgba(37,99,235,0.2)"></div>
+            <span style="font-size:11px;font-weight:700;color:#60A5FA;text-transform:uppercase;letter-spacing:.06em">Special Posts</span>
+            <div style="flex:1;height:1px;background:rgba(37,99,235,0.2)"></div>
+          </div>
+          <p style="font-size:11px;color:#64748B;margin-bottom:16px">Auto-generated narrative posts from real data — killer alerts, consensus signals, punter contrasts. Never invented.</p>
+          <div id="cs-special-posts"><p style="color:#64748B;font-size:13px;padding:16px">Generate a report first to see special posts.</p></div>
 
         </div><!-- /cs-report -->
       </div><!-- /daily -->
@@ -501,6 +623,7 @@ input:focus{border-color:#00c853}
 
       <div style="display:flex;gap:6px;margin-bottom:18px">
         <button class="cs-stab active" data-xtab="new" onclick="xaSwitchTab('new')">New</button>
+        <button class="cs-stab" data-xtab="dailypost" onclick="xaSwitchTab('dailypost');loadDailyPost()">Daily Post</button>
         <button class="cs-stab" data-xtab="history" onclick="xaSwitchTab('history')">History</button>
       </div>
 
@@ -515,6 +638,26 @@ input:focus{border-color:#00c853}
 
         <div id="xa-error-box" class="xa-warn" style="display:none"></div>
         <div id="xa-result" style="display:none"></div>
+      </div>
+
+      <!-- DAILY POST -->
+      <div class="xa-content" data-xtab="dailypost">
+        <p style="font-size:12px;color:#8a9e8a;margin:0 0 16px">Merges all today's punter codes into one slip automatically, then builds the X post. Copy and post manually.</p>
+
+        <div id="dp-punters" style="background:#0a0f14;border:1px solid #1e2e1e;border-radius:8px;padding:12px;margin-bottom:14px;min-height:48px">
+          <p style="color:#8a9e8a;font-size:12px;margin:0">Loading punter codes...</p>
+        </div>
+
+        <button class="btn" id="dp-gen-btn" style="background:linear-gradient(135deg,#1d9bf0,#7c3aed);width:100%;margin-bottom:14px" onclick="generateDailyPost()">Generate Post</button>
+
+        <div id="dp-output" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:#8a9e8a;text-transform:uppercase;font-weight:700">Ready to post</span>
+            <button class="btn" style="padding:4px 14px;font-size:11px" onclick="copyDailyPost()">Copy</button>
+          </div>
+          <textarea id="dp-text" rows="14" style="width:100%;font-size:12px;line-height:1.6;background:#0a0f14;border:1px solid #1e3e1e;border-radius:8px;padding:12px;color:#e6edf3;resize:vertical;font-family:monospace" readonly></textarea>
+        </div>
+        <span id="dp-msg" style="font-size:11px;color:#8a9e8a"></span>
       </div>
 
       <!-- HISTORY -->
@@ -916,7 +1059,7 @@ async function savePunterCodes() {
   try {
     const r = await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(updated)});
     const j = await r.json();
-    if (j.success) { punterCodes = j.codes; document.getElementById('saveCodesMsg').textContent = 'Saved!'; setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 2000); }
+    if (j.success) { punterCodes = j.codes; document.getElementById('saveCodesMsg').textContent = 'Saved!'; setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 2000); loadLB(); }
   } catch(e) { document.getElementById('saveCodesMsg').textContent = 'Error: ' + e.message; }
 }
 
