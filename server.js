@@ -1746,7 +1746,7 @@ function loadLeaderboard() {
   // Attach today's active code from punter-codes.json
   try {
     const todayCodes = loadPunterCodes();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     const lbMap2 = new Map(lb.map(p => [p.punter, p]));
     for (const [name, code] of Object.entries(todayCodes)) {
       if (!code || name === "_date" || name.startsWith("_")) continue;
@@ -1924,15 +1924,15 @@ app.post("/api/admin/scan-code", requireAdmin, async (req, res) => {
     const settled = won + lost;
     const hitRate = settled > 0 ? Math.round(won / settled * 100) : 0;
 
-    // Update leaderboard.json — find this code in any punter's codes array
+    // Update leaderboard — use loadLeaderboard() so today's punter-codes.json codes are found
     try {
-      const lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8"));
+      const lb = loadLeaderboard();
+      const codeUpper = code.trim().toUpperCase();
       for (const entry of lb) {
         if (!entry.codes) continue;
-        const ce = entry.codes.find(c => c.code === code.trim().toUpperCase());
+        const ce = entry.codes.find(c => c.code === codeUpper);
         if (ce) {
           ce.games = results.length; ce.won = won; ce.lost = lost; ce.void = voided; ce.pending = pending; ce.hitRate = hitRate;
-          // Recalculate punter totals
           const sc = entry.codes.filter(c => (c.won + c.lost) > 0);
           entry.won = sc.reduce((a, c) => a + c.won, 0);
           entry.lost = sc.reduce((a, c) => a + c.lost, 0);
@@ -1941,6 +1941,7 @@ app.post("/api/admin/scan-code", requireAdmin, async (req, res) => {
           entry.hitRate = ts > 0 ? Math.round(entry.won / ts * 100) : 0;
         }
       }
+      // Write merged data back so scan results persist across restarts
       fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
     } catch {}
 
@@ -2181,8 +2182,8 @@ function generateDailyAnalysis(results, date, leagueIntel, marketIntel) {
       const punters = [...new Set(group.map(s => s.punter))];
       const codes   = [...new Set(group.map(s => s.code))];
       const avgOdds = group.reduce((a, s) => a + (s.originalOdds || s.odds || 0), 0) / group.length;
-      const leagueHR = leagueIntel[match.league]?.hitRate;
-      const mktHRs   = group.map(s => marketIntel[s.market]?.hitRate).filter(Boolean);
+      const leagueHR = (leagueIntel || {})[match.league]?.hitRate;
+      const mktHRs   = group.map(s => (marketIntel || {})[s.market]?.hitRate).filter(Boolean);
       const avgMktHR = mktHRs.length ? Math.round(mktHRs.reduce((a, b) => a + b, 0) / mktHRs.length) : null;
 
       let confidence = 50;
@@ -2365,10 +2366,12 @@ function generateDailyAnalysis(results, date, leagueIntel, marketIntel) {
 }
 
 let rescanRunning = false;
+let rescanProgress = { scanned: 0, updated: 0, errors: 0, total: 0, stillPending: 0, phase: '' };
 
 app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
   if (rescanRunning) return res.status(409).json({ error: "Rescan already running" });
   rescanRunning = true;
+  rescanProgress = { scanned: 0, updated: 0, errors: 0, total: 0, phase: 'Preparing…' };
   res.json({ success: true, message: "Rescan started" });
 
   try {
@@ -2389,40 +2392,54 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
       }
     }
 
+    // Count how many codes need scanning.
+    // Codes with pending games but scanned within the last 20 min are skipped — they're fresh.
+    const nowMs = Date.now();
+    const staleMs = 20 * 60 * 1000;
+    const needsScanFn = (c) => {
+      const neverScanned = c.games === 0 && c.code && (c.scanAttempts || 0) < 3;
+      const stale = !c.lastScanned || (nowMs - new Date(c.lastScanned).getTime()) > staleMs;
+      return neverScanned || (c.pending > 0 && stale);
+    };
+    const totalToScan = lb.reduce((sum, e) => {
+      if (!e.codes || e.punter === "Generated") return sum;
+      return sum + e.codes.filter(needsScanFn).length;
+    }, 0);
+    rescanProgress.total = totalToScan;
+    rescanProgress.phase = 'Scanning codes…';
+
     // Step 2: Rescan codes that need updating — skip bulk "Generated" entries
-    let scanned = 0, updated = 0, errors = 0;
+    let scanned = 0, updated = 0, errors = 0, stillPending = 0;
     const resultsByDate = {};
     const oddsBank = loadOddsBank();
     const scanTs = new Date().toISOString();
 
     for (const entry of lb) {
       if (!entry.codes) continue;
-      if (entry.punter === "Generated") continue; // 150+ codes, skip bulk
+      if (entry.punter === "Generated") continue;
       for (const codeEntry of entry.codes) {
-        const needsScan = (codeEntry.pending > 0) || (codeEntry.games === 0 && codeEntry.code);
-        if (!needsScan) continue;
+        if (!needsScanFn(codeEntry)) continue;
         try {
           const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(codeEntry.code)}`;
           const json = await fetchJSON(url);
-          if (!json || json.bizCode !== 10000 || !json.data) { errors++; continue; }
+          if (!json || json.bizCode !== 10000 || !json.data) {
+            errors++;
+            codeEntry.scanAttempts = (codeEntry.scanAttempts || 0) + 1;
+            continue;
+          }
           const outcomes = json.data.outcomes || [];
           const ticketSels = json.data.ticket?.selections || [];
           const selections = mapOutcomes(outcomes, ticketSels);
           const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
 
-          // Store original pre-match odds (never overwrite existing)
           storeOriginalOdds(oddsBank, selections, scanTs);
 
-          // Collect enriched results for analysis
           const codeDate = codeEntry.date || today;
           if (!resultsByDate[codeDate]) resultsByDate[codeDate] = [];
           for (const r of results) {
             resultsByDate[codeDate].push({
-              ...r,
-              punter: entry.punter,
-              code: codeEntry.code,
-              codeDate,
-              originalOdds: getBankOdds(oddsBank, r),
+              ...r, punter: entry.punter, code: codeEntry.code,
+              codeDate, originalOdds: getBankOdds(oddsBank, r),
             });
           }
 
@@ -2430,19 +2447,23 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
           const lost = results.filter(r => r.verdict === "LOST").length;
           const voided = results.filter(r => r.verdict === "VOID").length;
           const pending = results.filter(r => r.verdict === "PENDING").length;
-          const settled = won + lost;
-          const hitRate = settled > 0 ? Math.round(won / settled * 100) : 0;
+          const hitRate = (won + lost) > 0 ? Math.round(won / (won + lost) * 100) : 0;
           const totalOdds = Math.round(selections.reduce((acc, s) => acc * (s.odds || 1), 1) * 100) / 100;
 
           const changed = codeEntry.won !== won || codeEntry.lost !== lost || codeEntry.pending !== pending;
           codeEntry.games = results.length;
           codeEntry.won = won; codeEntry.lost = lost; codeEntry.void = voided;
           codeEntry.pending = pending; codeEntry.hitRate = hitRate;
+          codeEntry.scanAttempts = 0;
+          codeEntry.lastScanned = new Date().toISOString();
           if (totalOdds > 1) codeEntry.totalOdds = totalOdds;
 
           if (changed) updated++;
+          if (pending > 0) stillPending++;
           scanned++;
-        } catch { errors++; }
+        } catch { errors++; codeEntry.scanAttempts = (codeEntry.scanAttempts || 0) + 1; }
+        rescanProgress.scanned = scanned; rescanProgress.updated = updated;
+        rescanProgress.errors = errors; rescanProgress.stillPending = stillPending;
         await new Promise(r => setTimeout(r, 150));
       }
 
@@ -2485,13 +2506,14 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
       fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
     } catch {}
 
+    rescanProgress.phase = 'Saving & analysing…';
     fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
     console.log(`[Rescan] Done: ${scanned} scanned, ${updated} updated, ${errors} errors`);
 
     // Generate analysis reports and update all intelligence files
+    clearIntelCache();
     if (Object.keys(resultsByDate).length) {
       try {
-        clearIntelCache(); // force reload from freshly updated files
         const leagueIntel  = updateLeagueIntelligence(resultsByDate);
         const marketIntel  = updateMarketIntelligence(resultsByDate);
         updateTeamIntelligence(resultsByDate);
@@ -2502,15 +2524,37 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
         }
         console.log(`[Rescan] Analysis saved for: ${Object.keys(resultsByDate).join(", ")}`);
       } catch (e) { console.error("[Rescan] Analysis generation error:", e.message); }
-    } else {
-      clearIntelCache();
     }
+
+    // Always ensure a minimal report exists for today so X Assistant has something to work with
+    try {
+      const todayFile = path.join(REPORTS_DIR, `${today}.json`);
+      if (!fs.existsSync(todayFile)) {
+        const lbSnap = lb.filter(e => e.codes && e.codes.some(c => c.date === today));
+        const minReport = {
+          date: today, generatedAt: new Date().toISOString(),
+          analysis: {
+            partial: true, headline: `${lbSnap.length} punters tracked for ${today} — results pending.`,
+            bullets: lbSnap.map(e => {
+              const tc = e.codes.find(c => c.date === today);
+              return tc ? `${e.punter}: ${tc.games || 0} games scanned (${tc.won || 0}W/${tc.lost || 0}L/${tc.pending || 0} pending)` : `${e.punter}: code entered`;
+            }),
+            insights: ['Run Rescan All after matches finish to get full analysis.'],
+            ticketKillers: [], consensusWins: [], leagueWatch: {}, marketWatch: {}, punterStats: {},
+            totals: { selections: 0, settled: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0 },
+            allSelections: [],
+          },
+        };
+        fs.writeFileSync(todayFile, JSON.stringify(minReport, null, 2));
+        console.log(`[Rescan] Minimal analysis stub saved for ${today}`);
+      }
+    } catch {}
   } catch (e) { console.error("[Rescan] Fatal:", e); }
   finally { rescanRunning = false; }
 });
 
 app.get("/api/admin/rescan-status", requireAdmin, (req, res) => {
-  res.json({ running: rescanRunning });
+  res.json({ running: rescanRunning, ...rescanProgress });
 });
 
 // ── Daily Session Intelligence ──
@@ -2754,6 +2798,18 @@ app.get("/api/admin/x-assistant/history/:id", requireAdmin, (req, res) => {
 
 // ── Smart Slip Builder ────────────────────────────────────────────────────────
 
+// Generates a real SportyBet booking code from a selection list
+async function buildSportybetCode(selections) {
+  const payload = selections.map(s => {
+    const e = { eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId, productId: s.productId || 3, sportId: s.sportId || "sr:sport:1", parentBetBuilderMarketId: "" };
+    if (s.specifier) e.specifier = s.specifier;
+    return e;
+  });
+  const res = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+  if (res.bizCode === 10000 && res.data?.shareCode) return { code: res.data.shareCode, url: res.data.shareURL || "" };
+  throw new Error(res.msg || "SportyBet returned no shareCode");
+}
+
 app.post("/api/smart-slips", requireAdmin, async (req, res) => {
   try {
   const codes       = loadPunterCodes();
@@ -2779,6 +2835,18 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
       if (!json || json.bizCode !== 10000 || !json.data) continue;
       const sels = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
       storeOriginalOdds(bank, sels, new Date().toISOString());
+
+      // 50% filter: if less than half the code's games have settled (won/lost),
+      // the punter's today form is unverified — skip this code from slip building
+      const allVerdicts = sels.map(s => evaluateVerdict(s));
+      const decidedCount = allVerdicts.filter(v => v === 'WON' || v === 'LOST' || v === 'VOID').length;
+      if (sels.length > 0 && decidedCount < sels.length * 0.5) {
+        fetchErrors.push(`${name}: only ${decidedCount}/${sels.length} games settled — skipped (need ≥50% decided)`);
+        puntScanned.push(name); // still mark as scanned so we count them
+        await new Promise(r => setTimeout(r, 150));
+        continue;
+      }
+
       for (const s of sels) {
         // Only include matches that haven't started yet (next-24h window)
         if (s.kickoff && new Date(s.kickoff).getTime() <= now) continue;
@@ -2946,58 +3014,91 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
     return res.json({ success: false, error: why, removed: removed.map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })), slips: [] });
   }
 
-  // Tier-A: highest scored (≥60 score preferred)
-  // Tier-B: broader pool (≥45 score)
-  // Tier-C: all valid
-  const poolA = valid.filter(s => s.score >= 60).length >= 8 ? valid.filter(s => s.score >= 60) : valid;
-  const poolB = valid.filter(s => s.score >= 45).length >= 11 ? valid.filter(s => s.score >= 45) : valid;
-  const poolC = valid;
+  if (valid.length < 3) {
+    const removed = Object.values(selMap).filter(s => s.removed);
+    return res.json({ success: false, error: `Only ${valid.length} selections survived filters (${removed.length} removed). Add more punter codes or run Rescan All.`, removed: removed.map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })), slips: [] });
+  }
 
-  function buildTier(pool, size, tier) {
-    const slips = [];
-    const maxVariants = Math.min(5, Math.max(1, pool.length - size + 1));
-    for (let i = 0; i < maxVariants; i++) {
-      const slip = pool.slice(i, i + size);
-      if (slip.length < 3) break;
-      const totalOdds = slip.reduce((acc, s) => acc * (s.originalOdds || s.odds || 1), 1);
-      slips.push({
-        tier, variant: i + 1,
-        selections: slip.map(s => ({
-          homeTeam: s.homeTeam, awayTeam: s.awayTeam, league: s.league,
-          market: s.market, outcome: s.outcome,
-          originalOdds: s.originalOdds || (s.odds > 1 ? s.odds : null),
-          punters: s.punters, score: s.score,
-          reasons: s.reasons, warnings: s.warnings,
-          eventId: s.eventId, marketId: s.marketId,
-          outcomeId: s.outcomeId, productId: s.productId || 3,
-          specifier: s.specifier, sportId: s.sportId,
-        })),
-        totalOdds: Math.round(totalOdds * 100) / 100,
-        totalOddsFormatted: formatTotalOdds(totalOdds),
-        avgScore: Math.round(slip.reduce((a, s) => a + s.score, 0) / slip.length),
-      });
+  // ── Build 3 tiers with different risk/reward profiles ──
+  // Tier A — Conservative: top-scored picks, moderate odds target 1K-50K
+  // Tier B — Balanced: wider pool, medium odds 50K-500K
+  // Tier C — Boomshot: all valid, targeting high odds 500K+
+
+  function pickSlip(pool, count, label) {
+    // Sort by score; take `count` picks
+    const picks = pool.slice(0, Math.min(count, pool.length, 50));
+    if (picks.length < 3) return null;
+    const totalOdds = picks.reduce((acc, s) => acc * (s.originalOdds || s.odds || 1), 1);
+    return {
+      label,
+      selections: picks.map(s => ({
+        homeTeam: s.homeTeam, awayTeam: s.awayTeam, league: s.league,
+        market: s.market, outcome: s.outcome,
+        odds: s.originalOdds || (s.odds > 1 ? s.odds : null),
+        punters: s.punters, score: s.score,
+        reasons: s.reasons, warnings: s.warnings,
+        kickoff: s.kickoff,
+        eventId: s.eventId, marketId: s.marketId,
+        outcomeId: s.outcomeId, productId: s.productId || 3,
+        specifier: s.specifier, sportId: s.sportId,
+      })),
+      totalOdds: Math.round(totalOdds * 100) / 100,
+      totalOddsFormatted: formatTotalOdds(totalOdds),
+      avgScore: Math.round(picks.reduce((a, s) => a + s.score, 0) / picks.length),
+      gameCount: picks.length,
+    };
+  }
+
+  // Build slip candidates
+  const hiScore = valid.filter(s => s.score >= 60);
+  const midScore = valid.filter(s => s.score >= 45);
+  const allValid = valid;
+
+  const candidates = [
+    // Tier A: Conservative (6-8 games, top picks by score)
+    pickSlip(hiScore.length >= 6 ? hiScore : allValid, 7, "Conservative"),
+    pickSlip(hiScore.length >= 6 ? hiScore : allValid, 6, "Conservative"),
+    // Tier B: Balanced (10-12 games)
+    pickSlip(midScore.length >= 10 ? midScore : allValid, 12, "Balanced"),
+    pickSlip(midScore.length >= 10 ? midScore : allValid, 10, "Balanced"),
+    // Tier C: Boomshot (14-20 games, all valid, favour high-odds picks)
+    pickSlip(allValid, 18, "Boomshot"),
+    pickSlip(allValid, 14, "Boomshot"),
+    // Extra: Consensus only (picks agreed by 2+ punters)
+    pickSlip(valid.filter(s => s.punters.length >= 2), 10, "Consensus"),
+  ].filter(Boolean);
+
+  if (!candidates.length) {
+    return res.json({ success: false, error: `Not enough valid selections to build slips (${valid.length} survived). Add more punter codes.`, slips: [] });
+  }
+
+  // ── Generate real SportyBet booking codes ──
+  console.log(`[smart-slips] Generating ${candidates.length} booking codes…`);
+  const slips = [];
+  for (const cand of candidates) {
+    try {
+      const { code, url } = await buildSportybetCode(cand.selections);
+      slips.push({ ...cand, code, url });
+      console.log(`[smart-slips] ${cand.label} (${cand.gameCount}g, ${cand.totalOddsFormatted}) → ${code}`);
+    } catch (e) {
+      slips.push({ ...cand, code: null, codeError: e.message });
+      console.warn(`[smart-slips] Code gen failed for ${cand.label}: ${e.message}`);
     }
-    return slips;
+    await new Promise(r => setTimeout(r, 250));
   }
 
-  const slips = [
-    ...buildTier(poolA, Math.min(8,  poolA.length), "A"),
-    ...buildTier(poolB, Math.min(11, poolB.length), "B"),
-    ...buildTier(poolC, Math.min(14, poolC.length), "C"),
-  ].slice(0, 15);
-
-  if (!slips.length) {
-    return res.json({ success: false, error: `Only ${valid.length} valid selections — need at least 8 for Tier A. Add more punters or run Rescan All first.`, slips: [] });
-  }
+  // Save results to disk for persistence
+  try {
+    const hist = { date: localToday(), generatedAt: new Date().toISOString(), slips: slips.map(s => ({ code: s.code, label: s.label, gameCount: s.gameCount, totalOdds: s.totalOdds, avgScore: s.avgScore })) };
+    fs.writeFileSync(path.join(DATA_DIR, "smart-slips-last.json"), JSON.stringify(hist, null, 2));
+  } catch {}
 
   res.json({
     success: true,
-    date: new Date().toISOString().slice(0, 10),
+    date: localToday(),
     totalSelections: allSels.length,
     uniqueSelections: Object.keys(selMap).length,
     removedCount: Object.values(selMap).filter(s => s.removed).length,
-    tierACount, tierBCount,
-    fetchErrors: fetchErrors.length ? fetchErrors : undefined,
     removed: Object.values(selMap).filter(s => s.removed).map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })),
     slips,
   });

@@ -550,9 +550,7 @@ input:focus{border-color:#00c853}
         <div id="ss-removed" style="display:none;margin-bottom:16px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;font-size:12px;color:#F87171"></div>
 
         <div id="ss-output" style="display:none">
-          <div id="ss-tier-a" style="margin-bottom:28px"></div>
-          <div id="ss-tier-b" style="margin-bottom:28px"></div>
-          <div id="ss-tier-c" style="margin-bottom:28px"></div>
+          <div id="ss-slips-list" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
 
         <div id="ss-empty" style="display:none;padding:40px;text-align:center;color:#64748B;font-size:13px">
@@ -960,28 +958,49 @@ function toggleLBCard(id) {
 }
 
 async function rescanAll(btn) {
-  btn.disabled = true; btn.textContent = 'Scanning...';
+  btn.disabled = true; btn.textContent = 'Starting…';
   const msg = document.getElementById('rescanMsg');
-  msg.textContent = 'Rescanning all codes...'; msg.style.color = '#ffb300';
+  msg.textContent = 'Kicking off rescan…'; msg.style.color = '#ffb300';
   try {
     const r = await fetch('/api/admin/rescan-all', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}});
-    if (!r.ok) { const txt = await r.text(); msg.textContent = 'Server needs redeployment — endpoint missing'; msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; return; }
     const j = await r.json();
-    if (j.error) { msg.textContent = j.error; msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; return; }
+    if (!r.ok || j.error) {
+      msg.textContent = j.error || ('HTTP ' + r.status);
+      msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; return;
+    }
+    let staleCount = 0;
     const poll = setInterval(async () => {
       try {
         const s = await fetch('/api/admin/rescan-status', {headers:{'x-admin-password':adminPw}});
-        if (!s.ok) return;
+        if (!s.ok) { staleCount++; if (staleCount > 10) { clearInterval(poll); btn.disabled = false; btn.textContent = 'Rescan All Codes'; } return; }
         const sj = await s.json();
-        if (!sj.running) {
+        staleCount = 0;
+        if (sj.running) {
+          const of = sj.total > 0 ? '/' + sj.total : '';
+          const txt = sj.phase === 'Preparing…' ? 'Preparing codes…' : `Scanning ${sj.scanned}${of}…`;
+          msg.textContent = txt; msg.style.color = '#ffb300';
+          btn.textContent = txt;
+        } else {
           clearInterval(poll);
+          const settled2 = sj.scanned - (sj.stillPending || 0);
+          const parts = [`✓ ${sj.scanned} checked`];
+          if (settled2 > 0) parts.push(`${settled2} settled`);
+          if (sj.stillPending > 0) parts.push(`${sj.stillPending} still in play`);
+          if (sj.errors > 0) parts.push(`${sj.errors} errors`);
+          const summary = sj.scanned > 0 ? parts.join(' · ') : '✓ Nothing needed scanning';
+          msg.textContent = summary; msg.style.color = '#00c853';
+          loadLB();
+
           btn.disabled = false; btn.textContent = 'Rescan All Codes';
-          msg.textContent = 'Done!'; msg.style.color = '#00c853';
-          setTimeout(() => { loadLB(); msg.textContent = ''; }, 1000);
+          if ((sj.stillPending || 0) > 0) {
+            msg.textContent = summary + ` — ${sj.stillPending} game${sj.stillPending > 1 ? 's' : ''} still live, rescan after matches finish`;
+          } else {
+            setTimeout(() => { msg.textContent = ''; }, 4000);
+          }
         }
-      } catch { clearInterval(poll); btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
-    }, 3000);
-  } catch(e) { msg.textContent = 'Deploy new server.js first'; msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
+      } catch { staleCount++; if (staleCount > 10) { clearInterval(poll); btn.disabled = false; btn.textContent = 'Rescan All Codes'; } }
+    }, 2000);
+  } catch(e) { msg.textContent = 'Error: ' + e.message; msg.style.color = '#e53935'; btn.disabled = false; btn.textContent = 'Rescan All Codes'; }
 }
 
 async function addCodeLB(name, id) {
@@ -1008,19 +1027,54 @@ function filterGroup(g, btn) {
 }
 
 function renderCodes() {
-  const labels = {A:'Safe',B:'Balanced',C:'Value',D:'Consensus',E:'Moonshot',F:'Permutation',G:'Merge',H:'2-Punter'};
-  let html = '<div class="gen-grid hdr"><span>GROUP</span><span>CODE</span><span>GAMES</span><span>ODDS</span><span></span></div>';
-  let count = 0;
+  const labels   = {A:'Safe',B:'Balanced',C:'Value',D:'Consensus',E:'Moonshot',F:'Permutation',G:'Merge',H:'2-Punter'};
+  const accents  = {A:'#34D399',B:'#60A5FA',C:'#FBBF24',D:'#C084FC',E:'#F87171',F:'#F59E0B',G:'#2DD4BF',H:'#60A5FA'};
+  const rows = [];
   for (const [key, codes] of Object.entries(generatedCodes)) {
     if (currentGroup !== 'all' && currentGroup !== key) continue;
-    (codes||[]).filter(c => c && c.code).forEach(c => {
-      count++;
-      const oddsStr = c.odds >= 1e6 ? (c.odds/1e6).toFixed(1)+'M' : c.odds >= 1000 ? Math.round(c.odds/1000)+'K' : Math.round(c.odds);
-      html += `<div class="gen-grid"><span style="color:#8a9e8a">${labels[key]||key}</span><span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${c.code}</span><span>${c.games}g</span><span style="color:#ffb300;font-weight:700">${oddsStr}x</span><span class="gen-actions"><button class="btn-sm" onclick="navigator.clipboard.writeText('${c.code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',1000)">Copy</button><button class="btn-sm" onclick="scanCodeInline(this,'${c.code}')" style="border-color:rgba(33,150,243,.3);color:#2196f3">Scan</button><a href="https://www.sportybet.com/ng/?shareCode=${c.code}" target="_blank">Load &#8599;</a></span></div>`;
-    });
+    (codes||[]).filter(c => c && c.code).forEach(c => rows.push({ ...c, key }));
   }
-  if (!count) html += '<p style="color:#8a9e8a;padding:12px 0">No codes generated yet.</p>';
+  if (!rows.length) {
+    document.getElementById('codesTable').innerHTML = '<p style="color:#8a9e8a;padding:20px 0;text-align:center">No codes generated yet. Run a session or use Smart Slips.</p>';
+    return;
+  }
+  const html = rows.map(c => {
+    const accent  = accents[c.key] || '#8a9e8a';
+    const label   = labels[c.key] || c.key;
+    const oddsStr = c.odds >= 1e6 ? (c.odds/1e6).toFixed(1)+'M' : c.odds >= 1000 ? Math.round(c.odds/1000)+'K' : String(Math.round(c.odds));
+    return `<div style="display:flex;align-items:center;gap:0;background:#0d1117;border:1px solid #21262d;border-radius:9px;overflow:hidden;margin-bottom:7px">
+      <!-- CODE — click to copy -->
+      <div onclick="codesTabCopy(this,'${c.code}')" title="Click to copy"
+           style="padding:11px 16px;cursor:pointer;border-right:1px solid rgba(255,255,255,0.06);min-width:130px;flex-shrink:0"
+           onmouseenter="this.style.background='rgba(255,255,255,0.04)'" onmouseleave="this.style.background=''">
+        <div class="ct-code" style="font-size:17px;font-weight:800;letter-spacing:2px;color:${accent};font-family:monospace;line-height:1">${c.code}</div>
+        <div style="font-size:10px;color:#64748B;margin-top:3px">📋 tap to copy</div>
+      </div>
+      <!-- INFO -->
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;flex:1;flex-wrap:wrap">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:${accent}">${label}</div>
+          <div style="font-size:10px;color:#64748B">${c.games || 0} games</div>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#E3B341;margin-left:auto">${oddsStr}×</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn-sm" onclick="scanCodeInline(this,'${c.code}')" style="border-color:rgba(33,150,243,.3);color:#2196f3;font-size:11px">Scan</button>
+          <a href="https://www.sportybet.com/ng/?shareCode=${c.code}" target="_blank" style="color:#8a9e8a;text-decoration:none;font-size:11px;padding:3px 8px;border:1px solid #1e2e1e;border-radius:6px" onmouseenter="this.style.color='#00c853'" onmouseleave="this.style.color='#8a9e8a'">Open ↗</a>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
   document.getElementById('codesTable').innerHTML = html;
+}
+
+function codesTabCopy(el, code) {
+  navigator.clipboard.writeText(code).then(() => {
+    const badge = el.querySelector('.ct-code');
+    if (!badge) return;
+    const orig = badge.textContent; const origColor = badge.style.color;
+    badge.textContent = '✓ Copied!'; badge.style.color = '#34D399';
+    setTimeout(() => { badge.textContent = orig; badge.style.color = origColor; }, 1400);
+  }).catch(() => {});
 }
 
 function copyAllCodes() {
@@ -1649,96 +1703,91 @@ function ssRestoreLastResult() {
 }
 
 function ssRenderSlips(slips) {
-  const tiers = { A: [], B: [], C: [] };
-  slips.forEach(s => { if (tiers[s.tier]) tiers[s.tier].push(s); });
+  const list = document.getElementById('ss-slips-list');
+  if (!list) return;
+  const labelColors = { Conservative: '#34D399', Balanced: '#60A5FA', Boomshot: '#F59E0B', Consensus: '#C084FC' };
+  const labelDescs  = { Conservative: 'Top picks · lower risk', Balanced: 'Wider pool · medium odds', Boomshot: 'High odds · max selections', Consensus: 'Multi-punter confirmed' };
 
-  const tierInfo = {
-    A: { label: 'Tier A — Conservative',   desc: '6–8 selections · lower risk · strong consensus picks',      color: '#34D399' },
-    B: { label: 'Tier B — Moderate',        desc: '9–11 selections · balanced risk/reward',                    color: '#60A5FA' },
-    C: { label: 'Tier C — Aggressive',      desc: '12–14 selections · higher odds · maximum selection count',  color: '#F59E0B' },
-  };
+  list.innerHTML = slips.map((slip, i) => {
+    const accent  = labelColors[slip.label] || '#94A3B8';
+    const desc    = labelDescs[slip.label]  || '';
+    const oddsStr = ssFmtOdds(slip.totalOdds);
+    const hasCode = slip.code && !slip.codeError;
+    const codeDisplay = hasCode ? slip.code : (slip.codeError ? '⚠ Failed' : '—');
+    const codeColor   = hasCode ? accent : '#F87171';
 
-  for (const [tier, slipList] of Object.entries(tiers)) {
-    const container = document.getElementById(`ss-tier-${tier.toLowerCase()}`);
-    if (!container || !slipList.length) { if (container) container.style.display = 'none'; continue; }
-    const info = tierInfo[tier];
-    container.innerHTML = `
-      <div style="font-size:13px;font-weight:700;color:${info.color};margin-bottom:4px">${info.label}</div>
-      <div style="font-size:11px;color:#64748B;margin-bottom:14px">${info.desc}</div>
-      <div style="display:flex;flex-direction:column;gap:12px">${slipList.map((slip, i) => ssSlipCard(slip, i, info.color)).join('')}</div>
-    `;
-  }
-}
-
-function ssSlipCard(slip, idx, accent) {
-  const oddsStr = ssFmtOdds(slip.totalOdds);
-  const selRows = slip.selections.map(s => {
-    const oddsDisplay = s.originalOdds && s.originalOdds > 1 ? `<span style="color:#94A3B8;font-size:11px">${s.originalOdds}×</span>` : '';
-    const warnings = s.warnings?.length ? `<div style="color:#F87171;font-size:10px;margin-top:2px">${s.warnings.join(' · ')}</div>` : '';
-    const reasons  = s.reasons?.length  ? `<div style="color:#34D399;font-size:10px;margin-top:2px">${s.reasons.join(' · ')}</div>`  : '';
-    const consensus = s.punters?.length > 1
-      ? `<span style="background:rgba(96,165,250,0.15);color:#60A5FA;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:6px">${s.punters.length} punters</span>`
-      : '';
-    return `
-      <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:12px;font-weight:600;color:#E2E8F0">${s.homeTeam} vs ${s.awayTeam}</span>
-          ${consensus}
+    const gameRows = (slip.selections || []).map(s => {
+      const oddsDisp  = s.odds && s.odds > 1 ? `<span style="color:#94A3B8;font-size:11px">${s.odds}×</span>` : '';
+      const consensus = (s.punters?.length || 0) > 1 ? `<span style="background:rgba(96,165,250,0.15);color:#60A5FA;font-size:10px;padding:1px 5px;border-radius:10px;margin-left:5px">${s.punters.length}✓</span>` : '';
+      const warns     = s.warnings?.length ? `<div style="color:#F87171;font-size:10px;margin-top:2px">${s.warnings.join(' · ')}</div>` : '';
+      return `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600;color:#E2E8F0">${s.homeTeam} vs ${s.awayTeam}</span>${consensus}
           <span style="font-size:10px;color:#64748B;margin-left:auto">${s.league || ''}</span>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
           <span style="font-size:11px;color:#CBD5E1">${s.market}${s.outcome ? ': ' + s.outcome : ''}</span>
-          ${oddsDisplay}
-          <span style="font-size:10px;background:rgba(255,255,255,0.05);border-radius:4px;padding:1px 5px;color:#94A3B8">Score ${s.score}</span>
-        </div>
-        ${warnings}${reasons}
+          ${oddsDisp}<span style="font-size:10px;color:#64748B">Score ${s.score}</span>
+        </div>${warns}
       </div>`;
-  }).join('');
+    }).join('');
 
-  const genBtnId = `ss-code-${slip.tier}-${idx}`;
-  return `
-    <div style="background:#0d1117;border:1px solid #21262d;border-radius:10px;padding:14px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-        <span style="font-size:12px;font-weight:700;color:${accent}">Slip ${slip.tier}${slip.variant}</span>
-        <span style="font-size:11px;color:#64748B">${slip.selections.length} selections</span>
-        ${oddsStr ? `<span style="font-size:12px;font-weight:700;color:#E3B341;margin-left:auto">~${oddsStr}</span>` : ''}
-        <span style="font-size:10px;background:rgba(255,255,255,0.06);border-radius:4px;padding:2px 8px;color:#94A3B8">avg score ${slip.avgScore}</span>
-        <button class="btn-sm" id="${genBtnId}" onclick="ssGetCode(this, ${JSON.stringify(slip.selections).replace(/"/g,'&quot;')})"
-          style="font-size:11px;padding:4px 12px">Get Code</button>
+    return `<div style="background:#0d1117;border:1px solid #21262d;border-radius:10px;overflow:hidden">
+      <!-- header row: code (copy) on left, expand toggle on right -->
+      <div style="display:flex;align-items:stretch">
+        <!-- CODE ZONE — click = copy only -->
+        <div onclick="${hasCode ? `ssCopyOnly('ss-code-badge-${i}','${slip.code}')` : ''}"
+             style="display:flex;flex-direction:column;justify-content:center;padding:14px 16px;min-width:130px;border-right:1px solid rgba(255,255,255,0.06);${hasCode ? 'cursor:pointer' : 'cursor:default'};user-select:none;flex-shrink:0"
+             onmouseenter="this.style.background='${hasCode ? 'rgba(255,255,255,0.04)' : ''}'" onmouseleave="this.style.background=''">
+          <div id="ss-code-badge-${i}" style="font-size:19px;font-weight:800;letter-spacing:2px;color:${codeColor};font-family:monospace;line-height:1">${codeDisplay}</div>
+          <div style="font-size:10px;color:#64748B;margin-top:3px">${hasCode ? '📋 tap to copy' : (slip.codeError ? 'gen failed' : '—')}</div>
+        </div>
+        <!-- INFO + EXPAND — click = expand only -->
+        <div onclick="ssToggleBody('ss-body-${i}','ss-arrow-${i}')"
+             style="display:flex;align-items:center;gap:10px;padding:12px 14px;flex:1;cursor:pointer;user-select:none"
+             onmouseenter="this.style.background='rgba(255,255,255,0.03)'" onmouseleave="this.style.background=''">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:700;color:${accent}">${slip.label}</div>
+            <div style="font-size:10px;color:#64748B">${desc}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:700;color:#E3B341">~${oddsStr}</div>
+            <div style="font-size:10px;color:#64748B">${slip.gameCount}g · avg ${slip.avgScore}</div>
+          </div>
+          <div id="ss-arrow-${i}" style="font-size:12px;color:#64748B;margin-left:6px;transition:transform 0.15s">▼</div>
+        </div>
       </div>
-      ${selRows}
+      <!-- BODY — hidden by default -->
+      <div id="ss-body-${i}" style="display:none;padding:0 16px 14px;border-top:1px solid rgba(255,255,255,0.06)">
+        <div style="font-size:10px;color:#64748B;margin:8px 0">
+          ${hasCode ? `Code: <strong style="color:${accent};letter-spacing:1px;font-family:monospace">${slip.code}</strong> · Use the code area on the left to copy` : `<span style="color:#F87171">${slip.codeError || 'Code generation failed'}</span>`}
+        </div>
+        ${gameRows}
+      </div>
     </div>`;
+  }).join('');
 }
 
-async function ssGetCode(btn, selections) {
-  const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Generating…';
-  try {
-    const payload = selections.map(s => ({
-      eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
-      productId: s.productId || 3, sportId: s.sportId, specifier: s.specifier || '',
-      parentBetBuilderMarketId: '',
-    }));
-    const resp = await fetch('/api/generate', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'x-admin-password': window.adminPw || '' },
-      body: JSON.stringify({ selections: payload }),
-    });
-    const data = await resp.json();
-    if (data.success && data.shareCode) {
-      btn.textContent = data.shareCode;
-      btn.style.background = '#16a34a';
-      btn.style.color = '#fff';
-      btn.onclick = () => { navigator.clipboard.writeText(data.shareCode); btn.textContent = '✓ Copied!'; setTimeout(() => { btn.textContent = data.shareCode; }, 1400); };
-    } else {
-      btn.textContent = 'Failed';
-      btn.style.background = '#dc2626';
-      setTimeout(() => { btn.textContent = orig; btn.style.background = ''; btn.disabled = false; }, 2500);
-    }
-  } catch (e) {
-    btn.textContent = 'Error'; btn.disabled = false;
-    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
-  }
+function ssCopyOnly(badgeId, code) {
+  if (!code) return;
+  const badgeEl = document.getElementById(badgeId);
+  navigator.clipboard.writeText(code).then(() => {
+    if (!badgeEl) return;
+    const orig = badgeEl.textContent;
+    const origColor = badgeEl.style.color;
+    badgeEl.textContent = '✓ Copied!';
+    badgeEl.style.color = '#34D399';
+    setTimeout(() => { badgeEl.textContent = orig; badgeEl.style.color = origColor; }, 1500);
+  }).catch(() => {});
+}
+
+function ssToggleBody(bodyId, arrowId) {
+  const bodyEl  = document.getElementById(bodyId);
+  const arrowEl = document.getElementById(arrowId);
+  if (!bodyEl) return;
+  const open = bodyEl.style.display !== 'none';
+  bodyEl.style.display = open ? 'none' : 'block';
+  if (arrowEl) arrowEl.textContent = open ? '▼' : '▲';
 }
 </script>
 </body>

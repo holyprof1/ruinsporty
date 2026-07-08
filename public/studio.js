@@ -138,10 +138,11 @@ function _localDateStr(offsetDays) {
 }
 function getYesterday() { return _localDateStr(-1); }
 function getToday()     { return _localDateStr(0); }
-// Returns the date chosen in the picker, falling back to yesterday
+// Returns the date chosen in the picker, falling back to today
+// (user can always pick yesterday manually; defaulting to today lets 11pm runs work)
 function getTargetDate() {
   const picker = document.getElementById('cs-date-picker');
-  return (picker && picker.value) ? picker.value : getYesterday();
+  return (picker && picker.value) ? picker.value : getToday();
 }
 function fmtLong(s) {
   return new Date(s + 'T12:00:00').toLocaleDateString('en-GB',
@@ -249,14 +250,27 @@ function processLeaderboard(raw, targetDate) {
       };
     })
     .filter(Boolean)
+    // Require ≥2 settled games — 1 game gives misleading 0% or 100% hit rates
+    .filter(p => p.settled >= 2)
     .sort((a, b) => b.hitRate - a.hitRate || b.won - a.won);
 
-  const active = punters.filter(p => p.settled > 0);
+  // Keep a separate "pending only" list so we can show them without ranking
+  const pendingOnly = (() => {
+    return (Array.isArray(raw.leaderboard) ? raw.leaderboard : [])
+      .filter(p => Array.isArray(p.codes) && p.codes.some(c => c.date === targetDate))
+      .map(p => {
+        const c = p.codes.find(c => c.date === targetDate);
+        return c && (c.won + c.lost) === 0 ? { name: normaliseName(p.punter), code: c.code, games: c.games || 0, pending: c.pending || 0 } : null;
+      })
+      .filter(Boolean);
+  })();
+
+  const active = punters;
   const avgHR  = active.length
     ? Math.round(active.reduce((s, p) => s + p.hitRate, 0) / active.length)
     : 0;
 
-  return { date: targetDate, punters, avgHR };
+  return { date: targetDate, punters, pendingOnly, avgHR };
 }
 
 function aggregateLeaderboard(raw, startDate, endDate) {
@@ -288,7 +302,7 @@ function aggregateLeaderboard(raw, startDate, endDate) {
       const hitRate = settled > 0 ? Math.round(p.won / settled * 100) : 0;
       return { ...p, settled, hitRate, totalOdds: null, code: p.codes[0] || null, trend: '—' };
     })
-    .filter(p => p.settled > 0)
+    .filter(p => p.settled >= 2)
     .sort((a, b) => b.hitRate - a.hitRate || b.won - a.won);
 
   const avgHR = punters.length
@@ -399,8 +413,20 @@ function buildCaption(data, idx, type, analysis) {
   let cap = `📊 SLIPPILOT DAILY INTEL — ${dateStr.toUpperCase()}\n`;
   cap += `Top: ${best.name} ${best.hitRate}%  ·  Avg: ${avgHR}%  ·  ${punters.length} analysts\n\n`;
 
-  if (!analysis) {
-    cap += `Run a Rescan All to unlock full intelligence.\n\n${tags}`;
+  if (!analysis || (analysis.partial && !analysis.ticketKillers?.length && !analysis.consensusWins?.length)) {
+    // Partial or no analysis — build from leaderboard data instead
+    const settled2 = punters.filter(p => p.settled > 0);
+    const pending2 = punters.filter(p => p.pending > 0);
+    if (pending2.length && !settled2.length) {
+      cap += `${pending2.length} punters have codes live — results still pending. Check back after matches finish.\n\n${tags}`;
+    } else if (settled2.length) {
+      const wst = [...settled2].sort((a, b) => a.hitRate - b.hitRate)[0];
+      cap += `🔍 Best: ${best.name} at ${best.hitRate}% (${best.won}W/${best.lost}L)\n`;
+      if (wst && wst.name !== best.name) cap += `Worst: ${wst.name} at ${wst.hitRate}%\n`;
+      cap += `\nFull analysis available after Rescan All completes.\n\n${tags}`;
+    } else {
+      cap += `Codes tracked — run Rescan All after matches finish for full breakdown.\n\n${tags}`;
+    }
     return cap;
   }
 
@@ -516,22 +542,51 @@ function buildReply(data, type, analysis) {
                : type === 'monthly' ? 'this month'
                : fmtShort(date);
 
-  // Fallback when no analysis saved yet
+  // Fallback when no analysis saved yet — build from raw leaderboard data
   if (!analysis) {
     const settled = punters.filter(p => p.settled > 0);
     if (!settled.length) return '';
     const best  = settled[0];
     const worst = [...settled].sort((a, b) => a.hitRate - b.hitRate)[0];
-    let reply = `🧵 SlipPilot breakdown (${period})\n\n`;
+    const avg   = Math.round(settled.reduce((s, p) => s + p.hitRate, 0) / settled.length);
+    let reply   = `🧵 SlipPilot results (${period})\n\n`;
+    reply += `${settled.length} punters tracked. Average hit rate: ${avg}%.\n\n`;
     if (best && worst && best.hitRate - worst.hitRate > 15)
-      reply += `Gap of the day: ${best.name} hit ${best.hitRate}% while ${worst.name} hit ${worst.hitRate}%.\n\n`;
-    reply += `No scan data yet — run a Rescan All to unlock full analysis.\n\nFollow @SlipPilot for tomorrow's codes →`;
+      reply += `Top: ${best.name} ${best.hitRate}% (${best.won}W/${best.lost}L)  ·  Bottom: ${worst.name} ${worst.hitRate}%\n\n`;
+    else if (best)
+      reply += `Best: ${best.name} — ${best.hitRate}% (${best.won}W/${best.lost}L)\n\n`;
+    reply += `Follow @SlipPilot for daily codes →`;
     return reply;
   }
 
-  const killers = analysis.ticketKillers || [];
-  const wins    = analysis.consensusWins  || [];
+  const killers  = analysis.ticketKillers || [];
+  const wins     = analysis.consensusWins  || [];
   const insights = analysis.insights || [];
+
+  // Partial report: analysis was saved but games mostly pending — fall back to leaderboard summary
+  if (analysis.partial && !killers.length && !wins.length) {
+    const settled = punters.filter(p => p.settled > 0);
+    if (!settled.length) {
+      const pending = punters.filter(p => p.pending > 0);
+      let reply = `🧵 SlipPilot update (${period})\n\n`;
+      reply += `${pending.length} punters have codes live — waiting for results to settle.\n\n`;
+      if (insights.length) reply += insights[0] + '\n\n';
+      reply += `Follow @SlipPilot for codes →`;
+      return reply;
+    }
+    const best  = settled[0];
+    const worst = [...settled].sort((a, b) => a.hitRate - b.hitRate)[0];
+    const avg   = Math.round(settled.reduce((s, p) => s + p.hitRate, 0) / settled.length);
+    let reply   = `🧵 SlipPilot results (${period})\n\n`;
+    reply += `${settled.length} punters tracked. Average hit rate: ${avg}%.\n\n`;
+    if (best && worst && best.hitRate - worst.hitRate > 15)
+      reply += `Top: ${best.name} ${best.hitRate}% (${best.won}W/${best.lost}L)  ·  Bottom: ${worst.name} ${worst.hitRate}%\n\n`;
+    else if (best)
+      reply += `Best: ${best.name} — ${best.hitRate}% (${best.won}W/${best.lost}L)\n\n`;
+    if (insights.length && !insights[0].startsWith('Run Rescan')) reply += insights[0] + '\n\n';
+    reply += `Follow @SlipPilot for daily codes →`;
+    return reply;
+  }
 
   let reply = `🧵 What really happened today (${period})\n\n`;
 
@@ -895,26 +950,17 @@ async function _buildReportPayload(type) {
     data       = processLeaderboard(raw, targetDate);
     dateKey    = targetDate;
     rangeLabel = fmtLong(targetDate);
-    if (!data.punters.length)
+    // No settled punters at all — could be all pending or no codes saved
+    if (!data.punters.length) {
+      const pOnly = data.pendingOnly || [];
+      if (pOnly.length > 0)
+        throw new Error(
+          pOnly.length + ' punter(s) have codes for ' + targetDate + ' but 0 games settled yet. ' +
+          'Run Rescan All after matches finish.'
+        );
       throw new Error(
-        'No punter data found for ' + targetDate + '. ' +
-        'Ensure codes are saved and run Rescan All.'
+        'No punter data found for ' + targetDate + '. Ensure codes are saved and run Rescan All.'
       );
-    // Guard against 0% — all punters have no settled games
-    const _totalSettled = data.punters.reduce((s, p) => s + (p.settled || 0), 0);
-    const _totalGames   = data.punters.reduce((s, p) => s + (p.games   || 0), 0);
-    if (_totalSettled === 0) {
-      if (_totalGames > 0) {
-        throw new Error(
-          _totalGames + ' games are still pending settlement for ' + targetDate + '. ' +
-          'Run Rescan All once the matches have finished.'
-        );
-      } else {
-        throw new Error(
-          data.punters.length + ' punter(s) tracked for ' + targetDate + ' but no scan data found. ' +
-          'Run Rescan All from the Admin panel to fetch results.'
-        );
-      }
     }
   } else if (type === 'weekly') {
     const range = getWeekRange();
@@ -949,18 +995,8 @@ async function _buildReportPayload(type) {
 
   const lw = buildLeagueWatch(raw);
 
-  // Only generate content from real analysis — never fabricate
-  const noAnalysis = type === 'daily' && (!analysis || analysis.partial);
-  const caption = noAnalysis
-    ? (analysis?.partial
-        ? `Daily Analysis is still collecting. ${analysis.totals?.settled ?? 0} selections settled — need at least 10.`
-        : 'No completed Daily Analysis available. Run Rescan All from the Admin panel first.')
-    : buildCaption(data, 0, type, analysis);
-  const reply = noAnalysis
-    ? (analysis?.partial
-        ? `Run Rescan All again once more matches have settled (${analysis.totals?.settled ?? 0}/10 ready).`
-        : 'Run Rescan All from the Admin panel to generate the daily analysis for this date.')
-    : buildReply(data, type, analysis);
+  const caption = buildCaption(data, 0, type, analysis);
+  const reply   = buildReply(data, type, analysis);
 
   return {
     date:        dateKey,
