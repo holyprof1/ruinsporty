@@ -2836,13 +2836,13 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
       const sels = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
       storeOriginalOdds(bank, sels, new Date().toISOString());
 
-      // 50% filter: if less than half the code's games have settled (won/lost),
-      // the punter's today form is unverified — skip this code from slip building
+      // 50% filter: only skip a code if SOME games have decided but less than half —
+      // indicates a stale/mixed slip. Fresh codes (0 settled) are always included.
       const allVerdicts = sels.map(s => evaluateVerdict(s));
       const decidedCount = allVerdicts.filter(v => v === 'WON' || v === 'LOST' || v === 'VOID').length;
-      if (sels.length > 0 && decidedCount < sels.length * 0.5) {
-        fetchErrors.push(`${name}: only ${decidedCount}/${sels.length} games settled — skipped (need ≥50% decided)`);
-        puntScanned.push(name); // still mark as scanned so we count them
+      if (sels.length > 0 && decidedCount > 0 && decidedCount < sels.length * 0.5) {
+        fetchErrors.push(`${name}: only ${decidedCount}/${sels.length} games settled — skipped`);
+        puntScanned.push(name);
         await new Promise(r => setTimeout(r, 150));
         continue;
       }
@@ -2859,9 +2859,9 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
 
   if (allSels.length < 3) {
     const why = puntScanned.length === 0
-      ? "No punter codes returned valid data from SportyBet. Check that codes are set for today."
-      : `Only ${allSels.length} selections fetched from ${puntScanned.length} punters — not enough to build slips.`;
-    return res.json({ success: false, error: why, slips: [] });
+      ? "No codes could be read from SportyBet. Make sure punter codes are saved in the Session tab."
+      : `Only ${allSels.length} upcoming games found from ${puntScanned.length} punter${puntScanned.length !== 1 ? 's' : ''}. Most matches may have already started — add codes earlier in the day or after punters post tomorrow's picks.`;
+    return res.json({ success: false, error: why, fetchErrors, slips: [] });
   }
 
   // Deduplicate by event+market+outcome

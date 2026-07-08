@@ -1322,7 +1322,7 @@ function renderSessionPunterEditor() {
   ).join('');
 }
 
-function addSessionPunter() {
+async function addSessionPunter() {
   const name = document.getElementById('newPunterName').value.trim();
   if (!name) return;
   const codeEl = document.getElementById('newPunterCode');
@@ -1330,6 +1330,8 @@ function addSessionPunter() {
   renderSessionPunterEditor();
   document.getElementById('newPunterName').value = '';
   if (codeEl) codeEl.value = '';
+  // Auto-save immediately so it persists on refresh
+  await saveSessionCodes();
 }
 
 async function saveSessionCodes() {
@@ -1655,7 +1657,13 @@ async function ssGenerate() {
 
     if (!data.success || !data.slips?.length) {
       document.getElementById('ss-empty').style.display = 'block';
-      ssStatus(data.error || 'No slips generated.', '#F87171');
+      let errMsg = data.error || 'No slips generated.';
+      if (data.fetchErrors?.length) {
+        const el = document.getElementById('ss-removed');
+        el.style.display = 'block';
+        el.innerHTML = '<strong>Per-code detail:</strong> ' + data.fetchErrors.map(e => `<span style="display:block;margin-top:2px">${e}</span>`).join('');
+      }
+      ssStatus(errMsg, '#F87171');
       return;
     }
 
