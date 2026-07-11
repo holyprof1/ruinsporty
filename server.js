@@ -39,6 +39,7 @@ const https = require("https");
 const path = require("path");
 const fs = require("fs");
 const xAssistant = require("./x-assistant-engine");
+const intel = require("./intelligence-engine");
 
 const app = express();
 const PORT = 3000;
@@ -2526,6 +2527,53 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
       } catch (e) { console.error("[Rescan] Analysis generation error:", e.message); }
     }
 
+    // Backfill partial reports: re-scan settled codes for dates where the report stub is empty
+    // This fixes the case where games settled AFTER the partial stub was written
+    try {
+      const cutoff3Days = Date.now() - 3 * 86400000;
+      const partialDates = [];
+      for (const f of (fs.readdirSync(REPORTS_DIR).catch ? [] : fs.readdirSync(REPORTS_DIR)).filter(f => f.endsWith('.json'))) {
+        const dateStr = f.slice(0, 10);
+        if (new Date(dateStr).getTime() < cutoff3Days) continue;
+        if (dateStr === today) continue; // today is expected to be partial
+        try {
+          const rpt = JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, f), 'utf8'));
+          if (rpt.analysis?.partial && !(rpt.analysis?.allSelections?.length)) partialDates.push(dateStr);
+        } catch {}
+      }
+      for (const dateStr of partialDates) {
+        rescanProgress.phase = `Backfilling report for ${dateStr}…`;
+        const backfillResults = [];
+        for (const entry of lb) {
+          if (entry.punter === "Generated") continue;
+          for (const ce of (entry.codes || [])) {
+            if (ce.date !== dateStr || !ce.code || ce.games === 0) continue;
+            try {
+              const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(ce.code)}`;
+              const json = await fetchJSON(url);
+              if (!json || json.bizCode !== 10000 || !json.data) continue;
+              const outcomes = json.data.outcomes || [];
+              const ticketSels = json.data.ticket?.selections || [];
+              const selections = mapOutcomes(outcomes, ticketSels);
+              const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+              storeOriginalOdds(oddsBank, selections, scanTs);
+              for (const r of results) {
+                backfillResults.push({ ...r, punter: entry.punter, code: ce.code, codeDate: dateStr, originalOdds: getBankOdds(oddsBank, r) });
+              }
+              await new Promise(r => setTimeout(r, 200));
+            } catch {}
+          }
+        }
+        if (backfillResults.length) {
+          const leagueIntelBf = loadLeagueIntelligence();
+          const marketIntelBf = loadMarketIntelligence();
+          const rpt = generateDailyAnalysis(backfillResults, dateStr, leagueIntelBf, marketIntelBf);
+          fs.writeFileSync(path.join(REPORTS_DIR, `${dateStr}.json`), JSON.stringify(rpt, null, 2));
+          console.log(`[Rescan] Backfilled ${dateStr}: ${backfillResults.length} selections → ${rpt.analysis?.ticketKillers?.length || 0} killers, ${rpt.analysis?.consensusWins?.length || 0} wins`);
+        }
+      }
+    } catch(bfErr) { console.error('[Rescan] Backfill error:', bfErr.message); }
+
     // Always ensure a minimal report exists for today so X Assistant has something to work with
     try {
       const todayFile = path.join(REPORTS_DIR, `${today}.json`);
@@ -2730,41 +2778,17 @@ app.post("/api/admin/rebuild-intelligence", requireAdmin, (req, res) => {
   }
 });
 
-// Score a list of selections using all intelligence (used by Manual Ticket Builder)
+// Score a list of selections using unified intelligence engine (Manual Ticket Builder)
 app.post("/api/score-selections", requireAdmin, (req, res) => {
   try {
     const { selections } = req.body;
     if (!Array.isArray(selections)) return res.status(400).json({ error: "selections array required" });
-    const lb         = loadLeaderboard();
-    const leagueIntel = loadLeagueIntelligence();
-    const marketIntel = loadMarketIntelligence();
-    const selHistory  = loadSelectionHistory();
-    const weakMatches = (() => { try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "weak-matches.json"), "utf8")); } catch { return {}; } })();
-    const scored = selections.map(s => {
-      let sc = 50, reasons = [], warnings = [];
-      const li = leagueIntel[s.league];
-      if (li) {
-        if (li.hitRate >= 70)     { sc += 10; reasons.push(`${s.league}: ${li.hitRate}% league HR`); }
-        else if (li.hitRate < 50) { sc -= 15; warnings.push(`${s.league}: ${li.hitRate}% league HR`); }
-      }
-      const mi = marketIntel[s.market];
-      if (mi && mi.totalSelections >= 5) {
-        if (mi.hitRate >= 70)     { sc += 8; reasons.push(`${s.market}: ${mi.hitRate}% market HR`); }
-        else if (mi.hitRate < 50) { sc -= 10; warnings.push(`${s.market}: ${mi.hitRate}% market HR`); }
-      }
-      const sh = selHistory[oddsKey(s)];
-      if (sh && sh.appearances >= 2) {
-        if (sh.hitRate >= 70)     { sc += 12; reasons.push(`Historical HR: ${sh.hitRate}% (${sh.appearances} seen)`); }
-        else if (sh.hitRate < 40) { sc -= 15; warnings.push(`Historical HR: ${sh.hitRate}% (${sh.appearances} seen)`); }
-      }
-      const wm = weakMatches[s.eventId];
-      if (wm && wm.failureRate >= 50) { sc -= 10; warnings.push(`High failure rate: ${wm.failureRate}%`); }
-      const odds = s.originalOdds || s.odds;
-      if (odds > 10)      { sc -= 20; warnings.push(`Very high odds (${odds})`); }
-      else if (odds > 5)  { sc -= 10; warnings.push(`High odds (${odds})`); }
-      else if (odds > 0 && odds <= 1.5) { sc += 5; reasons.push("Low-risk odds"); }
-      return { ...s, score: Math.round(Math.max(0, Math.min(100, sc))), reasons, warnings };
-    });
+    const scored = intel.scoreSelections(selections).map(s => ({
+      ...s,
+      score: s.confidence,
+      reasons: s.fromMasterPool ? ['Scored from today\'s master analysis pool'] : [],
+      warnings: s.warning ? [s.warning] : (s.suggestions||[]).map(sg => sg.reason),
+    }));
     res.json({ success: true, selections: scored });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
@@ -2812,6 +2836,97 @@ async function buildSportybetCode(selections) {
 
 app.post("/api/smart-slips", requireAdmin, async (req, res) => {
   try {
+  // v7: delegate entirely to the unified intelligence engine
+  const codesRaw = loadPunterCodes();
+  const punterMap = {};
+  for (const [k, v] of Object.entries(codesRaw)) {
+    if (k.startsWith('_') || !v || typeof v !== 'string') continue;
+    punterMap[k] = v.trim().toUpperCase();
+  }
+  if (!Object.keys(punterMap).length) {
+    return res.json({ success: false, error: 'No punter codes configured. Add codes in the Session tab.', slips: [] });
+  }
+
+  const logs = [];
+  const logger = msg => { logs.push(msg); console.log('[smart-slips]', msg); };
+
+  logger(`Starting unified intelligence analysis for ${Object.keys(punterMap).length} punters…`);
+  const analysis = await intel.runAnalysis(punterMap, logger);
+
+  if (!analysis.success || !analysis.masterPool || analysis.masterPool.length < 3) {
+    return res.json({
+      success: false,
+      error: analysis.error || `Only ${(analysis.masterPool||[]).length} picks survived all filters. Add punter codes or run later.`,
+      fetchLog: analysis.fetchLog || {},
+      logs,
+      slips: [],
+    });
+  }
+
+  logger(`Master pool: ${analysis.masterPool.length} picks. Building themed codes…`);
+  const codes = await intel.buildThemedCodes(analysis.masterPool, logger);
+
+  if (!codes.length) {
+    return res.json({ success: false, error: 'No codes generated from master pool.', logs, slips: [] });
+  }
+
+  // Format response to match what admin.html expects
+  const slips = codes.map(c => ({
+    label: c.theme,
+    code: c.code,
+    url: '',
+    gameCount: c.games,
+    totalOdds: c.odds,
+    totalOddsFormatted: c.odds >= 1e6 ? (c.odds/1e6).toFixed(2)+'M' : c.odds >= 1e3 ? (c.odds/1e3).toFixed(2)+'K×' : Math.round(c.odds)+'×',
+    avgScore: c.avgConfidence,
+    // detailed data for frontend
+    selections: (c.picks || []).map(s => ({
+      homeTeam: s.homeTeam, awayTeam: s.awayTeam, league: s.league,
+      market: s.marketName, outcome: s.outcomeName,
+      odds: s.odds, punters: s.punters, score: s.confidence,
+      kickoff: s.kickoff,
+      eventId: s.eventId, marketId: s.marketId,
+      outcomeId: s.outcomeId, productId: s.productId || 3,
+      specifier: s.specifier, sportId: s.sportId,
+      converted: s.converted, conversionNote: s.conversionNote,
+      punterTier: s.punterTier, leagueTier: s.leagueTier,
+    })),
+    diversity: c.diversity || 0,
+    topLeagues: c.topLeagues || '',
+    topPunters: c.topPunters || '',
+    markets: c.markets || '',
+    borrowed: c.borrowed || 0,
+  }));
+
+  // Save to disk for persistence
+  try {
+    fs.writeFileSync(path.join(DATA_DIR, 'smart-slips-last.json'), JSON.stringify({
+      date: localToday(), generatedAt: new Date().toISOString(), engine: 'v7',
+      poolSize: analysis.masterPool.length,
+      slips: slips.map(s => ({ code: s.code, label: s.label, gameCount: s.gameCount, totalOdds: s.totalOdds, avgScore: s.avgScore })),
+    }, null, 2));
+  } catch {}
+
+  res.json({
+    success: true,
+    date: localToday(),
+    engine: 'v7',
+    poolSize: analysis.masterPool.length,
+    excludedCount: analysis.excludedCount || 0,
+    punterSummary: analysis.punterSummary || {},
+    fetchLog: analysis.fetchLog || {},
+    logs,
+    slips,
+  });
+  } catch (e) {
+    console.error('[smart-slips]', e);
+    res.status(500).json({ success: false, error: e.message || 'Internal error' });
+  }
+});
+
+// ── Smart Slips now fully delegates to intelligence-engine v7 (see above) ──
+
+async function _deadCodeNeverCall() { // kept for syntax closure only — unreachable
   const codes       = loadPunterCodes();
   const lb          = loadLeaderboard();
   const bank        = loadOddsBank();
@@ -3066,46 +3181,127 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
     pickSlip(allValid, 14, "Boomshot"),
     // Extra: Consensus only (picks agreed by 2+ punters)
     pickSlip(valid.filter(s => s.punters.length >= 2), 10, "Consensus"),
-  ].filter(Boolean);
+  ].filter(Boolean); // end of legacy candidates array (dead code — never executed)
+} // end _legacySmartSlipsInner_DO_NOT_USE
 
-  if (!candidates.length) {
-    return res.json({ success: false, error: `Not enough valid selections to build slips (${valid.length} survived). Add more punter codes.`, slips: [] });
-  }
-
-  // ── Generate real SportyBet booking codes ──
-  console.log(`[smart-slips] Generating ${candidates.length} booking codes…`);
-  const slips = [];
-  for (const cand of candidates) {
-    try {
-      const { code, url } = await buildSportybetCode(cand.selections);
-      slips.push({ ...cand, code, url });
-      console.log(`[smart-slips] ${cand.label} (${cand.gameCount}g, ${cand.totalOddsFormatted}) → ${code}`);
-    } catch (e) {
-      slips.push({ ...cand, code: null, codeError: e.message });
-      console.warn(`[smart-slips] Code gen failed for ${cand.label}: ${e.message}`);
-    }
-    await new Promise(r => setTimeout(r, 250));
-  }
-
-  // Save results to disk for persistence
+// Rebuild a specific date's analysis report by re-scanning all punter codes for that date
+app.post("/api/admin/rebuild-report/:date", requireAdmin, async (req, res) => {
+  const dateStr = req.params.date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return res.status(400).json({ error: "Invalid date format" });
   try {
-    const hist = { date: localToday(), generatedAt: new Date().toISOString(), slips: slips.map(s => ({ code: s.code, label: s.label, gameCount: s.gameCount, totalOdds: s.totalOdds, avgScore: s.avgScore })) };
-    fs.writeFileSync(path.join(DATA_DIR, "smart-slips-last.json"), JSON.stringify(hist, null, 2));
-  } catch {}
+    const lb = loadLeaderboard();
+    const oddsBank = loadOddsBank();
+    const scanTs = new Date().toISOString();
+    const backfillResults = [];
+    const log = [];
+    let fetched = 0, errors = 0;
 
-  res.json({
-    success: true,
-    date: localToday(),
-    totalSelections: allSels.length,
-    uniqueSelections: Object.keys(selMap).length,
-    removedCount: Object.values(selMap).filter(s => s.removed).length,
-    removed: Object.values(selMap).filter(s => s.removed).map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })),
-    slips,
-  });
-  } catch (e) {
-    console.error("[smart-slips]", e);
-    res.status(500).json({ success: false, error: e.message || "Internal error" });
+    for (const entry of lb) {
+      if (entry.punter === "Generated") continue;
+      for (const ce of (entry.codes || [])) {
+        if (ce.date !== dateStr || !ce.code) continue;
+        try {
+          const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(ce.code)}`;
+          const json = await fetchJSON(url);
+          if (!json || json.bizCode !== 10000 || !json.data) { errors++; continue; }
+          const outcomes = json.data.outcomes || [];
+          const ticketSels = json.data.ticket?.selections || [];
+          const selections = mapOutcomes(outcomes, ticketSels);
+          const results = selections.map(s => ({ ...s, verdict: evaluateVerdict(s) }));
+          storeOriginalOdds(oddsBank, selections, scanTs);
+          for (const r of results) {
+            backfillResults.push({ ...r, punter: entry.punter, code: ce.code, codeDate: dateStr, originalOdds: getBankOdds(oddsBank, r) });
+          }
+          const won  = results.filter(r => r.verdict === "WON").length;
+          const lost = results.filter(r => r.verdict === "LOST").length;
+          log.push(`${entry.punter} (${ce.code}): ${results.length} games, ${won}W/${lost}L`);
+          fetched++;
+          await new Promise(r => setTimeout(r, 250));
+        } catch(e) { errors++; log.push(`${entry.punter}: ${e.message}`); }
+      }
+    }
+
+    if (!backfillResults.length) {
+      return res.json({ success: false, message: `No data found for ${dateStr}. No punter codes recorded for that date.`, fetched, errors, log });
+    }
+
+    const leagueIntel = loadLeagueIntelligence();
+    const marketIntel = loadMarketIntelligence();
+    const report = generateDailyAnalysis(backfillResults, dateStr, leagueIntel, marketIntel);
+    fs.writeFileSync(path.join(REPORTS_DIR, `${dateStr}.json`), JSON.stringify(report, null, 2));
+    const a = report.analysis || {};
+    res.json({
+      success: true, date: dateStr, fetched, errors,
+      selections: backfillResults.length,
+      settled: (a.totals?.settled || 0),
+      ticketKillers: (a.ticketKillers || []).length,
+      consensusWins: (a.consensusWins || []).length,
+      log,
+    });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
   }
+});
+
+// ── Intelligence Engine v6 — Unified Analysis API ────────────────────────────
+
+// Run full master analysis from all punter codes. Caches to data/master-pool.json.
+app.post("/api/admin/run-analysis", requireAdmin, async (req, res) => {
+  try {
+    const codesRaw = (() => {
+      try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "punter-codes.json"), "utf8").replace(/^﻿/, '')); }
+      catch { return {}; }
+    })();
+    const punterMap = {};
+    for (const [k, v] of Object.entries(codesRaw)) {
+      if (k.startsWith('_') || !v || typeof v !== 'string') continue;
+      punterMap[k] = v;
+    }
+    if (!Object.keys(punterMap).length) return res.status(400).json({ success: false, error: "No punter codes configured" });
+
+    const logs = [];
+    const logger = msg => { logs.push(msg); console.log('[intel-engine]', msg); };
+
+    const result = await intel.runAnalysis(punterMap, logger);
+    res.json({ ...result, logs });
+  } catch (e) {
+    console.error('[run-analysis]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Return today's cached master pool (null if stale / not yet run)
+app.get("/api/admin/master-pool", requireAdmin, (req, res) => {
+  try {
+    const pool = intel.getMasterPool();
+    if (!pool) return res.json({ success: false, stale: true, message: "No analysis for today. Run /api/admin/run-analysis first." });
+    res.json({ success: true, ...pool });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Generate themed booking codes from today's master pool
+app.post("/api/admin/booking-codes", requireAdmin, async (req, res) => {
+  try {
+    const cached = intel.getMasterPool();
+    if (!cached) return res.status(400).json({ success: false, error: "Run /api/admin/run-analysis first to build today's master pool." });
+
+    const logs = [];
+    const logger = msg => { logs.push(msg); console.log('[booking-codes]', msg); };
+
+    const codes = await intel.buildThemedCodes(cached.masterPool, logger);
+    res.json({ success: true, date: localToday(), count: codes.length, codes, logs });
+  } catch (e) {
+    console.error('[booking-codes]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// X Assistant intelligence context — used by X Assistant tab to auto-fill with real data
+app.get("/api/admin/x-intel", requireAdmin, (req, res) => {
+  try {
+    const ctx = intel.getXContext();
+    res.json({ success: true, ...ctx });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // ── Global error handler (must be last middleware) ──
