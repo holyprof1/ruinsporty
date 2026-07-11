@@ -62,23 +62,42 @@ function marketSafety(marketName, specifier, outcomeName) {
   const on = (outcomeName || '').toLowerCase();
   for (const p of HARD_REMOVE_PATTERNS) { if (mn.includes(p) || on.includes(p)) return -1; }
 
-  if (mn.includes('double chance') && !mn.includes('goal')) return 85;
-  if (mn === 'draw no bet' || mn.includes('draw no bet')) return 79;
-  if (mn.includes('home no draw') || mn === 'home/away') return 80;
+  // Combo markets like "Double Chance & Over/Under 2.5" — 0% hit rate in 14-day data, hard remove
+  if (mn.includes('double chance') && (mn.includes('over') || mn.includes('under'))) return -1;
+  // Standard Double Chance — calibrated to 76% actual (was 85, inflated)
+  if (mn.includes('double chance') && !mn.includes('goal')) return 79;
+  // Draw No Bet — calibrated to 65 (file: 60%, 14-day: 66%; was 79, overscored by 13-19 pts)
+  if (mn === 'draw no bet' || mn.includes('draw no bet')) return 65;
+  if (mn.includes('home no draw') || mn === 'home/away') return 75;
   if (mn.includes('goal bounds')) {
     // ONLY safe if outcome is a range like "2-5", "3+", "4+", NOT a bare digit like "2" or "3"
-    // Bare digit = exact goals market = very risky (e.g. only 1-1, 2-0 for "2")
     if (/^\d+$/.test(on.trim())) return -1;
-    return 76;
+    return 74;
   }
   if (mn.includes('excluded number')) return 76;
   if (mn.includes('both halves')) {
     if (on.includes('under') || on.includes('no')) return 82;
-    // "Both halves over X" is too narrow — remove
-    return -1;
+    return -1; // "Both halves over X" is too narrow — remove
   }
   if (mn.includes('gg/ng') || mn === 'gg/ng') {
-    return (on.includes('yes') || on.includes('gg')) ? 66 : 60;
+    // Calibrated to 61% (file: 61%, 14-day: 60%; was 66, overscored)
+    return (on.includes('yes') || on.includes('gg')) ? 61 : 55;
+  }
+  // 1st Half markets — SEPARATE from 2nd half (unreachable bug fixed)
+  // Actual HR: 64% overall, 50% in 14-day rolling (was 81/90, dangerously overscored)
+  if (mn.includes('1st half')) {
+    const line = getLine(mn, specifier, on);
+    const isOver = on.includes('over');
+    if (isOver && line <= 0.5) return 72;
+    if (isOver && line <= 1.5) return 62; // was 81 — actual 50-64% HR
+    return 52;
+  }
+  if (mn.includes('2nd half')) {
+    const line = getLine(mn, specifier, on);
+    const isOver = on.includes('over');
+    if (isOver && line <= 0.5) return 80;
+    if (isOver && line <= 1.5) return 75; // file: 79% for 2nd half O/U (better than 1st half)
+    return 62;
   }
   if (mn.includes('over/under') || mn === 'over/under') {
     const line = getLine(mn, specifier, on);
@@ -86,20 +105,13 @@ function marketSafety(marketName, specifier, outcomeName) {
     const isUnder = on.includes('under') || on.includes('no');
     if (isOver && line <= 0.5) return 93;
     if (isOver && line <= 1.5) return 87;
-    if (isOver && line <= 2.0) return 83;
+    if (isOver && line <= 2.0) return 83; // Over 2.0: acceptable but will be converted
     if (isOver && line <= 2.5) return 77;
     if (isUnder && line >= 2.5) return 74;
     if (isOver && line <= 3.5) return 61;
     if (isOver && line <= 4.5) return 52;
     if (line > 4.5) return 44;
     return 70;
-  }
-  if (mn.includes('1st half') || mn.includes('2nd half')) {
-    const line = getLine(mn, specifier, on);
-    const isOver = on.includes('over');
-    if (isOver && line <= 1.5) return 81;
-    if (isOver && line <= 0.5) return 90;
-    return 68;
   }
   if (mn === 'match winner' || mn === '1x2') return 57;
   if (mn.includes('baseball') || mn === 'baseball o/u') return 71;
@@ -121,11 +133,19 @@ function classifyRisk(mn, sp, on) {
     if (o === 'draw' || o === 'x') return 'DRAW';
   }
   if (m.includes('gg/ng') && (o.includes('yes') || o.includes('gg'))) return 'GG_YES';
-  if ((m.includes('over/under') || m.includes('2nd half')) && o.includes('over')) {
+  // Over lines — only full-match over/under; 1st half handled by safety score, not conversion
+  if (m.includes('over/under') && !m.includes('1st half') && o.includes('over')) {
     const line = getLine(mn, sp, on);
     if (line >= 4.5) return 'OVER_4.5';
     if (line >= 3.5) return 'OVER_3.5';
     if (line >= 2.5) return 'OVER_2.5';
+    if (line >= 2.0) return 'OVER_2.0'; // User rule: "no Over 2" — convert to Over 1.5
+  }
+  // 2nd Half over — convert high lines
+  if (m.includes('2nd half') && o.includes('over')) {
+    const line = getLine(mn, sp, on);
+    if (line >= 2.5) return 'OVER_2.5';
+    if (line >= 2.0) return 'OVER_2.0';
   }
   return 'OK';
 }
@@ -136,6 +156,7 @@ const SAFE_CONVERSIONS = {
   'AWAY_WIN': ['DC_X2', 'DNB_AWAY'],
   'DRAW':     ['DC_1X', 'DC_X2'],
   'GG_YES':   ['OVER_1.5', 'GOAL_BOUNDS_RANGE'],
+  'OVER_2.0': ['OVER_1.5'],            // User rule: no Over 2 — always convert
   'OVER_2.5': ['OVER_1.5'],
   'OVER_3.5': ['OVER_2.5', 'OVER_1.5'],
   'OVER_4.5': ['OVER_2.5', 'OVER_1.5'],
@@ -200,6 +221,11 @@ const ELITE_LEAGUES = new Set([
   'II Lyga','USL W League','Premier Division','World Cup Qualification, Europe',
   'U19 UEFA European Championship, Women','U19 European Championship',
   'Canadian Premier League','International Clubs',
+  'Virsliga',            // 89% HR (17W/2L) — validated elite
+  'Premium Liiga',       // 90% HR (9W/1L) — validated elite
+  'Ykkosliiga',          // 89% HR (8W/1L) — validated elite
+  'Suomen Cup',          // 88% HR (7W/1L) — validated elite
+  '1st Division',        // 83% HR (15W/3L) — consistently reliable
 ]);
 
 function isKillerLeague(league, leagueIntel) {
@@ -278,9 +304,13 @@ const BLACKLIST_LEAGUES = new Set([
   'Besta deild','Erovnuli Liga','TOPLYGA','Kolmonen','Besta deild karla',
   '1. deild','Kolmonen, Women','3. deild','4. deild','5. deild','Pervaya Liga',
   'Club Friendly Games','International Friendly Games','Friendlies',
+  'LigaPro Primera A',   // 33% hit rate (2W/4L) — validated bad
+  'Primera Nacional',    // 20% hit rate (1W/4L) — validated bad
 ]);
 const DANGER_LEAGUES = new Set([
   'Brasileiro Serie C','Mineiro, Modulo II','MLS Next Pro','Ykkonen',
+  'Veikkausliiga',       // 38% 14-day HR (3W/5L) — consistently underperforms
+  'Kakkonen',            // 58% but erratic, high-variance Finnish second tier
 ]);
 // Override isKillerLeague with tier check
 function leagueTier(league, leagueIntel) {
