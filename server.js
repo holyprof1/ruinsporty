@@ -1,19 +1,30 @@
-// Crash recovery — log and exit so app.js wrapper can restart
+// Crash recovery — log to file + exit so wrapper can restart
+const CRASH_LOG = require("path").join(__dirname, "data", "crash.log");
+function writeCrashLog(tag, err) {
+  const ts = new Date().toISOString();
+  const line = `[${ts}] ${tag}: ${err && err.stack ? err.stack : err}\n`;
+  try { require("fs").appendFileSync(CRASH_LOG, line); } catch {}
+  console.error(line.trimEnd());
+}
+const _startTime = Date.now();
+
 process.on("uncaughtException", err => {
-  console.error("[CRASH] Uncaught:", err.message || err);
+  writeCrashLog("UNCAUGHT", err);
   if (err.code === "EADDRINUSE") {
     console.log("[CRASH] Port busy — exiting for wrapper restart...");
     setTimeout(() => process.exit(1), 2000);
   }
-  // For other errors, keep running (don't crash on minor issues)
+  // Non-fatal: keep running unless it's a port conflict
 });
-process.on("unhandledRejection", err => { console.error("[CRASH] Unhandled:", err && err.message ? err.message : err); });
+process.on("unhandledRejection", (reason) => {
+  writeCrashLog("UNHANDLED_REJECTION", reason instanceof Error ? reason : new Error(String(reason)));
+});
 
-// Keep-alive: ping self every 4 minutes to prevent cPanel killing idle process
+// Keep-alive: ping /api/health every 4 minutes to prevent cPanel killing idle process
 setInterval(() => {
   try {
     const http = require("http");
-    http.get("http://localhost:" + (process.env.PORT || 3000) + "/api/stats", r => {
+    http.get("http://localhost:" + (process.env.PORT || 3000) + "/api/health", r => {
       let d = ""; r.on("data", c => d += c); r.on("end", () => {});
     }).on("error", () => {});
   } catch {}
@@ -3362,10 +3373,43 @@ function runDailyCleanup() {
   console.log('[Cleanup] Done —', new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }));
 }
 
+// ── Health endpoint ──
+
+app.get("/api/health", (req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    status: "ok",
+    uptime: Math.floor((Date.now() - _startTime) / 1000),
+    memMB: Math.round(mem.heapUsed / 1024 / 1024),
+    ts: new Date().toISOString()
+  });
+});
+
+// ── Global error handler (Express) ──
+
+app.use((err, req, res, next) => {
+  writeCrashLog("EXPRESS_ERROR", err);
+  if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
+});
+
+// ── Graceful shutdown ──
+
+function gracefulShutdown(signal) {
+  console.log(`[SHUTDOWN] ${signal} received — closing server`);
+  server.close(() => {
+    console.log("[SHUTDOWN] HTTP server closed");
+    process.exit(0);
+  });
+  setTimeout(() => { console.error("[SHUTDOWN] Forced exit after 10s"); process.exit(1); }, 10000);
+}
+
 // ── Start ──
 
-app.listen(PORT, () => {
-  console.log("SlipPilot v3 running at http://localhost:" + PORT);
-  setTimeout(runDailyCleanup, 60000); // first run 1 min after boot
-  setInterval(runDailyCleanup, 24 * 60 * 60 * 1000); // then every 24h
+const server = app.listen(PORT, () => {
+  console.log("SlipPilot v8 running at http://localhost:" + PORT);
+  setTimeout(runDailyCleanup, 60000);
+  setInterval(runDailyCleanup, 24 * 60 * 60 * 1000);
 });
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT",  () => gracefulShutdown("SIGINT"));
