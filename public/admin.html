@@ -107,6 +107,8 @@ input:focus{border-color:#00c853}
 .cs-nav-btn:disabled{opacity:.35;cursor:not-allowed}
 @media(max-width:900px){.cs-grid-3{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.cs-grid-3{grid-template-columns:1fr}}
+/* Intelligence Engine */
+.intel-tab{display:none}.intel-tab.active{display:block}
 </style>
 </head>
 <body>
@@ -140,6 +142,7 @@ input:focus{border-color:#00c853}
     <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">Settings</button>
     <button class="tab-btn" data-tab="studio" onclick="switchAdminTab('studio');loadStudio()">✦ Studio</button>
     <button class="tab-btn" data-tab="xassistant" onclick="switchAdminTab('xassistant');loadXaHistory()">🔮 X Assistant</button>
+    <button class="tab-btn" data-tab="intelligence" onclick="switchAdminTab('intelligence');loadIntelStatus()">🧠 Intelligence</button>
   </div>
 
   <!-- LEADERBOARD -->
@@ -282,8 +285,10 @@ input:focus{border-color:#00c853}
             style="background:#0d1117;border:1px solid #21262d;border-radius:8px;color:#e6edf3;font-size:13px;padding:7px 10px;cursor:pointer"
             title="Select date to generate report for">
           <button class="btn" id="cs-gen-btn" onclick="generateDailyReport(false)" style="background:linear-gradient(135deg,#2563EB,#06B6D4);padding:9px 22px;font-size:13px">✦ Generate Report</button>
+          <button class="btn-sm" id="cs-rebuild-btn" onclick="csRebuildReport()" title="Re-fetch punter codes from SportyBet and rebuild the analysis for selected date" style="border-color:#ffb300;color:#ffb300">↺ Rebuild Data</button>
         </div>
       </div>
+      <div id="cs-rebuild-msg" style="display:none;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:12px;background:rgba(255,179,0,0.08);border:1px solid rgba(255,179,0,0.3);color:#ffb300"></div>
 
       <!-- Error box -->
       <div id="cs-error-box" style="display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#FCA5A5;line-height:1.5"></div>
@@ -723,6 +728,74 @@ input:focus{border-color:#00c853}
       </div>
     </div>
   </div>
+
+  <!-- INTELLIGENCE ENGINE -->
+  <div class="tab-content" id="tab-intelligence">
+    <div class="card" style="background:#070d14;border-color:rgba(0,200,83,0.2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="width:8px;height:8px;border-radius:50%;background:#00c853;box-shadow:0 0 10px #00c853;flex-shrink:0" id="intel-dot"></div>
+        <h2 style="margin:0;color:#e8edf4">Intelligence Engine v6</h2>
+        <span id="intel-pool-badge" style="display:none;font-size:11px;padding:3px 10px;border-radius:100px;background:rgba(0,200,83,0.12);border:1px solid rgba(0,200,83,0.3);color:#00c853;font-weight:700"></span>
+      </div>
+      <p style="font-size:12px;color:#8a9e8a;margin-bottom:20px">One source of truth. Run analysis once — Smart Slips, Booking Codes, Optimizer, X Assistant, Manual Converter all read from the same cached master pool.</p>
+
+      <!-- Status bar -->
+      <div id="intel-status-bar" style="background:#0a0f0a;border:1px solid #1e2e1e;border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;gap:20px;flex-wrap:wrap">
+        <div><div style="font-size:20px;font-weight:800;color:#00c853" id="intel-pool-size">—</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Pool Size</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:#e8edf4" id="intel-avg-conf">—</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Avg Confidence</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:#ffb300" id="intel-consensus">—</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Consensus Picks</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:#a371f7" id="intel-top-conf">—</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">★3+ Consensus</div></div>
+        <div style="margin-left:auto;align-self:center">
+          <div style="font-size:11px;color:#8a9e8a" id="intel-generated-at">Not run today</div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        <button class="btn" id="intel-run-btn" onclick="intelRunAnalysis()" style="background:linear-gradient(135deg,#00c853,#00897b);min-width:180px">🧠 Run Master Analysis</button>
+        <button class="btn" id="intel-codes-btn" onclick="intelGenCodes()" style="background:linear-gradient(135deg,#1a6e3c,#0d4026);border:1px solid rgba(0,200,83,0.3)" disabled>📦 Generate All Codes</button>
+        <button class="btn-sm" onclick="intelRefresh()">↻ Refresh Status</button>
+      </div>
+      <div id="intel-log" style="font-family:monospace;font-size:11px;color:#4a7a4a;background:#040a06;border:1px solid #1e2e1e;border-radius:8px;padding:12px;max-height:180px;overflow-y:auto;white-space:pre-wrap;display:none;margin-bottom:16px"></div>
+
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;border-bottom:1px solid #1e2e1e;padding-bottom:14px">
+        <button class="cs-stab active" data-itab="pool" onclick="intelSwitchTab('pool')">Master Pool</button>
+        <button class="cs-stab" data-itab="codes" onclick="intelSwitchTab('codes')">Themed Codes</button>
+        <button class="cs-stab" data-itab="punters" onclick="intelSwitchTab('punters')">Punter Report</button>
+      </div>
+
+      <!-- MASTER POOL -->
+      <div class="intel-tab active" data-itab="pool">
+        <p style="font-size:12px;color:#8a9e8a;margin-bottom:12px">All eligible games for today — sorted by confidence. Every feature reads from here.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <input type="text" id="pool-search" placeholder="Search team or league..." style="max-width:220px;font-size:12px;padding:6px 12px" oninput="intelFilterPool()" />
+          <select id="pool-conf-filter" style="padding:6px 10px;background:#0a0f0a;color:#fff;border:1px solid #1e2e1e;border-radius:6px;font-size:12px" onchange="intelFilterPool()">
+            <option value="0">All Confidence</option>
+            <option value="85">85+ (Elite)</option>
+            <option value="75">75+ (High)</option>
+            <option value="65">65+ (Good)</option>
+          </select>
+        </div>
+        <div id="intel-pool-table" style="overflow-x:auto">
+          <p style="color:#8a9e8a;font-size:12px">Run analysis to see master pool.</p>
+        </div>
+      </div>
+
+      <!-- THEMED CODES -->
+      <div class="intel-tab" data-itab="codes" style="display:none">
+        <p style="font-size:12px;color:#8a9e8a;margin-bottom:12px">Generated from today's master pool — consistent confidence scores across all themes.</p>
+        <div id="intel-codes-list"><p style="color:#8a9e8a;font-size:12px">Generate codes first.</p></div>
+      </div>
+
+      <!-- PUNTER REPORT -->
+      <div class="intel-tab" data-itab="punters" style="display:none">
+        <p style="font-size:12px;color:#8a9e8a;margin-bottom:12px">Punter performance from today's analysis — trust, form factor, eligible picks.</p>
+        <div id="intel-punter-table"><p style="color:#8a9e8a;font-size:12px">Run analysis first.</p></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -758,6 +831,7 @@ async function loadAll() {
   try { loadSessionResult(); } catch(e) { console.error('loadSessionResult:', e); }
   try { loadSessionHistory(); } catch(e) { console.error('loadSessionHistory:', e); }
   try { if (typeof ssRestoreLastResult === 'function') ssRestoreLastResult(); } catch(e) { console.error('ssRestoreLastResult:', e); }
+  try { loadIntelStatus(); } catch(e) { console.error('loadIntelStatus:', e); }
 }
 
 function updateQuickStats() {
@@ -1713,12 +1787,35 @@ function ssRestoreLastResult() {
 function ssRenderSlips(slips) {
   const list = document.getElementById('ss-slips-list');
   if (!list) return;
-  const labelColors = { Conservative: '#34D399', Balanced: '#60A5FA', Boomshot: '#F59E0B', Consensus: '#C084FC' };
-  const labelDescs  = { Conservative: 'Top picks · lower risk', Balanced: 'Wider pool · medium odds', Boomshot: 'High odds · max selections', Consensus: 'Multi-punter confirmed' };
+  const labelColors = {
+    Conservative: '#34D399', Balanced: '#60A5FA', Boomshot: '#F59E0B', Consensus: '#C084FC',
+    'Ultra Safe': '#34D399', 'Nordic': '#22D3EE', 'European': '#818CF8',
+    'Goal Bounds': '#FB923C', 'Double Chance': '#A78BFA', 'Over 1.5': '#4ADE80',
+    'AI Portfolio': '#F472B6'
+  };
+  function slipAccent(label) {
+    if (!label) return '#94A3B8';
+    for (const [k, v] of Object.entries(labelColors)) { if (label.startsWith(k)) return v; }
+    return '#94A3B8';
+  }
+  function slipDesc(label) {
+    if (!label) return '';
+    if (label.toLowerCase().includes('ultra safe')) return 'Highest confidence · lowest risk';
+    if (label.toLowerCase().includes('boomshot')) return 'High odds · max selections';
+    if (label.toLowerCase().includes('consensus')) return 'Multi-punter confirmed picks';
+    if (label.toLowerCase().includes('nordic')) return 'Scandinavian leagues · solid form';
+    if (label.toLowerCase().includes('european')) return 'Top European leagues';
+    if (label.toLowerCase().includes('goal bounds')) return 'Goal range markets';
+    if (label.toLowerCase().includes('double chance')) return 'DC markets · safer outcomes';
+    if (label.toLowerCase().includes('over 1.5')) return 'Over 1.5 goals markets';
+    if (label.toLowerCase().includes('ai portfolio')) return 'AI-optimised selection mix';
+    if (label.toLowerCase().includes('balanced')) return 'Mixed risk · medium odds';
+    return '';
+  }
 
   list.innerHTML = slips.map((slip, i) => {
-    const accent  = labelColors[slip.label] || '#94A3B8';
-    const desc    = labelDescs[slip.label]  || '';
+    const accent  = slipAccent(slip.label);
+    const desc    = slipDesc(slip.label);
     const oddsStr = ssFmtOdds(slip.totalOdds);
     const hasCode = slip.code && !slip.codeError;
     const codeDisplay = hasCode ? slip.code : (slip.codeError ? '⚠ Failed' : '—');
@@ -1796,6 +1893,219 @@ function ssToggleBody(bodyId, arrowId) {
   const open = bodyEl.style.display !== 'none';
   bodyEl.style.display = open ? 'none' : 'block';
   if (arrowEl) arrowEl.textContent = open ? '▼' : '▲';
+}
+
+// ── Rebuild Report ───────────────────────────────────────────────────────────
+async function csRebuildReport() {
+  const date = document.getElementById('cs-date-picker')?.value;
+  if (!date) { alert('Select a date first using the date picker.'); return; }
+  const btn = document.getElementById('cs-rebuild-btn');
+  const msg = document.getElementById('cs-rebuild-msg');
+  btn.disabled = true; btn.textContent = '⏳ Fetching…';
+  msg.style.display = 'block';
+  msg.textContent = `Re-fetching punter codes for ${date} from SportyBet…`;
+  try {
+    const r = await fetch('/api/admin/rebuild-report/' + date, {
+      method: 'POST', headers: {'x-admin-password': adminPw, 'Content-Type': 'application/json'}
+    });
+    const j = await r.json();
+    if (j.success) {
+      msg.style.color = '#00c853'; msg.style.borderColor = 'rgba(0,200,83,0.3)'; msg.style.background = 'rgba(0,200,83,0.08)';
+      msg.textContent = `✓ ${date} rebuilt: ${j.selections} selections, ${j.settled} settled, ${j.ticketKillers} killers, ${j.consensusWins} consensus wins. Now click ✦ Generate Report.`;
+    } else {
+      msg.style.color = '#f87171'; msg.style.borderColor = 'rgba(239,68,68,0.3)'; msg.style.background = 'rgba(239,68,68,0.06)';
+      msg.textContent = '✗ ' + (j.message || j.error || 'Rebuild failed');
+    }
+  } catch(e) {
+    msg.style.color = '#f87171';
+    msg.textContent = '✗ ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '↺ Rebuild Data';
+}
+
+// ── Intelligence Engine v6 ────────────────────────────────────────────────────
+var intelPool = null, intelCodes = [], intelCurrentTab = 'pool';
+
+function intelSwitchTab(tab) {
+  intelCurrentTab = tab;
+  document.querySelectorAll('.intel-tab').forEach(t => t.style.display = t.dataset.itab === tab ? 'block' : 'none');
+  document.querySelectorAll('[data-itab]').forEach(b => { if (b.classList.contains('cs-stab')) b.classList.toggle('active', b.dataset.itab === tab); });
+}
+
+async function intelRunAnalysis() {
+  const btn = document.getElementById('intel-run-btn');
+  const log = document.getElementById('intel-log');
+  btn.disabled = true; btn.textContent = '⏳ Analysing…';
+  log.style.display = 'block'; log.textContent = 'Starting master analysis…\n';
+  const h = {'Content-Type':'application/json', 'x-admin-password': adminPw};
+  try {
+    const r = await fetch('/api/admin/run-analysis', {method:'POST', headers:h});
+    const j = await r.json();
+    if (j.logs && j.logs.length) log.textContent = j.logs.join('\n') + '\n';
+    if (!j.success) {
+      log.textContent += '\n❌ Error: ' + (j.error || 'Unknown error');
+      btn.disabled = false; btn.textContent = '🧠 Run Master Analysis'; return;
+    }
+    log.textContent += `\n✓ Done — ${j.poolSize} games in master pool\n`;
+    intelPool = j;
+    intelRenderStatus(j);
+    intelRenderPool(j.masterPool || []);
+    intelRenderPunters(j.punterSummary || {});
+    document.getElementById('intel-codes-btn').disabled = false;
+  } catch(e) {
+    log.textContent += '\n❌ Fetch error: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '🧠 Run Master Analysis';
+}
+
+async function intelRefresh() {
+  await loadIntelStatus();
+}
+
+async function loadIntelStatus() {
+  try {
+    const r = await fetch('/api/admin/master-pool', {headers:{'x-admin-password': adminPw}});
+    const j = await r.json();
+    if (!j.success || j.stale) {
+      document.getElementById('intel-pool-size').textContent = '—';
+      document.getElementById('intel-avg-conf').textContent = '—';
+      document.getElementById('intel-consensus').textContent = '—';
+      document.getElementById('intel-top-conf').textContent = '—';
+      document.getElementById('intel-generated-at').textContent = 'Not run today';
+      document.getElementById('intel-pool-badge').style.display = 'none';
+      return;
+    }
+    intelPool = j;
+    intelRenderStatus(j);
+    intelRenderPool(j.masterPool || []);
+    intelRenderPunters(j.punterSummary || {});
+    document.getElementById('intel-codes-btn').disabled = false;
+  } catch {}
+}
+
+function intelRenderStatus(j) {
+  const s = j.stats || {};
+  document.getElementById('intel-pool-size').textContent = j.poolSize || 0;
+  document.getElementById('intel-avg-conf').textContent = (s.avgConfidence || 0) + '%';
+  document.getElementById('intel-consensus').textContent = s.consensusCount || 0;
+  document.getElementById('intel-top-conf').textContent = s.topConsensus || 0;
+  const ts = j.generatedAt ? new Date(j.generatedAt).toLocaleTimeString('en-NG',{hour:'2-digit',minute:'2-digit'}) : '';
+  document.getElementById('intel-generated-at').textContent = ts ? 'Generated ' + ts : '';
+  const badge = document.getElementById('intel-pool-badge');
+  badge.textContent = j.poolSize + ' games ready';
+  badge.style.display = 'inline-block';
+  const dot = document.getElementById('intel-dot');
+  dot.style.background = '#00c853'; dot.style.boxShadow = '0 0 10px #00c853';
+}
+
+var _allPoolRows = [];
+function intelRenderPool(pool) {
+  _allPoolRows = pool;
+  intelFilterPool();
+}
+
+function intelFilterPool() {
+  const q = (document.getElementById('pool-search')?.value || '').toLowerCase();
+  const minConf = parseInt(document.getElementById('pool-conf-filter')?.value || '0');
+  const rows = _allPoolRows.filter(p =>
+    p.confidence >= minConf &&
+    (!q || (p.homeTeam+p.awayTeam+p.league).toLowerCase().includes(q))
+  );
+  const el = document.getElementById('intel-pool-table');
+  if (!rows.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No games match filter.</p>'; return; }
+  const header = `<div style="display:grid;grid-template-columns:40px 1fr 1fr 80px 90px 60px 60px;gap:6px;font-size:10px;font-weight:700;color:#8a9e8a;text-transform:uppercase;padding:6px 0;border-bottom:1px solid #1e2e1e;margin-bottom:6px">
+    <span>#</span><span>Match</span><span>League</span><span>Market</span><span>Punters</span><span style="text-align:right">Odds</span><span style="text-align:right">Conf</span></div>`;
+  const rowsHtml = rows.map((p, i) => {
+    const conf = p.confidence;
+    const cc = conf >= 85 ? '#00c853' : conf >= 75 ? '#a3e635' : conf >= 65 ? '#ffb300' : '#8a9e8a';
+    const killer = p.killerWarning ? `<span title="${p.killerWarning}" style="color:#e53935;font-size:10px">⚠️</span>` : '';
+    return `<div style="display:grid;grid-template-columns:40px 1fr 1fr 80px 90px 60px 60px;gap:6px;font-size:11px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center">
+      <span style="color:#8a9e8a">${i+1}</span>
+      <span style="color:#e8edf4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${killer}${p.homeTeam} vs ${p.awayTeam}</span>
+      <span style="color:#64748b;font-size:10px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.league}</span>
+      <span style="color:#a3e6d5;font-size:10px">${p.marketLabel||''}</span>
+      <span style="color:#8a9e8a;font-size:10px">${(p.punters||[p.punter]).join(', ')}</span>
+      <span style="text-align:right;color:#ffb300;font-family:monospace">${p.odds}</span>
+      <span style="text-align:right;font-weight:700;color:${cc}">${conf}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = header + rowsHtml;
+}
+
+function intelRenderPunters(summary) {
+  const el = document.getElementById('intel-punter-table');
+  const rows = Object.entries(summary).sort((a,b)=>b[1].effTrust - a[1].effTrust);
+  if (!rows.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No data.</p>'; return; }
+  const header = `<div style="display:grid;grid-template-columns:1fr 55px 55px 55px 55px 55px;gap:6px;font-size:10px;font-weight:700;color:#8a9e8a;text-transform:uppercase;padding:6px 0;border-bottom:1px solid #1e2e1e;margin-bottom:6px">
+    <span>Punter</span><span>Trust</span><span>All-HR</span><span>7d-HR</span><span>Picks</span><span>Form</span></div>`;
+  const rowsHtml = rows.map(([name, pd]) => {
+    const tc = pd.effTrust >= 80 ? '#00c853' : pd.effTrust >= 65 ? '#ffb300' : '#8a9e8a';
+    return `<div style="display:grid;grid-template-columns:1fr 55px 55px 55px 55px 55px;gap:6px;font-size:11px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center">
+      <span style="color:#e8edf4">${name}</span>
+      <span style="color:${tc};font-weight:700">${pd.effTrust}</span>
+      <span style="color:#e8edf4">${pd.hrAll ?? '—'}%</span>
+      <span style="color:#e8edf4">${pd.hr7 != null ? pd.hr7 + '%' : '—'}</span>
+      <span style="color:#a3e6d5">${pd.pickCount}</span>
+      <span style="font-size:10px">${pd.tag}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = header + rowsHtml;
+}
+
+async function intelGenCodes() {
+  if (!intelPool) { alert('Run analysis first.'); return; }
+  const btn = document.getElementById('intel-codes-btn');
+  const log = document.getElementById('intel-log');
+  btn.disabled = true; btn.textContent = '⏳ Generating codes…';
+  log.style.display = 'block'; log.textContent = 'Generating themed booking codes…\n';
+  const h = {'Content-Type':'application/json', 'x-admin-password': adminPw};
+  try {
+    const r = await fetch('/api/admin/booking-codes', {method:'POST', headers:h});
+    const j = await r.json();
+    if (j.logs) log.textContent = j.logs.join('\n') + '\n';
+    if (!j.success) { log.textContent += '\n❌ ' + (j.error||'Unknown error'); btn.disabled=false; btn.textContent='📦 Generate All Codes'; return; }
+    intelCodes = j.codes || [];
+    intelSwitchTab('codes');
+    intelRenderCodes(intelCodes);
+    log.textContent += `\n✓ ${j.count} themed codes generated`;
+  } catch(e) { log.textContent += '\n❌ ' + e.message; }
+  btn.disabled = false; btn.textContent = '📦 Generate All Codes';
+}
+
+function fmtOdds(o) {
+  if (o >= 1e6) return (o/1e6).toFixed(2) + 'M';
+  if (o >= 1000) return (o/1000).toFixed(1) + 'K';
+  return Math.round(o) + 'x';
+}
+
+function intelRenderCodes(codes) {
+  const el = document.getElementById('intel-codes-list');
+  if (!codes || !codes.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No codes generated.</p>'; return; }
+  el.innerHTML = codes.map(c => {
+    const codeColor = c.hitTarget ? '#00c853' : '#ffb300';
+    const label = c.label || 'B';
+    const labelColor = label.startsWith('A') ? '#00c853' : label.startsWith('B') ? '#60A5FA' : '#a371f7';
+    const pct = Math.round((c.avgConfidence || 0));
+    const topPicks = (c.topPicks || []).map(p=>`<div style="font-size:10px;color:#8a9e8a;padding:2px 0">${p}</div>`).join('');
+    return `<div style="background:#0a0f0a;border:1px solid rgba(0,200,83,0.15);border-radius:12px;padding:14px 16px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;background:rgba(0,0,0,0.4);border:1px solid ${labelColor};color:${labelColor}">${label}</span>
+        <span style="font-size:14px;font-weight:700;color:#e8edf4">${c.theme}</span>
+        <span style="font-family:monospace;font-size:18px;font-weight:800;letter-spacing:2px;color:${codeColor};cursor:pointer;margin-left:auto"
+          onclick="navigator.clipboard.writeText('${c.code}').then(()=>this.textContent='✓ Copied!').then(()=>setTimeout(()=>this.textContent='${c.code}',1500))"
+          title="Click to copy">${c.code}</span>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#8a9e8a;margin-bottom:8px">
+        <span>${c.games} games</span>
+        <span style="color:${codeColor}">${fmtOdds(c.odds)}</span>
+        <span>Avg conf: <strong style="color:#e8edf4">${pct}%</strong></span>
+        ${c.borrowed > 0 ? `<span style="color:#ffb300">${c.borrowed} borrowed</span>` : ''}
+        <span title="${c.topLeagues}">${c.markets}</span>
+      </div>
+      <div style="font-size:10px;color:#4a7a4a">${c.topPunters}</div>
+      <div style="margin-top:6px">${topPicks}</div>
+    </div>`;
+  }).join('');
 }
 </script>
 </body>
