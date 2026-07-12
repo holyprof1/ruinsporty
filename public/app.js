@@ -1537,7 +1537,20 @@ function scanCard(r) {
   const manual = r.verdict==="PENDING" ? `<button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'WON')">W</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'LOST')">L</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'VOID')">V</button>` : "";
   const koTime = r.kickoff ? new Date(r.kickoff).toLocaleString("en-GB", {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "";
   const origOdds = r.originalOdds && r.originalOdds > 1 ? r.originalOdds : null;
-  const oddsTag = origOdds ? `<span class="sel-odds">${origOdds.toFixed(2)}</span>` : '';
+  const curOdds  = r.currentOdds  && r.currentOdds  > 1 ? r.currentOdds  : null;
+  let oddsTag = '';
+  if (origOdds) {
+    const moved = curOdds && Math.abs(r.oddsChange || 0) > 0.01;
+    if (moved) {
+      const dir = r.oddsChange > 0 ? '▲' : '▼';
+      const cls = r.oddsChange > 0 ? 'odds-up' : 'odds-dn';
+      const pct = r.oddsMovePct != null ? ` (${r.oddsMovePct > 0 ? '+' : ''}${r.oddsMovePct}%)` : '';
+      const tip = `Moved from ${origOdds.toFixed(2)} → ${curOdds.toFixed(2)}${pct}`;
+      oddsTag = `<span class="sel-odds-wrap" title="${tip}"><span class="sel-odds">${origOdds.toFixed(2)}</span><span class="odds-move ${cls}">${dir}${curOdds.toFixed(2)}</span></span>`;
+    } else {
+      oddsTag = `<span class="sel-odds">${origOdds.toFixed(2)}</span>`;
+    }
+  }
   return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(r.homeTeam)} vs ${esc(r.awayTeam)}</div><div class="sel-meta"><span class="sel-market">${esc(r.market)}</span> — ${esc(r.outcome)}${r.league?" · "+esc(r.league):""}${koTime?" · "+koTime:""}</div></div><span class="scan-score">${esc(r.score||"--")}</span>${oddsTag}<span class="v-pill ${vc}">${r.verdict}</span>${manual}</div>`;
 }
 

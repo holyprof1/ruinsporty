@@ -126,6 +126,9 @@ select.field[multiple]{height:64px;border-radius:var(--radius)}
 .sel-teams{font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sel-meta{font-size:10px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sel-odds{padding:3px 10px;border-radius:4px;background:var(--green-dim);color:var(--green);font-size:11px;font-weight:800;white-space:nowrap}
+.sel-odds-wrap{display:inline-flex;gap:3px;align-items:center}
+.odds-move{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap}
+.odds-up{background:rgba(29,185,84,.15);color:#00c853}.odds-dn{background:rgba(255,60,60,.15);color:#ff4444}
 .sel-kickoff{font-size:10px;color:var(--text3);white-space:nowrap;min-width:48px;font-weight:500}
 .empty-state{text-align:center;padding:40px 16px;color:var(--text3);font-size:13px}
 
