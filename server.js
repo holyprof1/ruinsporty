@@ -100,18 +100,25 @@ function localToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
 }
 
-// Visitor tracking
+// Visitor tracking — debounced in-memory buffer; writes every 5s to avoid blocking event loop
 const VISITORS_FILE = path.join(DATA_DIR, "visitors.json");
+let _visitorBuffer = null;
+let _visitorTimer = null;
 function trackVisitor(req) {
   if (req.path.startsWith("/api/") || req.path.includes(".")) return;
   try {
-    let visitors = [];
-    try { visitors = JSON.parse(fs.readFileSync(VISITORS_FILE, "utf-8")); } catch {}
+    if (!_visitorBuffer) {
+      try { _visitorBuffer = JSON.parse(fs.readFileSync(VISITORS_FILE, "utf-8")); } catch { _visitorBuffer = []; }
+    }
     const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
     const today = new Date().toISOString().slice(0, 10);
-    visitors.push({ date: today, time: new Date().toISOString(), ip: ip.slice(-8), path: req.path, ref: req.headers.referer || req.headers.referrer || "direct", ua: (req.headers["user-agent"] || "").slice(0, 80) });
-    if (visitors.length > 500) visitors = visitors.slice(-500);
-    fs.writeFileSync(VISITORS_FILE, JSON.stringify(visitors, null, 2));
+    _visitorBuffer.push({ date: today, time: new Date().toISOString(), ip: ip.slice(-8), path: req.path, ref: req.headers.referer || req.headers.referrer || "direct", ua: (req.headers["user-agent"] || "").slice(0, 80) });
+    if (_visitorBuffer.length > 500) _visitorBuffer = _visitorBuffer.slice(-500);
+    clearTimeout(_visitorTimer);
+    _visitorTimer = setTimeout(() => {
+      const data = JSON.stringify(_visitorBuffer, null, 2);
+      fs.writeFile(VISITORS_FILE, data, () => {});
+    }, 5000);
   } catch {}
 }
 
@@ -124,7 +131,19 @@ app.use((req, res, next) => {
   req.setTimeout(30000, () => { if (!res.headersSent) res.status(504).json({ error: "Request timeout" }); });
   next();
 });
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".html")) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    } else if (/\.(css|js)$/.test(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=86400");
+    }
+  },
+}));
 app.use(express.json({ limit: "1mb" }));
 
 // Health check for the wrapper, cPanel, and simple uptime probes
@@ -533,7 +552,7 @@ app.get("/debug/markets/:file", (req, res) => {
 // ── Result Scanner ──
 
 app.get("/api/scan/:code", async (req, res) => {
-  const code = req.params.code.trim();
+  const code = req.params.code.trim().toUpperCase();
   if (!code) return res.status(400).json({ error: "Booking code required" });
 
   try {
@@ -548,12 +567,27 @@ app.get("/api/scan/:code", async (req, res) => {
     const outcomes = json.data.outcomes || [];
     const ticketSels = json.data.ticket?.selections || [];
     const selections = mapOutcomes(outcomes, ticketSels);
+    const scanTs = new Date().toISOString();
+
+    // Persistent odds bank: store original odds on first scan, look up on re-scans
+    const bank = loadOddsBank();
+    storeOriginalOdds(bank, selections, scanTs);
+    saveOddsForCode(code, selections); // in-memory fallback for same-session
+
     const results = selections.map((s) => {
-      const cached = getOriginalOdds(code, s.eventId, 0);
-      const odds = cached > 0 ? cached : s.odds;
-      return { ...s, odds, verdict: evaluateVerdict(s) };
+      const bankOdds = getBankOdds(bank, s);
+      const memOdds = getOriginalOdds(code, s.eventId, 0);
+      const originalOdds = bankOdds || (memOdds > 0 ? memOdds : null);
+      const currentOdds = s.odds;
+
+      let oddsChange = null, oddsMovePct = null;
+      if (originalOdds && currentOdds && originalOdds > 1 && currentOdds > 1) {
+        oddsChange = parseFloat((currentOdds - originalOdds).toFixed(3));
+        oddsMovePct = parseFloat(((currentOdds - originalOdds) / originalOdds * 100).toFixed(1));
+      }
+
+      return { ...s, originalOdds, currentOdds, oddsChange, oddsMovePct, verdict: evaluateVerdict(s) };
     });
-    saveOddsForCode(code, results);
 
     const won = results.filter((r) => r.verdict === "WON").length;
     const lost = results.filter((r) => r.verdict === "LOST").length;
@@ -1256,31 +1290,33 @@ app.get("/api/proxy-h2h/:eventId", async (req, res) => {
 
 app.get("/debug/sportybet-h2h/:eventId", async (req, res) => {
   const eid = req.params.eventId;
-  const numId = eid.replace("sr:match:", "");
-  const endpoints = [
-    `/api/ng/factsCenter/h2h?matchId=${eid}`,
-    `/api/ng/factsCenter/h2h?eventId=${eid}`,
-    `/api/ng/sport/h2h?matchId=${eid}`,
-    `/api/ng/factsCenter/matchStatistic?matchId=${eid}`,
-    `/api/ng/factsCenter/matchSummary?eventId=${eid}`,
-    `/api/ng/factsCenter/preMatch?matchId=${eid}`,
-    `/api/ng/orders/matchDetail?matchId=${eid}`,
-    `/api/ng/factsCenter/h2h?matchId=${numId}`,
-    `/api/ng/factsCenter/h2h?eventId=${numId}`,
-    `/api/ng/factsCenter/matchStatistic?matchId=${numId}`,
-    `/api/ng/factsCenter/preMatch?matchId=${numId}`,
-  ];
+  try {
+    const numId = eid.replace("sr:match:", "");
+    const endpoints = [
+      `/api/ng/factsCenter/h2h?matchId=${eid}`,
+      `/api/ng/factsCenter/h2h?eventId=${eid}`,
+      `/api/ng/sport/h2h?matchId=${eid}`,
+      `/api/ng/factsCenter/matchStatistic?matchId=${eid}`,
+      `/api/ng/factsCenter/matchSummary?eventId=${eid}`,
+      `/api/ng/factsCenter/preMatch?matchId=${eid}`,
+      `/api/ng/orders/matchDetail?matchId=${eid}`,
+      `/api/ng/factsCenter/h2h?matchId=${numId}`,
+      `/api/ng/factsCenter/h2h?eventId=${numId}`,
+      `/api/ng/factsCenter/matchStatistic?matchId=${numId}`,
+      `/api/ng/factsCenter/preMatch?matchId=${numId}`,
+    ];
 
-  const results = [];
-  for (const ep of endpoints) {
-    const url = `https://www.sportybet.com${ep}`;
-    const r = await fetchJSONWithStatus(url);
-    results.push({ endpoint: ep, status: r.status, bizCode: r.json?.bizCode, hasData: !!(r.json?.data && Object.keys(r.json.data).length > 0), preview: JSON.stringify(r.json || r.raw).slice(0, 500) });
-  }
+    const results = [];
+    for (const ep of endpoints) {
+      const url = `https://www.sportybet.com${ep}`;
+      const r = await fetchJSONWithStatus(url);
+      results.push({ endpoint: ep, status: r.status, bizCode: r.json?.bizCode, hasData: !!(r.json?.data && Object.keys(r.json.data).length > 0), preview: JSON.stringify(r.json || r.raw).slice(0, 500) });
+    }
 
-  const safeId = eid.replace(/[^a-zA-Z0-9_-]/g, "_");
-  fs.writeFileSync(path.join(H2H_DEBUG_DIR, `probe_${safeId}.json`), JSON.stringify(results, null, 2));
-  res.json({ eventId: eid, results });
+    const safeId = eid.replace(/[^a-zA-Z0-9_-]/g, "_");
+    fs.writeFileSync(path.join(H2H_DEBUG_DIR, `probe_${safeId}.json`), JSON.stringify(results, null, 2));
+    res.json({ eventId: eid, results });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Punter Profiles & Generated Codes (admin only) ──
