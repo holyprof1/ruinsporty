@@ -47,8 +47,9 @@ async function build() {
 
   archive.pipe(output);
 
-  // Root files — only server.js and package.json (no data/ directory)
+  // Root files
   archive.file(path.join(ROOT, "server.js"), { name: "server.js" });
+  archive.file(path.join(ROOT, "app.js"), { name: "app.js" });
   archive.file(path.join(ROOT, "package.json"), { name: "package.json" });
   archive.file(path.join(ROOT, ".env.example"), { name: ".env.example" });
 
