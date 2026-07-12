@@ -113,9 +113,11 @@ const H2H_DEBUG_DIR = path.join(__dirname, "debug", "h2h");
 const REPORTS_DIR = path.join(DATA_DIR, "reports");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-fs.mkdirSync(DEBUG_DIR, { recursive: true });
-fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true });
 fs.mkdirSync(REPORTS_DIR, { recursive: true });
+if (!IS_PRODUCTION) {
+  fs.mkdirSync(DEBUG_DIR, { recursive: true });
+  fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true });
+}
 
 function localToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
