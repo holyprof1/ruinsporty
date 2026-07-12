@@ -83,24 +83,26 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 let xAssistant = null, intel = null;
 if (!IS_PRODUCTION) {
-  xAssistant = require("./x-assistant-engine");
-  intel = require("./intelligence-engine");
+  try { xAssistant = require("./x-assistant-engine"); } catch {}
+  try { intel = require("./intelligence-engine"); } catch {}
 }
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 
-// Production email transport (support form → email in prod instead of saving to file)
+// Production email transport — optional, falls back to file-save if nodemailer not installed
 let _mailer = null;
 if (IS_PRODUCTION) {
-  const nodemailer = require('nodemailer');
-  _mailer = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'localhost',
-    port: parseInt(process.env.SMTP_PORT || '25'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
-    tls: { rejectUnauthorized: false },
-  });
+  try {
+    const nodemailer = require('nodemailer');
+    _mailer = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'localhost',
+      port: parseInt(process.env.SMTP_PORT || '25'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+      tls: { rejectUnauthorized: false },
+    });
+  } catch { console.warn('[SUPPORT] nodemailer not installed — support tickets will save to file'); }
 }
 const BUILD_VERSION = Date.now().toString(36); // unique per restart — injected into HTML asset URLs
 
@@ -2860,7 +2862,7 @@ app.get("/api/admin/rescan-status", requireAdmin, (req, res) => {
 // ── Daily Session Intelligence (dev-only) ──
 
 if (!IS_PRODUCTION) {
-  const sessionEngine = require("./session-engine");
+  let sessionEngine; try { sessionEngine = require("./session-engine"); } catch {}
   const SESSION_TODAY_FILE = path.join(DATA_DIR, "session-today.json");
 
   app.get("/api/session/history", requireAdmin, (req, res) => {
