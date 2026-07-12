@@ -3507,6 +3507,7 @@ app.post("/api/admin/rebuild-report/:date", requireAdmin, async (req, res) => {
 
 // Run full master analysis from all punter codes. Caches to data/master-pool.json.
 app.post("/api/admin/run-analysis", requireAdmin, async (req, res) => {
+  req.setTimeout(600000); // 10 min — analysis fetches all punters from SportyBet
   try {
     const codesRaw = (() => {
       try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "punter-codes.json"), "utf8").replace(/^﻿/, '')); }
@@ -3541,6 +3542,7 @@ app.get("/api/admin/master-pool", requireAdmin, (req, res) => {
 
 // Generate themed booking codes from today's master pool
 app.post("/api/admin/booking-codes", requireAdmin, async (req, res) => {
+  req.setTimeout(600000); // 10 min — posts 11 themed codes to SportyBet
   try {
     const cached = intel.getMasterPool();
     if (!cached) return res.status(400).json({ success: false, error: "Run /api/admin/run-analysis first to build today's master pool." });

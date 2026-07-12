@@ -294,9 +294,16 @@ function punterMarketHR(specMap, name, marketName) {
 
 // ─── WEIGHTED CONSENSUS ───────────────────────────────────────────────────────
 function weightedConsensus(punterNames, lbMap, profMap) {
-  if (!punterNames || punterNames.length <= 1) return 0;
-  const totalEff = punterNames.reduce((s, p) => s + (getPunterData(lbMap, profMap, p).effTrust || 55), 0);
-  return Math.min(Math.round(totalEff / 10), 25);
+  const n = (punterNames || []).length;
+  if (n <= 1) return 0;
+  // Step bonus per agreement count
+  let bonus = n === 2 ? 8 : n === 3 ? 15 : n === 4 ? 20 : 25;
+  // Extra +3 per ELITE/RELIABLE punter in the agreement group (cap +9)
+  const eliteBonus = Math.min(9, punterNames.filter(p => {
+    const t = getPunterData(lbMap, profMap, p).tier;
+    return t === 'ELITE' || t === 'RELIABLE';
+  }).length * 3);
+  return Math.min(30, bonus + eliteBonus);
 }
 
 // ─── LEAGUE TIERS ────────────────────────────────────────────────────────────
@@ -403,15 +410,15 @@ function masterScore(sel, deps) {
     else if (tai.away.hitRate < 40) teamAdj -= 8;
   }
 
-  // v7 weighted base using rolling formScore + tierMult
+  // v7 weighted base — punter quality boosted to 23% total weight
   const base =
-    pLeagueHR       * 0.22 +
-    lgScore         * 0.17 +
-    safety          * 0.26 +
-    pMktHR          * 0.11 +
-    mktHR           * 0.06 +
-    pd.effTrust     * 0.10 +
-    pd.formScore    * 0.08;
+    pLeagueHR       * 0.20 +
+    lgScore         * 0.15 +
+    safety          * 0.25 +
+    pMktHR          * 0.10 +
+    mktHR           * 0.07 +
+    pd.effTrust     * 0.13 +
+    pd.formScore    * 0.10;
 
   return Math.round((base + lgBonus + consensusBonus + histAdj + weakAdj + oddsAdj + teamAdj - killerPenalty) * pd.tierMult);
 }
@@ -803,24 +810,41 @@ function blendSort(w) {
     (a.confidence * w + Math.log(a.odds + 0.01) * 20 * (1 - w));
 }
 
-// globalMatchKeyCount tracks how many codes each exact pick has appeared in.
-// Same matchKey may appear at most DIVERSITY_CAP times across ALL generated codes.
-const DIVERSITY_CAP = 2;
+// ─── BOOKING CODE BUILDER v8 — 30-code portfolio engine ──────────────────────
+//
+// Each match appears at most DIVERSITY_CAP times across all generated codes.
+// Themes are ordered so high-quality themes run first (they get first pick).
+// Dynamic punter special themes are appended at runtime from the pool's top punters.
+const DIVERSITY_CAP = 3;
 
-function buildOneSlip(candidates, { minOdds=1000, maxGames=28, punterCap=0.38, maxPerLeague=6, leagueCapPct=0.20, globalPickCount={} } = {}) {
+// ── Market category testers ───────────────────────────────────────────────────
+function _isDC(p)    { const mn=(p.marketName||'').toLowerCase(); return mn.includes('double chance')&&!mn.includes('goal')&&!mn.includes('over')&&!mn.includes('under'); }
+function _isDNB(p)   { const mn=(p.marketName||'').toLowerCase(); return mn.includes('draw no bet')||mn.includes('home no draw'); }
+function _isGB(p)    { const mn=(p.marketName||'').toLowerCase(),on=(p.outcomeName||'').toLowerCase(); return mn.includes('goal bounds')&&!(/^\d+$/.test(on.trim())); }
+function _isO15(p)   { const mn=(p.marketName||'').toLowerCase(),on=(p.outcomeName||'').toLowerCase(),sp=p.specifier||''; if(!mn.includes('over/under')&&!mn.includes('2nd half'))return false; if(!on.includes('over'))return false; const line=getLine(p.marketName,sp,p.outcomeName); return Math.abs(line-1.5)<0.1; }
+function _isSafe(p)  { return _isDC(p)||_isDNB(p)||_isGB(p)||_isO15(p)||(p.safety>=80); }
+function _isScand(p) { return /allsvenskan|superettan|ykkosliiga|premium liiga|ii lyga|esiliiga|eliteserien|virsliga|ykkonen|kakkonen|suomen cup/i.test(p.league||''); }
+function _isNordic(p){ return _isScand(p)||/premier division.*ire|premier division.*nir|icelandic/i.test(p.league||''); }
+function _isEur(p)   { return /premier league|bundesliga|serie a|ligue 1|eredivisie|champions league|europa league|conference league|la liga/i.test(p.league||''); }
+function _isAmer(p)  { return /brasileiro|serie [abc]|argentino|mls|usl|primera division|apertura|clausura|superliga argentina|colombiano|peruano|venezolano/i.test(p.league||'')||/brazil|argentina|colombia|chile|peru|mexico|usa|canada/i.test(p.category||''); }
+
+// ── Time bucket helpers (evaluated at call time — always uses current moment) ──
+function _isEarly(p)  { return p.kick > 0 && p.kick < Date.now() + 12 * 3600000; }
+function _isLate(p)   { const n=Date.now(); return p.kick > n+12*3600000 && p.kick <= n+32*3600000; }
+function _isLater(p)  { return p.kick > 0 && p.kick > Date.now() + 32 * 3600000; }
+
+// ── Slip builder ──────────────────────────────────────────────────────────────
+function buildOneSlip(candidates, { minOdds=1000, maxGames=25, punterCap=0.38, maxPerLeague=6, leagueCapPct=0.22, globalPickCount={} } = {}) {
   const seenEvent = new Set(), picks = [], punterCnt = {}, leagueCnt = {};
   let total = 1;
   for (const s of candidates) {
     if (seenEvent.has(s.eventId)) continue;
     if (picks.length >= maxGames) break;
-    // Diversity: same exact matchKey may not appear in more than DIVERSITY_CAP codes
     if ((globalPickCount[s.matchKey] || 0) >= DIVERSITY_CAP) continue;
-    // League cap: 20% of slip OR maxPerLeague, whichever is smaller
-    const leagueLim = Math.min(maxPerLeague, Math.max(4, Math.floor((maxGames || 28) * leagueCapPct)));
-    const lgExtraForBig = s.league === 'International Clubs' ? 4 : 0;
-    if ((leagueCnt[s.league] || 0) >= leagueLim + lgExtraForBig) continue;
+    const leagueLim = Math.min(maxPerLeague, Math.max(4, Math.floor((maxGames || 25) * leagueCapPct)));
+    if ((leagueCnt[s.league] || 0) >= leagueLim) continue;
     const pp = s.punter;
-    if (picks.length >= 8) {
+    if (punterCap < 1.0 && picks.length >= 8) {
       const proj = ((punterCnt[pp] || 0) + 1) / (picks.length + 1);
       if (proj > punterCap) continue;
     }
@@ -832,6 +856,12 @@ function buildOneSlip(candidates, { minOdds=1000, maxGames=28, punterCap=0.38, m
     if (total >= minOdds) break;
   }
   return { picks, odds: Math.round(total * 100) / 100 };
+}
+
+function blendSort(w) {
+  return (a, b) =>
+    (b.confidence * w + Math.log(b.odds + 0.01) * 20 * (1 - w)) -
+    (a.confidence * w + Math.log(a.odds + 0.01) * 20 * (1 - w));
 }
 
 async function generateCode(picks, logger) {
@@ -847,142 +877,204 @@ async function generateCode(picks, logger) {
   } catch(e) { logger && logger(`Code gen error: ${e.message}`); return null; }
 }
 
-// Helper category testers
-function _isDC(p)    { return (p.marketName || '').toLowerCase().includes('double chance') && !(p.marketName||'').toLowerCase().includes('goal'); }
-function _isDNB(p)   { return (p.marketName || '').toLowerCase().includes('draw no bet') || (p.marketName||'').toLowerCase().includes('home no draw'); }
-function _isGB(p)    { const mn=(p.marketName||'').toLowerCase(),on=(p.outcomeName||'').toLowerCase(); return mn.includes('goal bounds')&&!(/^\d+$/.test(on.trim())); }
-function _isO15(p)   { const mn=(p.marketName||'').toLowerCase(),on=(p.outcomeName||'').toLowerCase(),sp=p.specifier||''; if(!mn.includes('over/under')&&!mn.includes('2nd half'))return false; if(!on.includes('over'))return false; const line=getLine(p.marketName,sp,p.outcomeName); return Math.abs(line-1.5)<0.1; }
-function _isSafe(p)  { return _isDC(p)||_isDNB(p)||_isGB(p)||_isO15(p)||(p.safety>=80); }
-function _isScand(p) { return /allsvenskan|superettan|kakkonen|ykkosliiga|ii lyga|esiliiga|eliteserien|premier division.*ire|virsliga/i.test(p.league); }
-function _isEur(p)   { return /premier league|bundesliga|serie a|ligue 1|eredivisie|champions league|europa|conference|la liga/i.test(p.league); }
+// ── Static theme definitions (28 themes) ─────────────────────────────────────
+// Ordered by priority: safest/highest-confidence themes run first.
+// Dynamic punter specials (up to 4) are appended at runtime → total ~32, target 30.
+const STATIC_THEMES = [
+  // ── ULTRA SAFE (6) — DC / DNB / O1.5 / GB only ──────────────────────────
+  { name:'Safe Platinum',    label:'S★', sortW:0.88, minOdds:500,   maxGames:22, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isSafe(p)&&p.confidence>=80 },
+  { name:'Safe Gold',        label:'S+', sortW:0.82, minOdds:1000,  maxGames:25, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isSafe(p)&&p.confidence>=72 },
+  { name:'Safe Today',       label:'S+', sortW:0.80, minOdds:500,   maxGames:22, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isSafe(p)&&_isEarly(p)&&p.confidence>=68 },
+  { name:'Safe Late',        label:'S',  sortW:0.78, minOdds:300,   maxGames:20, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isSafe(p)&&(_isLate(p)||_isLater(p))&&p.confidence>=68 },
+  { name:'Safe Consensus',   label:'S+', sortW:0.82, minOdds:800,   maxGames:22, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isSafe(p)&&p.count>=2&&p.confidence>=65 },
+  { name:'Pure DC',          label:'S',  sortW:0.84, minOdds:20,    maxGames:18, maxPerLeague:5, punterCap:0.40, filterFn: p=>(_isDC(p)||_isDNB(p))&&p.confidence>=62 },
 
-const THEMES = [
-  // 1. Ultra Safe — DC, DNB, BHU-under, Goal Bounds range, O1.5 only
-  { name:'Ultra Safe Alpha', label:'S+', sortW:0.78, minOdds:500,   maxGames:28, maxPerLeague:6, punterCap:0.38, filterFn: p=>_isSafe(p)&&p.confidence>=72 },
-  { name:'Ultra Safe Beta',  label:'S',  sortW:0.72, minOdds:500,   maxGames:30, maxPerLeague:6, punterCap:0.38, filterFn: p=>_isSafe(p)&&p.confidence>=65 },
-  // 2. Consensus — picks agreed by 2+ punters
-  { name:'Consensus Alpha',  label:'A+', sortW:0.70, minOdds:1000,  maxGames:26, maxPerLeague:6, punterCap:0.38, filterFn: p=>p.count>=3 },
-  { name:'Consensus Beta',   label:'A+', sortW:0.65, minOdds:1000,  maxGames:28, maxPerLeague:6, punterCap:0.38, filterFn: p=>p.count>=2 },
-  // 3. Nordic / Scandinavian
-  { name:'Nordic Alpha',     label:'A',  sortW:0.62, minOdds:1000,  maxGames:30, maxPerLeague:8, punterCap:0.42, filterFn: p=>_isScand(p) },
-  { name:'Nordic Beta',      label:'A',  sortW:0.55, minOdds:2000,  maxGames:34, maxPerLeague:9, punterCap:0.42, filterFn: p=>_isScand(p)||p.confidence>=68 },
-  // 4. European clubs
-  { name:'European Alpha',   label:'A',  sortW:0.64, minOdds:1000,  maxGames:28, maxPerLeague:7, punterCap:0.40, filterFn: p=>_isEur(p)&&p.confidence>=70 },
-  { name:'European Beta',    label:'A',  sortW:0.56, minOdds:2000,  maxGames:32, maxPerLeague:8, punterCap:0.40, filterFn: p=>_isEur(p)||p.confidence>=72 },
-  // 5. Goal Bounds (range only)
-  { name:'Goal Bounds Alpha',label:'B+', sortW:0.66, minOdds:1000,  maxGames:32, maxPerLeague:7, punterCap:0.40, filterFn: p=>_isGB(p) },
-  { name:'Goal Bounds Beta', label:'B+', sortW:0.58, minOdds:2000,  maxGames:36, maxPerLeague:8, punterCap:0.40, filterFn: p=>_isGB(p)||p.confidence>=65 },
-  // 6. Double Chance
-  { name:'Double Chance Alpha',label:'B+',sortW:0.72,minOdds:500,   maxGames:28, maxPerLeague:6, punterCap:0.38, filterFn: p=>(_isDC(p)||_isDNB(p))&&p.confidence>=62 },
-  { name:'Double Chance Beta', label:'B+',sortW:0.65,minOdds:1000,  maxGames:32, maxPerLeague:7, punterCap:0.38, filterFn: p=>_isDC(p)||_isDNB(p)||p.confidence>=70 },
-  // 7. Over 1.5
-  { name:'Over 1.5 Alpha',   label:'B+', sortW:0.68, minOdds:1000,  maxGames:30, maxPerLeague:7, punterCap:0.40, filterFn: p=>_isO15(p) },
-  { name:'Over 1.5 Beta',    label:'B+', sortW:0.60, minOdds:2000,  maxGames:34, maxPerLeague:8, punterCap:0.40, filterFn: p=>_isO15(p)||p.confidence>=68 },
-  // 8. Balanced portfolio
-  { name:'Balanced Alpha',   label:'B',  sortW:0.55, minOdds:5000,  maxGames:32, maxPerLeague:7, punterCap:0.40, filterFn: p=>p.confidence>=62 },
-  { name:'Balanced Beta',    label:'B',  sortW:0.45, minOdds:5000,  maxGames:36, maxPerLeague:8, punterCap:0.40, filterFn: p=>p.confidence>=55 },
-  // 9. Boomshots
-  { name:'Boomshot Alpha',   label:'C+', sortW:0.35, minOdds:100000,maxGames:42, maxPerLeague:9, punterCap:0.42, filterFn: p=>p.confidence>=55 },
-  { name:'Boomshot Beta',    label:'C',  sortW:0.25, minOdds:500000,maxGames:48, maxPerLeague:10,punterCap:0.44, filterFn: p=>p.confidence>=45 },
-  // 10. AI Portfolio — composite: consensus + safe market + Nordic + best overall
-  { name:'AI Portfolio Alpha',label:'A+',sortW:0.60, minOdds:3000,  maxGames:30, maxPerLeague:7, punterCap:0.38,
+  // ── CONSENSUS (4) — multi-punter agreement ────────────────────────────────
+  { name:'Consensus 3+',     label:'A★', sortW:0.76, minOdds:1000,  maxGames:20, maxPerLeague:5, punterCap:0.38, filterFn: p=>p.count>=3 },
+  { name:'Consensus Alpha',  label:'A+', sortW:0.72, minOdds:1000,  maxGames:24, maxPerLeague:6, punterCap:0.38, filterFn: p=>p.count>=2&&p.confidence>=68 },
+  { name:'Consensus Beta',   label:'A+', sortW:0.66, minOdds:2000,  maxGames:28, maxPerLeague:6, punterCap:0.38, filterFn: p=>p.count>=2 },
+  { name:'Consensus Safe',   label:'A+', sortW:0.80, minOdds:800,   maxGames:22, maxPerLeague:5, punterCap:0.38, filterFn: p=>p.count>=2&&_isSafe(p) },
+
+  // ── MARKET PURITY (4) — single-market theme codes ────────────────────────
+  { name:'Pure Over 1.5',    label:'B+', sortW:0.74, minOdds:500,   maxGames:22, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isO15(p)&&p.confidence>=70 },
+  { name:'Over 1.5 Wide',    label:'B+', sortW:0.66, minOdds:2000,  maxGames:28, maxPerLeague:6, punterCap:0.40, filterFn: p=>_isO15(p) },
+  { name:'Goal Bounds+',     label:'B+', sortW:0.70, minOdds:1000,  maxGames:26, maxPerLeague:6, punterCap:0.40, filterFn: p=>_isGB(p)||(_isO15(p)&&p.confidence>=75) },
+  { name:'Short Odds Safe',  label:'S',  sortW:0.90, minOdds:20,    maxGames:16, maxPerLeague:4, punterCap:0.38, filterFn: p=>p.odds>=1.1&&p.odds<=1.65&&p.confidence>=75 },
+
+  // ── TIME-BASED (3) — different kickoff windows ────────────────────────────
+  { name:'Early Kickoffs',   label:'B+', sortW:0.72, minOdds:1000,  maxGames:24, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isEarly(p)&&p.confidence>=70 },
+  { name:'Late Kickoffs',    label:'B+', sortW:0.70, minOdds:1000,  maxGames:22, maxPerLeague:5, punterCap:0.38, filterFn: p=>(_isLate(p)||_isLater(p))&&p.confidence>=70 },
+  { name:'Full Day',         label:'A',  sortW:0.68, minOdds:2000,  maxGames:28, maxPerLeague:6, punterCap:0.38, filterFn: p=>p.confidence>=70 },
+
+  // ── LEAGUE CLUSTERS (4) ───────────────────────────────────────────────────
+  { name:'Nordic Alpha',     label:'A',  sortW:0.70, minOdds:1000,  maxGames:26, maxPerLeague:7, punterCap:0.42, filterFn: p=>_isNordic(p)&&p.confidence>=65 },
+  { name:'Nordic Safe',      label:'A+', sortW:0.76, minOdds:500,   maxGames:22, maxPerLeague:6, punterCap:0.40, filterFn: p=>_isNordic(p)&&_isSafe(p) },
+  { name:'European Elite',   label:'A',  sortW:0.74, minOdds:1000,  maxGames:22, maxPerLeague:5, punterCap:0.38, filterFn: p=>_isEur(p)&&p.confidence>=68 },
+  { name:'Global Mix',       label:'B',  sortW:0.65, minOdds:2000,  maxGames:28, maxPerLeague:6, punterCap:0.40, filterFn: p=>(_isAmer(p)||_isNordic(p)||_isEur(p))&&p.confidence>=65 },
+
+  // ── PORTFOLIO / RISK LEVELS (4) ───────────────────────────────────────────
+  { name:'Portfolio Conservative', label:'S+', sortW:0.84, minOdds:200,   maxGames:18, maxPerLeague:4, punterCap:0.36, filterFn: p=>p.confidence>=80&&p.odds<=2.0 },
+  { name:'Portfolio Balanced',     label:'A',  sortW:0.58, minOdds:5000,  maxGames:28, maxPerLeague:6, punterCap:0.38, filterFn: p=>p.confidence>=65 },
+  { name:'AI Portfolio Alpha',     label:'A+', sortW:0.62, minOdds:3000,  maxGames:26, maxPerLeague:6, punterCap:0.38,
     filterFn: p=>p.confidence>=68,
-    sortFnOverride: (a,b)=>{
-      const wa=(_isSafe(a)?6:0)+(_isScand(a)?4:0)+(a.count>=2?8:0)+(a.confidence>=80?5:0);
-      const wb=(_isSafe(b)?6:0)+(_isScand(b)?4:0)+(b.count>=2?8:0)+(b.confidence>=80?5:0);
-      return(b.confidence*0.55+(wb)*2.5+Math.log(b.odds+.01)*14)-(a.confidence*0.55+(wa)*2.5+Math.log(a.odds+.01)*14);
+    sortFnOverride: (a,b) => {
+      const wa=(_isSafe(a)?6:0)+(_isNordic(a)?4:0)+(a.count>=2?8:0)+(a.confidence>=80?5:0);
+      const wb=(_isSafe(b)?6:0)+(_isNordic(b)?4:0)+(b.count>=2?8:0)+(b.confidence>=80?5:0);
+      return(b.confidence*0.56+(wb)*2.5+Math.log(b.odds+.01)*14)-(a.confidence*0.56+(wa)*2.5+Math.log(a.odds+.01)*14);
     }
   },
-  { name:'AI Portfolio Beta', label:'A+',sortW:0.52, minOdds:5000,  maxGames:34, maxPerLeague:8, punterCap:0.40,
-    filterFn: p=>p.confidence>=60,
-    sortFnOverride: (a,b)=>{
-      const wa=(_isSafe(a)?5:0)+(_isScand(a)?3:0)+(a.count>=2?6:0);
-      const wb=(_isSafe(b)?5:0)+(_isScand(b)?3:0)+(b.count>=2?6:0);
-      return(b.confidence*0.48+(wb)*2+Math.log(b.odds+.01)*18)-(a.confidence*0.48+(wa)*2+Math.log(a.odds+.01)*18);
+  { name:'AI Portfolio Beta',      label:'A+', sortW:0.54, minOdds:5000,  maxGames:30, maxPerLeague:7, punterCap:0.40,
+    filterFn: p=>p.confidence>=62,
+    sortFnOverride: (a,b) => {
+      const wa=(_isSafe(a)?5:0)+(_isNordic(a)?3:0)+(a.count>=2?6:0);
+      const wb=(_isSafe(b)?5:0)+(_isNordic(b)?3:0)+(b.count>=2?6:0);
+      return(b.confidence*0.50+(wb)*2+Math.log(b.odds+.01)*18)-(a.confidence*0.50+(wa)*2+Math.log(a.odds+.01)*18);
     }
   },
+
+  // ── BOOMSHOTS (3) — high-game-count, high-odds targets ───────────────────
+  // ownDiversityPool:true means boomshots get their own counter so they aren't
+  // blocked by the global diversity cap from earlier themes.
+  { name:'Balanced Boomshot', label:'B',  sortW:0.42, minOdds:50000,  maxGames:34, minGames:14, maxPerLeague:8, punterCap:0.42, ownDiversityPool:true, filterFn: p=>p.confidence>=60 },
+  { name:'Boomshot Alpha',    label:'C+', sortW:0.32, minOdds:100000, maxGames:40, minGames:18, maxPerLeague:9, punterCap:0.44, ownDiversityPool:true, filterFn: p=>p.confidence>=55 },
+  { name:'Mega Boomshot',     label:'C',  sortW:0.22, minOdds:500000, maxGames:48, minGames:22, maxPerLeague:11,punterCap:0.46, ownDiversityPool:true, filterFn: p=>p.confidence>=48 },
 ];
 
 /**
- * Build all themed codes from masterPool, return array of {theme,label,code,games,odds,picks}
- * Enforces global diversity: same exact matchKey appears at most DIVERSITY_CAP times.
+ * Build up to 30 themed codes from masterPool.
+ * Dynamic per-punter specials are appended to the static theme list at runtime.
+ * Global diversity cap (DIVERSITY_CAP) prevents any match appearing in too many codes.
  */
 async function buildThemedCodes(masterPool, logger = ()=>{}) {
-  logger(`Building ${THEMES.length} themed codes from ${masterPool.length}-game pool (diversity cap: ${DIVERSITY_CAP}×)…`);
+  // ── Rank punters by average confidence of their contributions to today's pool
+  const punterScores = {};
+  for (const s of masterPool) {
+    for (const p of (s.punters || [s.punter])) {
+      if (!p) continue;
+      if (!punterScores[p]) punterScores[p] = { total: 0, count: 0 };
+      punterScores[p].total += s.confidence;
+      punterScores[p].count++;
+    }
+  }
+  const topPunters = Object.entries(punterScores)
+    .filter(([, d]) => d.count >= 5)
+    .sort((a, b) => (b[1].total / b[1].count) - (a[1].total / a[1].count))
+    .slice(0, 4)
+    .map(([p]) => p);
+
+  // Dynamic punter special themes — unique pick profile per top punter
+  const punterThemes = topPunters.map((pName, i) => ({
+    name: `${pName} Special`,
+    label: 'A+',
+    sortW: 0.86,
+    minOdds: 1000,
+    maxGames: 20,
+    maxPerLeague: 5,
+    punterCap: 1.0, // single-punter slip — diversity via league cap instead
+    filterFn: p => (p.punters || [p.punter]).includes(pName) && p.confidence >= 65,
+  }));
+
+  const ALL_THEMES = [...STATIC_THEMES, ...punterThemes];
+  logger(`Building ${ALL_THEMES.length} themes → targeting 30 codes from ${masterPool.length}-game pool (diversity cap: ${DIVERSITY_CAP}×)…`);
+
   const results = [];
-  const globalPickCount = {}; // matchKey → number of codes it has appeared in
+  const globalPickCount = {};
+  const generatedCodes = new Set(); // dedup — SportyBet returns same code for identical selections
 
-  for (const theme of THEMES) {
+  for (const theme of ALL_THEMES) {
+    if (results.length >= 30) {
+      logger(`  [${theme.name}] SKIPPED — 30 codes reached`);
+      continue;
+    }
+
     const sortFn = theme.sortFnOverride || blendSort(theme.sortW);
-    const core     = masterPool.filter(theme.filterFn).sort(sortFn);
-    const fallback = masterPool
-      .filter(s => !theme.filterFn(s) && s.confidence >= 52)
-      .sort(blendSort(Math.max(0.30, (theme.sortW || 0.50) - 0.10)));
+    const core = masterPool.filter(theme.filterFn).sort(sortFn);
 
-    const slipOpts = { minOdds: theme.minOdds, maxGames: theme.maxGames, punterCap: theme.punterCap, maxPerLeague: theme.maxPerLeague, leagueCapPct: 0.20, globalPickCount };
+    // Boomshots use their own fresh diversity pool so they aren't blocked by earlier themes
+    const pickCountForTheme = theme.ownDiversityPool ? {} : globalPickCount;
+    const slipOpts = {
+      minOdds: theme.minOdds,
+      maxGames: theme.maxGames,
+      punterCap: theme.punterCap,
+      maxPerLeague: theme.maxPerLeague,
+      leagueCapPct: 0.22,
+      globalPickCount: pickCountForTheme,
+    };
 
-    // Try core first
     let { picks, odds } = buildOneSlip(core, slipOpts);
     let borrowed = 0;
 
-    if (picks.length < 3 || odds < theme.minOdds * 0.05) {
-      // Core insufficient — blend with fallback
+    // Fallback: blend with lower-confidence pool when core is thin after diversity cap
+    if (picks.length < 4) {
       const usedIds = new Set(picks.map(p => p.eventId));
-      const fill = fallback.filter(s => !usedIds.has(s.eventId));
+      const fill = masterPool
+        .filter(s => !theme.filterFn(s) && s.confidence >= 55 && !usedIds.has(s.eventId))
+        .sort(blendSort(Math.max(0.28, (theme.sortW || 0.50) - 0.12)));
       const merged = [...core, ...fill];
       const r2 = buildOneSlip(merged, slipOpts);
-      if (r2.picks.length >= picks.length) {
+      if (r2.picks.length > picks.length) {
         borrowed = r2.picks.filter(p => !picks.some(c => c.eventId === p.eventId)).length;
         picks = r2.picks; odds = r2.odds;
       }
     }
 
-    if (picks.length < 3) {
-      logger(`  [${theme.name}] SKIPPED — only ${picks.length} picks available`);
+    const minGames = theme.minGames || 3;
+    if (picks.length < minGames) {
+      logger(`  [${theme.name}] SKIPPED — only ${picks.length} eligible picks (need ${minGames})`);
       continue;
     }
 
-    // Record picks in global diversity counter BEFORE posting (so next theme sees them)
+    // Register picks in diversity counter before posting (blocks later themes from overusing same games)
     for (const p of picks) {
       globalPickCount[p.matchKey] = (globalPickCount[p.matchKey] || 0) + 1;
     }
 
-    logger(`  [${theme.name}] ${picks.length}g ${odds >= 1e6 ? (odds/1e6).toFixed(2)+'M' : odds >= 1e3 ? (odds/1e3).toFixed(2)+'K' : odds+'x'} — posting…`);
+    const oddsStr = odds>=1e6?(odds/1e6).toFixed(2)+'M':odds>=1e3?(odds/1e3).toFixed(2)+'K':Math.round(odds)+'x';
+    logger(`  [${theme.name}] ${picks.length}g ${oddsStr} — posting…`);
     const code = await generateCode(picks, logger);
     await new Promise(r => setTimeout(r, 400));
 
-    if (!code) {
-      logger(`  [${theme.name}] Code generation failed`);
-      continue;
-    }
+    if (!code) { logger(`  [${theme.name}] Code generation failed`); continue; }
+    if (generatedCodes.has(code)) { logger(`  [${theme.name}] SKIPPED — duplicate code ${code}`); continue; }
+    generatedCodes.add(code);
 
-    // Diversity metrics
-    const leagueBreakdown = {};
-    picks.forEach(p => { leagueBreakdown[p.league] = (leagueBreakdown[p.league]||0)+1; });
-    const punterBreakdown = {};
-    picks.forEach(p => { (p.punters||[p.punter]).forEach(pt => { punterBreakdown[pt]=(punterBreakdown[pt]||0)+1; }); });
+    // Build breakdown metrics
+    const leagueBreakdown = {}, punterBreakdown = {};
+    picks.forEach(p => { leagueBreakdown[p.league]=(leagueBreakdown[p.league]||0)+1; });
+    picks.forEach(p => { (p.punters||[p.punter]).forEach(pt => { if(pt) punterBreakdown[pt]=(punterBreakdown[pt]||0)+1; }); });
     const mkts = new Set(picks.map(p => {
-      const mn = (p.marketName||'').toLowerCase();
-      return mn.includes('double chance')?'DC':mn.includes('draw no bet')?'DNB':mn.includes('goal bounds')?'GBounds':mn.includes('both halves')?'BHalves':mn.includes('over/under')?`O/U`:mn.includes('gg')?'BTTS':'Other';
+      const mn=(p.marketName||'').toLowerCase();
+      if(mn.includes('double chance')) return 'DC';
+      if(mn.includes('draw no bet')||mn.includes('home no draw')) return 'DNB';
+      if(mn.includes('goal bounds')) return 'GBounds';
+      if(mn.includes('both halves')) return 'BHalves';
+      if(mn.includes('over/under')||mn.includes('2nd half')) return 'O/U';
+      if(mn.includes('gg')) return 'BTTS';
+      return 'Other';
     }));
+    const timeGroups = { early:0, late:0, later:0 };
+    picks.forEach(p => { if(_isEarly(p))timeGroups.early++; else if(_isLate(p))timeGroups.late++; else timeGroups.later++; });
 
     results.push({
       theme: theme.name, label: theme.label, code,
-      games: picks.length, odds, borrowed,
+      count: picks.length, games: picks.length, odds, borrowed,
       targetOdds: theme.minOdds,
       hitTarget: odds >= theme.minOdds,
       avgConfidence: Math.round(picks.reduce((s,p)=>s+p.confidence,0)/picks.length),
-      diversity: Object.keys(leagueBreakdown).length * 3 + mkts.size * 5 + Object.keys(punterBreakdown).length * 2,
+      minConfidence: Math.min(...picks.map(p=>p.confidence)),
+      markets: [...mkts].join(' | '),
+      timeSpread: `E:${timeGroups.early} L:${timeGroups.late} D+:${timeGroups.later}`,
       topLeagues: Object.entries(leagueBreakdown).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([l,n])=>`${l}(${n})`).join(', '),
       topPunters: Object.entries(punterBreakdown).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([p,n])=>`${p}(${n})`).join(', '),
-      markets: [...mkts].join(' | '),
       topPicks: picks.slice(0,4).map(p=>`${p.homeTeam} vs ${p.awayTeam} — ${p.marketLabel} @${p.odds}`),
+      diversity: Object.keys(leagueBreakdown).length*3 + mkts.size*5 + Object.keys(punterBreakdown).length*2,
       picks,
     });
 
-    logger(`  ✓ ${theme.name}: ${code} | ${picks.length}g | ${odds>=1e6?(odds/1e6).toFixed(2)+'M':odds>=1e3?(odds/1e3).toFixed(2)+'K':Math.round(odds)+'x'}${borrowed>0?` (+${borrowed} borrowed)`:''}`);
+    logger(`  ✓ ${theme.name}: ${code} | ${picks.length}g | ${oddsStr}${borrowed>0?` (+${borrowed} borrowed)`:''}`);
   }
 
+  logger(`\n✓ Generated ${results.length}/${ALL_THEMES.length} codes.`);
   return results;
 }
 
