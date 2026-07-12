@@ -1540,13 +1540,21 @@ function scanCard(r) {
   const curOdds  = r.currentOdds  && r.currentOdds  > 1 ? r.currentOdds  : null;
   let oddsTag = '';
   if (origOdds) {
-    const moved = curOdds && Math.abs(r.oddsChange || 0) > 0.01;
+    const diff = r.oddsChange || 0;
+    const moved = curOdds && Math.abs(diff) > 0.01;
     if (moved) {
-      const dir = r.oddsChange > 0 ? '▲' : '▼';
-      const cls = r.oddsChange > 0 ? 'odds-up' : 'odds-dn';
-      const pct = r.oddsMovePct != null ? ` (${r.oddsMovePct > 0 ? '+' : ''}${r.oddsMovePct}%)` : '';
-      const tip = `Moved from ${origOdds.toFixed(2)} → ${curOdds.toFixed(2)}${pct}`;
-      oddsTag = `<span class="sel-odds-wrap" title="${tip}"><span class="sel-odds">${origOdds.toFixed(2)}</span><span class="odds-move ${cls}">${dir}${curOdds.toFixed(2)}</span></span>`;
+      const increased = diff > 0;
+      const cls = increased ? 'odds-up' : 'odds-dn';
+      const label = increased ? '▲ Increased' : '▼ Dropped';
+      const pctStr = r.oddsMovePct != null ? `${r.oddsMovePct > 0 ? '+' : ''}${r.oddsMovePct}%` : '';
+      const tip = `${origOdds.toFixed(2)} → ${curOdds.toFixed(2)}${pctStr ? ' (' + pctStr + ')' : ''}`;
+      oddsTag = `<span class="sel-odds-wrap" title="${tip}">` +
+        `<span class="sel-odds">${origOdds.toFixed(2)}</span>` +
+        `<span class="odds-move ${cls}">${label}</span>` +
+        (pctStr ? `<span class="odds-pct ${cls}">${pctStr}</span>` : '') +
+        `</span>`;
+    } else if (curOdds) {
+      oddsTag = `<span class="sel-odds-wrap" title="No change"><span class="sel-odds">${origOdds.toFixed(2)}</span><span class="odds-move odds-nc">No Change</span></span>`;
     } else {
       oddsTag = `<span class="sel-odds">${origOdds.toFixed(2)}</span>`;
     }

@@ -84,6 +84,7 @@ const intel = require("./intelligence-engine");
 
 const app = express();
 const PORT = 3000;
+const BUILD_VERSION = Date.now().toString(36); // unique per restart — injected into HTML asset URLs
 
 const DATA_DIR = path.join(__dirname, "data");
 const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
@@ -121,6 +122,38 @@ function trackVisitor(req) {
     }, 5000);
   } catch {}
 }
+
+// ── HTML auto-versioning ──
+// Read HTML once at startup, inject BUILD_VERSION into all ?v= query params.
+// This means every server restart automatically busts the browser cache — no manual edits.
+const _htmlCache = {};
+function getVersionedHTML(name) {
+  if (!_htmlCache[name]) {
+    const raw = fs.readFileSync(path.join(__dirname, "public", name), "utf8");
+    _htmlCache[name] = raw.replace(/\?v=[a-zA-Z0-9._-]+/g, `?v=${BUILD_VERSION}`);
+  }
+  return _htmlCache[name];
+}
+
+function sendHTML(name) {
+  return (req, res) => {
+    try {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.setHeader("ETag", `"${BUILD_VERSION}"`);
+      res.setHeader("Last-Modified", new Date(parseInt(BUILD_VERSION, 36)).toUTCString());
+      res.send(getVersionedHTML(name));
+    } catch (e) {
+      console.error(`[HTML] Error serving ${name}:`, e.message);
+      res.status(500).send("Page temporarily unavailable. Please refresh.");
+    }
+  };
+}
+
+// Serve the main page before express.static so versioning is always injected
+app.get("/", sendHTML("index.html"));
 
 app.use((req, res, next) => {
   trackVisitor(req);
@@ -228,27 +261,37 @@ const STATS_BASELINE = {
   slipsSplit: 3201,
 };
 
-function loadStats() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(STATS_FILE, "utf-8"));
-    const merged = { ...STATS_BASELINE };
-    for (const k of Object.keys(merged)) merged[k] += (raw[k] || 0);
-    if (raw.puntersSaved && !raw.puntersTracked) merged.puntersTracked += raw.puntersSaved;
-    return merged;
-  } catch {
-    return { ...STATS_BASELINE };
+// Debounced stats — no sync I/O on every request
+let _statsRaw = null;
+let _statsDirty = false;
+let _statsWriteTimer = null;
+
+function _loadStatsRaw() {
+  if (!_statsRaw) {
+    try { _statsRaw = JSON.parse(fs.readFileSync(STATS_FILE, "utf-8")); } catch { _statsRaw = {}; }
   }
+  return _statsRaw;
 }
 
-function saveStats(data) {
-  fs.writeFileSync(STATS_FILE, JSON.stringify(data, null, 2));
+function loadStats() {
+  const raw = _loadStatsRaw();
+  const merged = { ...STATS_BASELINE };
+  for (const k of Object.keys(merged)) merged[k] += (raw[k] || 0);
+  if (raw.puntersSaved && !raw.puntersTracked) merged.puntersTracked += raw.puntersSaved;
+  return merged;
 }
 
 function incrementStat(key) {
-  let raw;
-  try { raw = JSON.parse(fs.readFileSync(STATS_FILE, "utf-8")); } catch { raw = {}; }
+  const raw = _loadStatsRaw();
   raw[key] = (raw[key] || 0) + 1;
-  saveStats(raw);
+  _statsDirty = true;
+  clearTimeout(_statsWriteTimer);
+  _statsWriteTimer = setTimeout(() => {
+    if (_statsDirty && _statsRaw) {
+      fs.writeFile(STATS_FILE, JSON.stringify(_statsRaw, null, 2), () => {});
+      _statsDirty = false;
+    }
+  }, 3000);
 }
 
 app.get("/api/stats", (req, res) => {
@@ -259,12 +302,30 @@ app.get("/api/stats", (req, res) => {
 
 const API_USAGE_FILE = path.join(DATA_DIR, "api-usage.json");
 
+// Debounced API usage — cached in memory, async write every 2s
+let _apiUsageCache = null;
+let _apiUsageDirty = false;
+let _apiUsageTimer = null;
+
 function loadApiUsage() {
-  try { return JSON.parse(fs.readFileSync(API_USAGE_FILE, "utf-8")); }
-  catch { return { date: "", usage: {}, adminCalls: 0 }; }
+  if (!_apiUsageCache) {
+    try { _apiUsageCache = JSON.parse(fs.readFileSync(API_USAGE_FILE, "utf-8")); }
+    catch { _apiUsageCache = { date: "", usage: {}, adminCalls: 0 }; }
+  }
+  return _apiUsageCache;
 }
 
-function saveApiUsage(data) { fs.writeFileSync(API_USAGE_FILE, JSON.stringify(data, null, 2)); }
+function saveApiUsage(data) {
+  _apiUsageCache = data;
+  _apiUsageDirty = true;
+  clearTimeout(_apiUsageTimer);
+  _apiUsageTimer = setTimeout(() => {
+    if (_apiUsageDirty && _apiUsageCache) {
+      fs.writeFile(API_USAGE_FILE, JSON.stringify(_apiUsageCache, null, 2), () => {});
+      _apiUsageDirty = false;
+    }
+  }, 2000);
+}
 
 function checkApiLimit(req, res, next) {
   const u = loadApiUsage();
@@ -1166,9 +1227,7 @@ app.get("/api/admin/check", (req, res) => {
   res.json({ admin: !!isAdmin });
 });
 
-app.get("/punter/:name", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+app.get("/punter/:name", sendHTML("index.html"));
 
 // SEO routes
 app.get("/optimizer", (req, res) => res.redirect("/#optimizer"));
@@ -1201,14 +1260,9 @@ function requireAdmin(req, res, next) {
   return res.status(403).json({ error: "Unauthorized" });
 }
 
-app.get("/admin", (req, res) => {
-  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "-1");
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
-});
-app.get("/admin/leaderboard", requireAdmin, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
-app.get("/admin/support", requireAdmin, (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/admin", sendHTML("admin.html"));
+app.get("/admin/leaderboard", requireAdmin, sendHTML("index.html"));
+app.get("/admin/support", requireAdmin, sendHTML("index.html"));
 
 app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
   const stats = loadStats();
@@ -2044,7 +2098,8 @@ app.post("/api/admin/scan-code", requireAdmin, async (req, res) => {
 
 // ── Intelligence Engine ────────────────────────────────────────────────────────
 
-const ODDS_BANK_FILE    = path.join(DATA_DIR, "odds-bank.json");
+const ODDS_HISTORY_FILE = path.join(DATA_DIR, "odds-history.json");
+const ODDS_BANK_FILE    = path.join(DATA_DIR, "odds-bank.json"); // legacy — migrated on first write
 const LEAGUE_INTEL_FILE = path.join(DATA_DIR, "league-intelligence.json");
 const MARKET_INTEL_FILE = path.join(DATA_DIR, "market-intelligence.json");
 const TEAM_INTEL_FILE   = path.join(DATA_DIR, "team-intelligence.json");
@@ -2070,10 +2125,13 @@ function oddsKey(s) {
 }
 
 function loadOddsBank() {
-  try { return JSON.parse(fs.readFileSync(ODDS_BANK_FILE, "utf8")); } catch { return {}; }
+  // Try new file first; fall back to legacy odds-bank.json for migration
+  try { return JSON.parse(fs.readFileSync(ODDS_HISTORY_FILE, "utf8")); } catch {}
+  try { return JSON.parse(fs.readFileSync(ODDS_BANK_FILE, "utf8")); } catch {}
+  return {};
 }
 
-// Debounced async write — prevents blocking the event loop on every booking fetch
+// Debounced async write — never blocks the event loop
 let _oddsBankWriteTimer = null;
 let _oddsBankDirty = false;
 let _oddsBankCache = null;
@@ -2085,6 +2143,7 @@ function storeOriginalOdds(bank, selections, timestamp) {
     const key = oddsKey(s);
     if (!bank[key]) {
       bank[key] = {
+        eventId: s.eventId,
         league: s.league, homeTeam: s.homeTeam, awayTeam: s.awayTeam,
         market: s.market, outcome: s.outcome, originalOdds: s.odds,
         kickoff: s.kickoff, firstSeen: timestamp,
@@ -2095,12 +2154,12 @@ function storeOriginalOdds(bank, selections, timestamp) {
   if (changed) {
     _oddsBankDirty = true;
     _oddsBankCache = bank;
-    // Debounce: write once after 3s of no new entries (not on every request)
     clearTimeout(_oddsBankWriteTimer);
     _oddsBankWriteTimer = setTimeout(() => {
       if (_oddsBankDirty && _oddsBankCache) {
-        try { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(_oddsBankCache, null, 2)); }
-        catch {}
+        fs.writeFile(ODDS_HISTORY_FILE, JSON.stringify(_oddsBankCache, null, 2), (err) => {
+          if (err) console.error("[OddsHistory] write failed:", err.message);
+        });
         _oddsBankDirty = false;
       }
     }, 3000);
@@ -2109,6 +2168,10 @@ function storeOriginalOdds(bank, selections, timestamp) {
 
 function getBankOdds(bank, s) {
   return bank[oddsKey(s)]?.originalOdds || null;
+}
+
+function getBankEntry(bank, s) {
+  return bank[oddsKey(s)] || null;
 }
 
 function formatTotalOdds(n) {
@@ -3434,7 +3497,7 @@ function runDailyCleanup() {
       const k = ob[key].kickoff || ob[key].firstSeen;
       if (k && now - new Date(k).getTime() > day7) { delete ob[key]; n++; }
     }
-    if (n) { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(ob, null, 2)); console.log(`[Cleanup] Odds bank: removed ${n} stale entries`); }
+    if (n) { fs.writeFile(ODDS_HISTORY_FILE, JSON.stringify(ob, null, 2), () => {}); console.log(`[Cleanup] Odds history: removed ${n} stale entries`); }
   } catch(e) { console.error('[Cleanup] Odds bank:', e.message); }
 
   // 2. Daily analysis reports — delete files older than 30 days
@@ -3491,26 +3554,45 @@ app.use((err, req, res, next) => {
 // ── Graceful shutdown ──
 
 function gracefulShutdown(signal) {
-  console.log(`[SHUTDOWN] ${signal} received — closing server`);
-  // Flush any pending odds-bank writes before exit
-  if (_oddsBankDirty && _oddsBankCache) {
-    try { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(_oddsBankCache, null, 2)); } catch {}
-  }
-  if (typeof server !== 'undefined' && server) {
-    server.close(() => { console.log("[SHUTDOWN] HTTP server closed"); process.exit(0); });
+  console.log(`[SHUTDOWN] ${signal} received — flushing and closing`);
+
+  // Flush all debounced in-memory writes synchronously before exit
+  try {
+    if (_oddsBankDirty && _oddsBankCache)
+      fs.writeFileSync(ODDS_HISTORY_FILE, JSON.stringify(_oddsBankCache, null, 2));
+  } catch {}
+  try {
+    if (_statsDirty && _statsRaw)
+      fs.writeFileSync(STATS_FILE, JSON.stringify(_statsRaw, null, 2));
+  } catch {}
+  try {
+    if (_apiUsageDirty && _apiUsageCache)
+      fs.writeFileSync(API_USAGE_FILE, JSON.stringify(_apiUsageCache, null, 2));
+  } catch {}
+  try {
+    if (_visitorBuffer)
+      fs.writeFileSync(VISITORS_FILE, JSON.stringify(_visitorBuffer, null, 2));
+  } catch {}
+
+  if (typeof server !== "undefined" && server) {
+    server.close(() => { console.log("[SHUTDOWN] HTTP server closed cleanly"); process.exit(0); });
   } else {
     process.exit(0);
   }
-  setTimeout(() => { console.error("[SHUTDOWN] Forced exit after 8s"); process.exit(1); }, 8000);
+  setTimeout(() => { console.error("[SHUTDOWN] Force-exit after 8s"); process.exit(1); }, 8000);
 }
 
 // ── Start ──
 
 const server = app.listen(PORT, () => {
-  console.log("SlipPilot v8 running at http://localhost:" + PORT);
+  console.log(`SlipPilot v8 running at http://localhost:${PORT}  build=${BUILD_VERSION}`);
   setTimeout(runDailyCleanup, 60000);
   setInterval(runDailyCleanup, 24 * 60 * 60 * 1000);
 });
+
+// Prevent slow clients from holding connections open indefinitely
+server.keepAliveTimeout = 65000;   // must be > LiteSpeed/proxy's timeout
+server.headersTimeout   = 70000;
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT",  () => gracefulShutdown("SIGINT"));
