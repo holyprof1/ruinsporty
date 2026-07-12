@@ -1,4 +1,5 @@
 /* SlipPilot */
+const IS_PRODUCTION = window.IS_PRODUCTION || false;
 
 // Human-readable total odds formatter (e.g. 2.45M, 18.6M, 523K, 2.9T)
 function fmtTotalOdds(n) {
@@ -521,12 +522,16 @@ function animateNum(el, target) {
 }
 
 async function loadLiveStats() {
+  if (IS_PRODUCTION) {
+    const el = $("statPunters")?.closest(".live-stat");
+    if (el) el.style.display = 'none';
+  }
   try {
     const r = await fetch("/api/stats"); const s = await r.json();
     animateNum($("statLoaded"), s.slipsLoaded || 0);
     animateNum($("statGenerated"), s.codesGenerated || 0);
     animateNum($("statScanned"), s.slipsScanned || 0);
-    animateNum($("statPunters"), s.puntersTracked || s.puntersSaved || 0);
+    if (!IS_PRODUCTION) animateNum($("statPunters"), s.puntersTracked || s.puntersSaved || 0);
   } catch {}
 }
 loadLiveStats();
@@ -1842,6 +1847,7 @@ let deepScanEnabled = false;
 const deepScanCache = {};
 
 function toggleDeepScan() {
+  if (IS_PRODUCTION) return;
   if (!deepScanEnabled && !localStorage.getItem("deepScanConsented")) {
     showDeepScanModal();
     return;
