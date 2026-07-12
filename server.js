@@ -184,6 +184,39 @@ app.use((req, res, next) => {
   req.setTimeout(30000, () => { if (!res.headersSent) res.status(504).json({ error: "Request timeout" }); });
   next();
 });
+
+// Production firewall — must run BEFORE express.static so admin.html cannot be fetched directly
+if (IS_PRODUCTION) {
+  app.use((req, res, next) => {
+    const p = req.path;
+    const blocked = (
+      p.startsWith('/admin') ||
+      p.startsWith('/api/admin') ||
+      p.startsWith('/api/punters') ||
+      p.startsWith('/api/leaderboard') ||
+      p.startsWith('/api/h2h') ||
+      p.startsWith('/api/proxy-h2h') ||
+      p.startsWith('/api/session') ||
+      p.startsWith('/api/intelligence') ||
+      p.startsWith('/api/studio') ||
+      p === '/api/score-selections' ||
+      p === '/api/smart-slips' ||
+      p === '/api/generated-codes' ||
+      p.startsWith('/api/code-history') ||
+      p === '/api/weak-matches' ||
+      p === '/api/submit-code' ||
+      p === '/api/usage' ||
+      p.startsWith('/api/debug') ||
+      p.startsWith('/debug') ||
+      p.startsWith('/punter/') ||
+      (p === '/api/support' && req.method !== 'POST') ||
+      p.startsWith('/api/support/')
+    );
+    if (blocked) return res.status(404).json({ error: 'Not found' });
+    next();
+  });
+}
+
 app.use(express.static(path.join(__dirname, "public"), {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith(".html")) {
@@ -226,38 +259,6 @@ app.use((req, res, next) => {
   if (blocked.some(b => req.path.startsWith(b) || req.path === b)) return res.status(403).json({ error: "Forbidden" });
   next();
 });
-
-// Production firewall — blocks all dev/admin routes before any handler runs
-if (IS_PRODUCTION) {
-  app.use((req, res, next) => {
-    const p = req.path;
-    const blocked = (
-      p.startsWith('/admin') ||
-      p.startsWith('/api/admin') ||
-      p.startsWith('/api/punters') ||
-      p.startsWith('/api/leaderboard') ||
-      p.startsWith('/api/h2h') ||
-      p.startsWith('/api/proxy-h2h') ||
-      p.startsWith('/api/session') ||
-      p.startsWith('/api/intelligence') ||
-      p.startsWith('/api/studio') ||
-      p === '/api/score-selections' ||
-      p === '/api/smart-slips' ||
-      p === '/api/generated-codes' ||
-      p.startsWith('/api/code-history') ||
-      p === '/api/weak-matches' ||
-      p === '/api/submit-code' ||
-      p === '/api/usage' ||
-      p.startsWith('/api/debug') ||
-      p.startsWith('/debug') ||
-      p.startsWith('/punter/') ||
-      (p === '/api/support' && req.method !== 'POST') ||
-      p.startsWith('/api/support/')
-    );
-    if (blocked) return res.status(404).json({ error: 'Not found' });
-    next();
-  });
-}
 
 app.set("trust proxy", 1);
 app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));

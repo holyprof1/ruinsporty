@@ -1541,30 +1541,7 @@ function scanCard(r) {
   const vc={WON:"v-won",LOST:"v-lost",VOID:"v-void",PENDING:"v-pending"}[r.verdict]||"v-pending";
   const manual = r.verdict==="PENDING" ? `<button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'WON')">W</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'LOST')">L</button><button class="btn-manual" onclick="setManual(${jsArg(r.eventId)},'VOID')">V</button>` : "";
   const koTime = r.kickoff ? new Date(r.kickoff).toLocaleString("en-GB", {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "";
-  const origOdds = r.originalOdds && r.originalOdds > 1 ? r.originalOdds : null;
-  const curOdds  = r.currentOdds  && r.currentOdds  > 1 ? r.currentOdds  : null;
-  let oddsTag = '';
-  if (origOdds) {
-    const diff = r.oddsChange || 0;
-    const moved = curOdds && Math.abs(diff) > 0.01;
-    if (moved) {
-      const increased = diff > 0;
-      const cls = increased ? 'odds-up' : 'odds-dn';
-      const label = increased ? '▲ Increased' : '▼ Dropped';
-      const pctStr = r.oddsMovePct != null ? `${r.oddsMovePct > 0 ? '+' : ''}${r.oddsMovePct}%` : '';
-      const tip = `${origOdds.toFixed(2)} → ${curOdds.toFixed(2)}${pctStr ? ' (' + pctStr + ')' : ''}`;
-      oddsTag = `<span class="sel-odds-wrap" title="${tip}">` +
-        `<span class="sel-odds">${origOdds.toFixed(2)}</span>` +
-        `<span class="odds-move ${cls}">${label}</span>` +
-        (pctStr ? `<span class="odds-pct ${cls}">${pctStr}</span>` : '') +
-        `</span>`;
-    } else if (curOdds) {
-      oddsTag = `<span class="sel-odds-wrap" title="No change"><span class="sel-odds">${origOdds.toFixed(2)}</span><span class="odds-move odds-nc">No Change</span></span>`;
-    } else {
-      oddsTag = `<span class="sel-odds">${origOdds.toFixed(2)}</span>`;
-    }
-  }
-  return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(r.homeTeam)} vs ${esc(r.awayTeam)}</div><div class="sel-meta"><span class="sel-market">${esc(r.market)}</span> — ${esc(r.outcome)}${r.league?" · "+esc(r.league):""}${koTime?" · "+koTime:""}</div></div><span class="scan-score">${esc(r.score||"--")}</span>${oddsTag}<span class="v-pill ${vc}">${r.verdict}</span>${manual}</div>`;
+  return `<div class="sel-card"><div class="sel-info"><div class="sel-teams">${esc(r.homeTeam)} vs ${esc(r.awayTeam)}</div><div class="sel-meta"><span class="sel-market">${esc(r.market)}</span> — ${esc(r.outcome)}${r.league?" · "+esc(r.league):""}${koTime?" · "+koTime:""}</div></div><span class="scan-score">${esc(r.score||"--")}</span><span class="v-pill ${vc}">${r.verdict}</span>${manual}</div>`;
 }
 
 window.setManual = function(eid,v) { manualOverrides[eid]=v; renderScanResults(); };
