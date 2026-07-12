@@ -79,11 +79,29 @@ const session = require("express-session");
 const https = require("https");
 const path = require("path");
 const fs = require("fs");
-const xAssistant = require("./x-assistant-engine");
-const intel = require("./intelligence-engine");
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+let xAssistant = null, intel = null;
+if (!IS_PRODUCTION) {
+  xAssistant = require("./x-assistant-engine");
+  intel = require("./intelligence-engine");
+}
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT, 10) || 3000;
+
+// Production email transport (support form → email in prod instead of saving to file)
+let _mailer = null;
+if (IS_PRODUCTION) {
+  const nodemailer = require('nodemailer');
+  _mailer = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'localhost',
+    port: parseInt(process.env.SMTP_PORT || '25'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+    tls: { rejectUnauthorized: false },
+  });
+}
 const BUILD_VERSION = Date.now().toString(36); // unique per restart — injected into HTML asset URLs
 
 const DATA_DIR = path.join(__dirname, "data");
@@ -129,8 +147,10 @@ function trackVisitor(req) {
 const _htmlCache = {};
 function getVersionedHTML(name) {
   if (!_htmlCache[name]) {
-    const raw = fs.readFileSync(path.join(__dirname, "public", name), "utf8");
-    _htmlCache[name] = raw.replace(/\?v=[a-zA-Z0-9._-]+/g, `?v=${BUILD_VERSION}`);
+    let raw = fs.readFileSync(path.join(__dirname, "public", name), "utf8");
+    raw = raw.replace(/\?v=[a-zA-Z0-9._-]+/g, `?v=${BUILD_VERSION}`);
+    if (IS_PRODUCTION) raw = raw.replace('<head>', '<head><script>window.IS_PRODUCTION=true;</script>');
+    _htmlCache[name] = raw;
   }
   return _htmlCache[name];
 }
@@ -206,6 +226,39 @@ app.use((req, res, next) => {
   if (blocked.some(b => req.path.startsWith(b) || req.path === b)) return res.status(403).json({ error: "Forbidden" });
   next();
 });
+
+// Production firewall — blocks all dev/admin routes before any handler runs
+if (IS_PRODUCTION) {
+  app.use((req, res, next) => {
+    const p = req.path;
+    const blocked = (
+      p.startsWith('/admin') ||
+      p.startsWith('/api/admin') ||
+      p.startsWith('/api/punters') ||
+      p.startsWith('/api/leaderboard') ||
+      p.startsWith('/api/h2h') ||
+      p.startsWith('/api/proxy-h2h') ||
+      p.startsWith('/api/session') ||
+      p.startsWith('/api/intelligence') ||
+      p.startsWith('/api/studio') ||
+      p === '/api/score-selections' ||
+      p === '/api/smart-slips' ||
+      p === '/api/generated-codes' ||
+      p.startsWith('/api/code-history') ||
+      p === '/api/weak-matches' ||
+      p === '/api/submit-code' ||
+      p === '/api/usage' ||
+      p.startsWith('/api/debug') ||
+      p.startsWith('/debug') ||
+      p.startsWith('/punter/') ||
+      (p === '/api/support' && req.method !== 'POST') ||
+      p.startsWith('/api/support/')
+    );
+    if (blocked) return res.status(404).json({ error: 'Not found' });
+    next();
+  });
+}
+
 app.set("trust proxy", 1);
 app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
 
@@ -581,8 +634,10 @@ app.get("/api/markets/:eventId", async (req, res) => {
 
     const d = json.data;
     const safeId = eventId.replace(/[^a-zA-Z0-9_\-]/g, "_");
-    const debugPath = path.join(DEBUG_DIR, `${safeId}.json`);
-    fs.writeFileSync(debugPath, JSON.stringify(d, null, 2));
+    if (!IS_PRODUCTION) {
+      const debugPath = path.join(DEBUG_DIR, `${safeId}.json`);
+      fs.writeFileSync(debugPath, JSON.stringify(d, null, 2));
+    }
 
     const allMarkets = (d.markets || []).flatMap((m) =>
       (m.outcomes || [])
@@ -608,7 +663,7 @@ app.get("/api/markets/:eventId", async (req, res) => {
       marketCount: (d.markets || []).length,
       outcomeCount: allMarkets.length,
       markets: allMarkets,
-      debugFile: `debug/markets/${safeId}.json`,
+      ...(IS_PRODUCTION ? {} : { debugFile: `debug/markets/${safeId}.json` }),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1296,9 +1351,25 @@ const SUPPORT_FILE = path.join(DATA_DIR, "support.json");
 function loadSupport() { try { return JSON.parse(fs.readFileSync(SUPPORT_FILE, "utf-8")); } catch { return []; } }
 function saveSupport(data) { fs.writeFileSync(SUPPORT_FILE, JSON.stringify(data, null, 2)); }
 
-app.post("/api/support", (req, res) => {
+app.post("/api/support", async (req, res) => {
   const { name, email, type, message } = req.body;
   if (!email || !message) return res.status(400).json({ error: "Email and message required" });
+  if (IS_PRODUCTION && _mailer) {
+    const to = process.env.SUPPORT_EMAIL || 'support@slippilot.com.ng';
+    const from = process.env.FROM_EMAIL || 'SlipPilot <noreply@slippilot.com.ng>';
+    try {
+      await _mailer.sendMail({
+        from, to, replyTo: email,
+        subject: `[SlipPilot] ${type || 'Support'} from ${name || email}`,
+        text: `Name: ${name || 'Anonymous'}\nEmail: ${email}\nType: ${type || 'Other'}\n\nMessage:\n${message}`,
+        html: `<p><b>Name:</b> ${name || 'Anonymous'}</p><p><b>Email:</b> ${email}</p><p><b>Type:</b> ${type || 'Other'}</p><hr><p>${(message || '').replace(/\n/g, '<br>')}</p>`,
+      });
+    } catch (mailErr) {
+      console.error('[SUPPORT] Email delivery failed:', mailErr.message);
+    }
+    return res.json({ success: true });
+  }
+  // Dev: save to file
   const tickets = loadSupport();
   tickets.push({ id: Date.now(), date: new Date().toISOString(), name: name || "Anonymous", email, type: type || "Other", message, status: "New" });
   saveSupport(tickets);
@@ -2785,85 +2856,87 @@ app.get("/api/admin/rescan-status", requireAdmin, (req, res) => {
   res.json({ running: rescanRunning, ...rescanProgress });
 });
 
-// ── Daily Session Intelligence ──
+// ── Daily Session Intelligence (dev-only) ──
 
-const sessionEngine = require("./session-engine");
-const SESSION_TODAY_FILE = path.join(DATA_DIR, "session-today.json");
+if (!IS_PRODUCTION) {
+  const sessionEngine = require("./session-engine");
+  const SESSION_TODAY_FILE = path.join(DATA_DIR, "session-today.json");
 
-app.get("/api/session/history", requireAdmin, (req, res) => {
-  const HISTORY_FILE = path.join(DATA_DIR, "session-history.json");
-  try {
-    const history = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
-    const summary = history.map(s => ({
-      date: s.date, archivedAt: s.archivedAt,
-      punters: Object.keys(s.punters || {}).length,
-      pool: s.masterPool?.total || 0,
-      consensus: s.masterPool?.consensus || 0,
-      conversions: s.conversions || 0,
-      groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, slips]) => [g, slips.length])),
-      codes: Object.values(s.groups || {}).flat().filter(c => c.code && c.code !== "FAILED").length,
-    }));
-    res.json({ history: summary.reverse(), total: summary.length });
-  } catch { res.json({ history: [], total: 0 }); }
-});
+  app.get("/api/session/history", requireAdmin, (req, res) => {
+    const HISTORY_FILE = path.join(DATA_DIR, "session-history.json");
+    try {
+      const history = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
+      const summary = history.map(s => ({
+        date: s.date, archivedAt: s.archivedAt,
+        punters: Object.keys(s.punters || {}).length,
+        pool: s.masterPool?.total || 0,
+        consensus: s.masterPool?.consensus || 0,
+        conversions: s.conversions || 0,
+        groups: Object.fromEntries(Object.entries(s.groups || {}).map(([g, slips]) => [g, slips.length])),
+        codes: Object.values(s.groups || {}).flat().filter(c => c.code && c.code !== "FAILED").length,
+      }));
+      res.json({ history: summary.reverse(), total: summary.length });
+    } catch { res.json({ history: [], total: 0 }); }
+  });
 
-app.get("/api/session/today", requireAdmin, (req, res) => {
-  try { res.json(JSON.parse(fs.readFileSync(SESSION_TODAY_FILE, "utf-8"))); }
-  catch { res.json({ date: new Date().toISOString().slice(0, 10), status: "empty", punters: {}, groups: {}, pool: [] }); }
-});
+  app.get("/api/session/today", requireAdmin, (req, res) => {
+    try { res.json(JSON.parse(fs.readFileSync(SESSION_TODAY_FILE, "utf-8"))); }
+    catch { res.json({ date: new Date().toISOString().slice(0, 10), status: "empty", punters: {}, groups: {}, pool: [] }); }
+  });
 
-app.post("/api/session/reset", requireAdmin, (req, res) => {
-  try {
-    const result = sessionEngine.resetSession();
-    res.json({ success: true, archived: result.archived, message: result.archived ? "Session archived and reset" : "Fresh session created" });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
+  app.post("/api/session/reset", requireAdmin, (req, res) => {
+    try {
+      const result = sessionEngine.resetSession();
+      res.json({ success: true, archived: result.archived, message: result.archived ? "Session archived and reset" : "Fresh session created" });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
 
-let sessionRunning = false;
-let sessionLogs = [];
+  let sessionRunning = false;
+  let sessionLogs = [];
 
-app.post("/api/session/run", requireAdmin, async (req, res) => {
-  if (sessionRunning) return res.status(409).json({ error: "Session already running" });
-  sessionRunning = true;
-  sessionLogs = [];
+  app.post("/api/session/run", requireAdmin, async (req, res) => {
+    if (sessionRunning) return res.status(409).json({ error: "Session already running" });
+    sessionRunning = true;
+    sessionLogs = [];
 
-  // Build punter map: merge admin punter-codes with any request overrides
-  const stored = loadPunterCodes();
-  const overrides = req.body?.punters || {};
-  const punterMap = {};
-  for (const [name, code] of Object.entries({ ...stored, ...overrides })) {
-    if (code) punterMap[name] = code;
-  }
-  // Support comma-separated multi-codes
-  for (const [name, val] of Object.entries(punterMap)) {
-    if (typeof val === "string" && val.includes(",")) {
-      punterMap[name] = val.split(",").map(c => c.trim()).filter(Boolean);
+    // Build punter map: merge admin punter-codes with any request overrides
+    const stored = loadPunterCodes();
+    const overrides = req.body?.punters || {};
+    const punterMap = {};
+    for (const [name, code] of Object.entries({ ...stored, ...overrides })) {
+      if (code) punterMap[name] = code;
     }
-  }
+    // Support comma-separated multi-codes
+    for (const [name, val] of Object.entries(punterMap)) {
+      if (typeof val === "string" && val.includes(",")) {
+        punterMap[name] = val.split(",").map(c => c.trim()).filter(Boolean);
+      }
+    }
 
-  res.json({ success: true, message: "Generation started", punters: Object.keys(punterMap).length });
+    res.json({ success: true, message: "Generation started", punters: Object.keys(punterMap).length });
 
-  try {
-    await sessionEngine.run(punterMap, (msg) => {
-      sessionLogs.push(msg);
-      console.log("[SESSION]", msg);
-    });
-  } catch (e) {
-    sessionLogs.push("FATAL: " + e.message);
-    console.error("[SESSION FATAL]", e);
-  } finally {
-    sessionRunning = false;
-  }
-});
+    try {
+      await sessionEngine.run(punterMap, (msg) => {
+        sessionLogs.push(msg);
+        console.log("[SESSION]", msg);
+      });
+    } catch (e) {
+      sessionLogs.push("FATAL: " + e.message);
+      console.error("[SESSION FATAL]", e);
+    } finally {
+      sessionRunning = false;
+    }
+  });
 
-app.get("/api/session/status", requireAdmin, (req, res) => {
-  res.json({ running: sessionRunning, logCount: sessionLogs.length, logs: sessionLogs.slice(-80) });
-});
+  app.get("/api/session/status", requireAdmin, (req, res) => {
+    res.json({ running: sessionRunning, logCount: sessionLogs.length, logs: sessionLogs.slice(-80) });
+  });
 
-app.get("/api/session/logs", requireAdmin, (req, res) => {
-  const since = parseInt(req.query.since) || 0;
-  res.json({ running: sessionRunning, logs: sessionLogs.slice(since), total: sessionLogs.length });
-});
+  app.get("/api/session/logs", requireAdmin, (req, res) => {
+    const since = parseInt(req.query.since) || 0;
+    res.json({ running: sessionRunning, logs: sessionLogs.slice(since), total: sessionLogs.length });
+  });
+}
 
 // ── Content Studio Reports ──────────────────────────────────────────────────
 const STUDIO_FILE = path.join(DATA_DIR, 'studio-reports.json');
@@ -3561,25 +3634,6 @@ function runDailyCleanup() {
 
   console.log('[Cleanup] Done —', new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }));
 }
-
-// ── Health endpoint ──
-
-app.get("/api/health", (req, res) => {
-  const mem = process.memoryUsage();
-  res.json({
-    status: "ok",
-    uptime: Math.floor((Date.now() - _startTime) / 1000),
-    memMB: Math.round(mem.heapUsed / 1024 / 1024),
-    ts: new Date().toISOString()
-  });
-});
-
-// ── Global error handler (Express) ──
-
-app.use((err, req, res, next) => {
-  writeCrashLog("EXPRESS_ERROR", err);
-  if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
-});
 
 // ── Graceful shutdown ──
 
