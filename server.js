@@ -111,12 +111,12 @@ const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
 const DEBUG_DIR = path.join(__dirname, "debug", "markets");
 const H2H_DEBUG_DIR = path.join(__dirname, "debug", "h2h");
 const REPORTS_DIR = path.join(DATA_DIR, "reports");
-fs.mkdirSync(DATA_DIR, { recursive: true });
-fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-fs.mkdirSync(REPORTS_DIR, { recursive: true });
+try { fs.mkdirSync(DATA_DIR,     { recursive: true }); } catch(e) { console.error('[STARTUP] Cannot create DATA_DIR:',     e.message); }
+try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch(e) { console.error('[STARTUP] Cannot create SESSIONS_DIR:', e.message); }
+try { fs.mkdirSync(REPORTS_DIR,  { recursive: true }); } catch(e) { console.error('[STARTUP] Cannot create REPORTS_DIR:',  e.message); }
 if (!IS_PRODUCTION) {
-  fs.mkdirSync(DEBUG_DIR, { recursive: true });
-  fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true });
+  try { fs.mkdirSync(DEBUG_DIR,     { recursive: true }); } catch(e) {}
+  try { fs.mkdirSync(H2H_DEBUG_DIR, { recursive: true }); } catch(e) {}
 }
 
 function localToday() {
@@ -2794,7 +2794,7 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
     try {
       const cutoff3Days = Date.now() - 3 * 86400000;
       const partialDates = [];
-      for (const f of (fs.readdirSync(REPORTS_DIR).catch ? [] : fs.readdirSync(REPORTS_DIR)).filter(f => f.endsWith('.json'))) {
+      for (const f of fs.readdirSync(REPORTS_DIR).filter(f => f.endsWith('.json'))) {
         const dateStr = f.slice(0, 10);
         if (new Date(dateStr).getTime() < cutoff3Days) continue;
         if (dateStr === today) continue; // today is expected to be partial
@@ -3073,11 +3073,13 @@ app.post("/api/admin/x-assistant/analyze", requireAdmin, async (req, res) => {
 });
 
 app.get("/api/admin/x-assistant/history", requireAdmin, (req, res) => {
+  if (!xAssistant) return res.json([]);
   const list = xAssistant.loadHistory();
   res.json(list.slice().reverse());
 });
 
 app.get("/api/admin/x-assistant/history/:id", requireAdmin, (req, res) => {
+  if (!xAssistant) return res.status(404).json({ error: "Not found" });
   const list = xAssistant.loadHistory();
   const entry = list.find((e) => e.id === req.params.id);
   if (!entry) return res.status(404).json({ error: "Not found" });
@@ -3190,265 +3192,7 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
   }
 });
 
-// ── Smart Slips now fully delegates to intelligence-engine v7 (see above) ──
 
-async function _deadCodeNeverCall() { // kept for syntax closure only — unreachable
-  const codes       = loadPunterCodes();
-  const lb          = loadLeaderboard();
-  const bank        = loadOddsBank();
-  const leagueIntel = loadLeagueIntelligence();
-  const marketIntel = loadMarketIntelligence();
-  const teamIntel   = loadTeamIntelligence();
-  const selHistory  = loadSelectionHistory();
-  const lbMap       = new Map(lb.map(p => [p.punter, p]));
-  const weakMatches = (() => { try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "weak-matches.json"), "utf8")); } catch { return {}; } })();
-
-  const allSels = [], fetchErrors = [], puntScanned = [];
-  const now = Date.now();
-
-  for (const [name, code] of Object.entries(codes)) {
-    if (!code || name.startsWith("_")) continue;
-    const codeStr = typeof code === "string" ? code : (Array.isArray(code) ? code[0] : "");
-    if (!codeStr) continue;
-    try {
-      const url  = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(codeStr)}`;
-      const json = await fetchJSON(url);
-      if (!json || json.bizCode !== 10000 || !json.data) continue;
-      const sels = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
-      storeOriginalOdds(bank, sels, new Date().toISOString());
-
-      // 50% filter: only skip a code if SOME games have decided but less than half —
-      // indicates a stale/mixed slip. Fresh codes (0 settled) are always included.
-      const allVerdicts = sels.map(s => evaluateVerdict(s));
-      const decidedCount = allVerdicts.filter(v => v === 'WON' || v === 'LOST' || v === 'VOID').length;
-      if (sels.length > 0 && decidedCount > 0 && decidedCount < sels.length * 0.5) {
-        fetchErrors.push(`${name}: only ${decidedCount}/${sels.length} games settled — skipped`);
-        puntScanned.push(name);
-        await new Promise(r => setTimeout(r, 150));
-        continue;
-      }
-
-      for (const s of sels) {
-        // Only include matches that haven't started yet (next-24h window)
-        if (s.kickoff && new Date(s.kickoff).getTime() <= now) continue;
-        allSels.push({ ...s, punter: name, code: codeStr, originalOdds: getBankOdds(bank, s) });
-      }
-      puntScanned.push(name);
-      await new Promise(r => setTimeout(r, 150));
-    } catch (e) { fetchErrors.push(`${name}: ${e.message}`); }
-  }
-
-  if (allSels.length < 3) {
-    const why = puntScanned.length === 0
-      ? "No codes could be read from SportyBet. Make sure punter codes are saved in the Session tab."
-      : `Only ${allSels.length} upcoming games found from ${puntScanned.length} punter${puntScanned.length !== 1 ? 's' : ''}. Most matches may have already started — add codes earlier in the day or after punters post tomorrow's picks.`;
-    return res.json({ success: false, error: why, fetchErrors, slips: [] });
-  }
-
-  // Deduplicate by event+market+outcome
-  const selMap = {};
-  for (const s of allSels) {
-    const key = `${s.eventId}|${s.marketId}|${s.outcomeId}`;
-    if (!selMap[key]) selMap[key] = { ...s, punters: [], codes: [], score: 50, reasons: [], warnings: [], removed: false };
-    const e = selMap[key];
-    if (!e.punters.includes(s.punter)) e.punters.push(s.punter);
-    if (!e.codes.includes(s.code))     e.codes.push(s.code);
-  }
-
-  // Kickoff bunching map: count selections per kickoff slot (within 5 min)
-  const kickoffSlots = {};
-  for (const s of Object.values(selMap)) {
-    if (!s.kickoff) continue;
-    const slot = Math.floor(new Date(s.kickoff).getTime() / 300000); // 5-min buckets
-    kickoffSlots[slot] = (kickoffSlots[slot] || 0) + 1;
-  }
-
-  // ── Score each unique selection ───────────────────────────────────────────
-  for (const s of Object.values(selMap)) {
-    if (isBannedLeague(s.league)) { s.removed = true; s.removeReason = `Banned league: ${s.league}`; continue; }
-
-    let sc = 50;
-
-    // Factor 1: Punter lifetime hit rate (weight: 0.3x, capped ±15)
-    const pEntries = s.punters.map(n => lbMap.get(n)).filter(Boolean);
-    const pHRs = pEntries.map(p => p.hitRate || 50);
-    const avgPHR = pHRs.length ? pHRs.reduce((a, b) => a + b, 0) / pHRs.length : 50;
-    const lifetimeAdj = Math.max(-15, Math.min(15, (avgPHR - 50) * 0.3));
-    sc += lifetimeAdj;
-
-    // Factor 2: Punter recent form — last 7 days (weight: 0.5x, capped ±15)
-    const recentForms = pEntries.map(p => getRecentForm(p, 7)).filter(x => x !== null);
-    if (recentForms.length) {
-      const avgRecent = recentForms.reduce((a, b) => a + b, 0) / recentForms.length;
-      const recentAdj = Math.max(-15, Math.min(15, (avgRecent - 50) * 0.5));
-      sc += recentAdj;
-      if (avgRecent >= 75) s.reasons.push(`Hot form: ${Math.round(avgRecent)}% (7d)`);
-      if (avgRecent < 45)  s.warnings.push(`Cold form: only ${Math.round(avgRecent)}% (7d)`);
-    } else {
-      if (avgPHR >= 70) s.reasons.push(`Punters avg ${Math.round(avgPHR)}% lifetime HR`);
-      if (avgPHR < 50)  s.warnings.push(`Punters avg ${Math.round(avgPHR)}% lifetime HR`);
-    }
-
-    // Factor 3: Consensus (capped ±20)
-    const punterCount = s.punters.length;
-    if (punterCount >= 4)      { sc += 20; s.reasons.push(`${punterCount} punters agree — strong consensus`); }
-    else if (punterCount === 3) { sc += 15; s.reasons.push(`3 punters agree`); }
-    else if (punterCount === 2) { sc += 8;  s.reasons.push("2 punters agree"); }
-    else                        { sc -= 5;  }
-
-    // Factor 4: League intelligence (capped ±15)
-    const li = leagueIntel[s.league];
-    if (li && li.totalSelections >= 5) {
-      if (li.hitRate >= 70)     { sc += 12; s.reasons.push(`${s.league}: ${li.hitRate}% historical HR`); }
-      else if (li.hitRate >= 55){ sc += 5;  }
-      else if (li.hitRate < 50) { sc -= 15; s.warnings.push(`${s.league}: only ${li.hitRate}% historically (${li.totalSelections} games)`); }
-      // Best market within league
-      const lm = li.markets?.[s.market];
-      if (lm && (lm.won + lm.lost) >= 3) {
-        if (lm.hitRate >= 75)    { sc += 8; s.reasons.push(`${s.market} in ${s.league}: ${lm.hitRate}% HR`); }
-        else if (lm.hitRate < 45){ sc -= 8; s.warnings.push(`${s.market} underperforms in ${s.league}: ${lm.hitRate}%`); }
-      }
-    } else if (li && li.banned) {
-      s.removed = true; s.removeReason = `Flagged league: ${s.league}`; continue;
-    }
-
-    // Factor 5: Market intelligence (capped ±12)
-    const mi = marketIntel[s.market];
-    if (mi && mi.totalSelections >= 5) {
-      if (mi.hitRate >= 70)     { sc += 10; s.reasons.push(`${s.market}: ${mi.hitRate}% global market HR`); }
-      else if (mi.hitRate >= 55){ sc += 4;  }
-      else if (mi.hitRate < 50) {
-        sc -= 12;
-        const alt = s.market.includes("2.5") ? "Over 1.5" : s.market === "GG" || s.market.toLowerCase().includes("goal") ? "Double Chance" : null;
-        s.warnings.push(alt ? `${s.market} ${mi.hitRate}% — try ${alt}` : `${s.market}: ${mi.hitRate}% market HR`);
-      }
-      // Pricing sanity: if original odds >> average winning odds for this market, be skeptical
-      if (mi.avgWinOdds > 0 && s.originalOdds > 0) {
-        const pricingRatio = s.originalOdds / mi.avgWinOdds;
-        if (pricingRatio > 2.5) { sc -= 8; s.warnings.push(`Priced ${pricingRatio.toFixed(1)}x above typical winning odds`); }
-        else if (pricingRatio < 0.5) { sc += 5; s.reasons.push("Below typical odds for this market — value"); }
-      }
-    }
-
-    // Factor 6: Selection history — this exact match+market+outcome (capped ±15)
-    const sh = selHistory[oddsKey(s)];
-    if (sh && sh.appearances >= 2) {
-      if (sh.hitRate >= 70)     { sc += 12; s.reasons.push(`This pick: ${sh.hitRate}% in ${sh.appearances} appearances`); }
-      else if (sh.hitRate < 40) { sc -= 15; s.warnings.push(`This pick: only ${sh.hitRate}% in ${sh.appearances} appearances — recurring loser`); }
-      else if (sh.hitRate < 55) { sc -= 5; }
-    }
-
-    // Factor 7: Weak matches (penalty only)
-    const wm = weakMatches[s.eventId];
-    if (wm && wm.losses > 0) {
-      const failRate = wm.appearances > 0 ? Math.round(wm.losses / wm.appearances * 100) : 0;
-      if (failRate >= 60)      { sc -= 15; s.warnings.push(`High-risk game: ${failRate}% failure (${wm.losses}/${wm.appearances})`); }
-      else if (failRate >= 40) { sc -= 8;  s.warnings.push(`Risky game: ${failRate}% failure rate`); }
-    }
-
-    // Factor 8: Odds sanity (bookmaker pricing signal, capped ±20)
-    const odds = s.originalOdds || s.odds || 0;
-    if (odds > 10)          { sc -= 20; s.warnings.push(`Very high odds (${odds.toFixed(2)}) — low probability`); }
-    else if (odds > 5)      { sc -= 12; s.warnings.push(`High odds (${odds.toFixed(2)})`); }
-    else if (odds > 3.5)    { sc -= 5; }
-    else if (odds > 0 && odds <= 1.35) { sc += 8;  s.reasons.push("Very low-risk odds"); }
-    else if (odds <= 1.7)   { sc += 4; }
-
-    // Factor 9: Kickoff bunching — correlated exposure penalty
-    if (s.kickoff) {
-      const slot = Math.floor(new Date(s.kickoff).getTime() / 300000);
-      const bunchCount = kickoffSlots[slot] || 0;
-      if (bunchCount >= 5)     { sc -= 8;  s.warnings.push(`${bunchCount} games kick off simultaneously — correlated risk`); }
-      else if (bunchCount >= 3){ sc -= 3; }
-    }
-
-    // Factor 10: Team intelligence
-    const ti = s.homeTeam ? teamIntel[s.homeTeam] : null;
-    const out = (s.outcome || "").toLowerCase();
-    if (ti) {
-      if ((out === "home" || out === "1") && ti.home.hitRate != null && ti.home.won + ti.home.lost >= 3) {
-        if (ti.home.hitRate >= 70)     { sc += 6; s.reasons.push(`${s.homeTeam} strong at home (${ti.home.hitRate}%)`); }
-        else if (ti.home.hitRate < 40) { sc -= 8; s.warnings.push(`${s.homeTeam} weak at home (${ti.home.hitRate}%)`); }
-      }
-    }
-    const tai = s.awayTeam ? teamIntel[s.awayTeam] : null;
-    if (tai) {
-      if ((out === "away" || out === "2") && tai.away.hitRate != null && tai.away.won + tai.away.lost >= 3) {
-        if (tai.away.hitRate >= 70)     { sc += 6; s.reasons.push(`${s.awayTeam} strong away (${tai.away.hitRate}%)`); }
-        else if (tai.away.hitRate < 40) { sc -= 8; s.warnings.push(`${s.awayTeam} weak away (${tai.away.hitRate}%)`); }
-      }
-    }
-
-    s.score = Math.round(Math.max(0, Math.min(100, sc)));
-  }
-
-  const valid = Object.values(selMap)
-    .filter(s => !s.removed)
-    .sort((a, b) => b.score - a.score || b.punters.length - a.punters.length);
-
-  const tierACount = valid.filter(s => s.score >= 60).length;
-  const tierBCount = valid.filter(s => s.score >= 45).length;
-
-  if (valid.length < 3) {
-    const removed = Object.values(selMap).filter(s => s.removed);
-    const why = `Only ${valid.length} selections survived filters (${removed.length} removed — ${removed.slice(0,3).map(s=>s.removeReason).join("; ")}).`;
-    return res.json({ success: false, error: why, removed: removed.map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })), slips: [] });
-  }
-
-  if (valid.length < 3) {
-    const removed = Object.values(selMap).filter(s => s.removed);
-    return res.json({ success: false, error: `Only ${valid.length} selections survived filters (${removed.length} removed). Add more punter codes or run Rescan All.`, removed: removed.map(s => ({ match: `${s.homeTeam} vs ${s.awayTeam}`, reason: s.removeReason })), slips: [] });
-  }
-
-  // ── Build 3 tiers with different risk/reward profiles ──
-  // Tier A — Conservative: top-scored picks, moderate odds target 1K-50K
-  // Tier B — Balanced: wider pool, medium odds 50K-500K
-  // Tier C — Boomshot: all valid, targeting high odds 500K+
-
-  function pickSlip(pool, count, label) {
-    // Sort by score; take `count` picks
-    const picks = pool.slice(0, Math.min(count, pool.length, 50));
-    if (picks.length < 3) return null;
-    const totalOdds = picks.reduce((acc, s) => acc * (s.originalOdds || s.odds || 1), 1);
-    return {
-      label,
-      selections: picks.map(s => ({
-        homeTeam: s.homeTeam, awayTeam: s.awayTeam, league: s.league,
-        market: s.market, outcome: s.outcome,
-        odds: s.originalOdds || (s.odds > 1 ? s.odds : null),
-        punters: s.punters, score: s.score,
-        reasons: s.reasons, warnings: s.warnings,
-        kickoff: s.kickoff,
-        eventId: s.eventId, marketId: s.marketId,
-        outcomeId: s.outcomeId, productId: s.productId || 3,
-        specifier: s.specifier, sportId: s.sportId,
-      })),
-      totalOdds: Math.round(totalOdds * 100) / 100,
-      totalOddsFormatted: formatTotalOdds(totalOdds),
-      avgScore: Math.round(picks.reduce((a, s) => a + s.score, 0) / picks.length),
-      gameCount: picks.length,
-    };
-  }
-
-  // Build slip candidates
-  const hiScore = valid.filter(s => s.score >= 60);
-  const midScore = valid.filter(s => s.score >= 45);
-  const allValid = valid;
-
-  const candidates = [
-    // Tier A: Conservative (6-8 games, top picks by score)
-    pickSlip(hiScore.length >= 6 ? hiScore : allValid, 7, "Conservative"),
-    pickSlip(hiScore.length >= 6 ? hiScore : allValid, 6, "Conservative"),
-    // Tier B: Balanced (10-12 games)
-    pickSlip(midScore.length >= 10 ? midScore : allValid, 12, "Balanced"),
-    pickSlip(midScore.length >= 10 ? midScore : allValid, 10, "Balanced"),
-    // Tier C: Boomshot (14-20 games, all valid, favour high-odds picks)
-    pickSlip(allValid, 18, "Boomshot"),
-    pickSlip(allValid, 14, "Boomshot"),
-    // Extra: Consensus only (picks agreed by 2+ punters)
-    pickSlip(valid.filter(s => s.punters.length >= 2), 10, "Consensus"),
-  ].filter(Boolean); // end of legacy candidates array (dead code — never executed)
-} // end _legacySmartSlipsInner_DO_NOT_USE
 
 // Rebuild a specific date's analysis report by re-scanning all punter codes for that date
 app.post("/api/admin/rebuild-report/:date", requireAdmin, async (req, res) => {
