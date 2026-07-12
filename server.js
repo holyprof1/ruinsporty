@@ -181,10 +181,22 @@ app.use(express.json({ limit: "1mb" }));
 
 // Health check for the wrapper, cPanel, and simple uptime probes
 app.get("/api/health", (req, res) => {
+  const mem = process.memoryUsage();
   res.json({
     ok: true,
     uptime: Math.round(process.uptime()),
+    build: BUILD_VERSION,
+    memMB: Math.round(mem.heapUsed / 1024 / 1024),
     time: new Date().toISOString(),
+  });
+});
+
+// Deployment verification: confirms which build is running + cache busting is active
+app.get("/api/version", (req, res) => {
+  res.json({
+    version: BUILD_VERSION,
+    built: new Date(parseInt(BUILD_VERSION, 36)).toISOString(),
+    uptime: Math.round(process.uptime()),
   });
 });
 
@@ -3472,6 +3484,24 @@ app.get("/api/admin/x-intel", requireAdmin, (req, res) => {
     const ctx = intel.getXContext();
     res.json({ success: true, ...ctx });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Odds history inspection — shows all stored pre-match odds for debugging
+app.get("/api/admin/odds-history", requireAdmin, (req, res) => {
+  try {
+    const bank = loadOddsBank();
+    const now = Date.now();
+    const entries = Object.entries(bank)
+      .map(([key, v]) => ({
+        key, eventId: v.eventId, homeTeam: v.homeTeam, awayTeam: v.awayTeam,
+        league: v.league, market: v.market, outcome: v.outcome,
+        originalOdds: v.originalOdds, kickoff: v.kickoff,
+        firstSeen: v.firstSeen,
+        ageHours: v.firstSeen ? Math.round((now - new Date(v.firstSeen).getTime()) / 3600000) : null,
+      }))
+      .sort((a, b) => (b.firstSeen || "").localeCompare(a.firstSeen || ""));
+    res.json({ count: entries.length, entries: entries.slice(0, 500) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Global error handler (must be last middleware) ──
