@@ -214,7 +214,8 @@ if (IS_PRODUCTION) {
       p.startsWith('/debug') ||
       p.startsWith('/punter/') ||
       (p === '/api/support' && req.method !== 'POST') ||
-      p.startsWith('/api/support/')
+      p.startsWith('/api/support/') ||
+      p === '/api/header-inject'
     );
     if (blocked) return res.status(404).json({ error: 'Not found' });
     next();
@@ -265,7 +266,9 @@ app.use((req, res, next) => {
 });
 
 app.set("trust proxy", 1);
-app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
+if (!IS_PRODUCTION) {
+  app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
+}
 
 // ── Helpers ──
 
@@ -1359,7 +1362,14 @@ function saveSupport(data) { fs.writeFileSync(SUPPORT_FILE, JSON.stringify(data,
 app.post("/api/support", async (req, res) => {
   const { name, email, type, message } = req.body;
   if (!email || !message) return res.status(400).json({ error: "Email and message required" });
-  if (IS_PRODUCTION && _mailer) {
+
+  // Always persist ticket to file (backup in production, primary in dev)
+  const ticket = { id: Date.now(), date: new Date().toISOString(), name: name || "Anonymous", email, type: type || "Other", message, status: "New" };
+  try { const tickets = loadSupport(); tickets.push(ticket); saveSupport(tickets); }
+  catch (saveErr) { console.error('[SUPPORT] File save failed:', saveErr.message); }
+
+  // Email immediately if mailer configured
+  if (_mailer) {
     const to = process.env.SUPPORT_EMAIL || 'support@slippilot.com.ng';
     const from = process.env.FROM_EMAIL || 'SlipPilot <noreply@slippilot.com.ng>';
     try {
@@ -1372,12 +1382,8 @@ app.post("/api/support", async (req, res) => {
     } catch (mailErr) {
       console.error('[SUPPORT] Email delivery failed:', mailErr.message);
     }
-    return res.json({ success: true });
   }
-  // Dev: save to file
-  const tickets = loadSupport();
-  tickets.push({ id: Date.now(), date: new Date().toISOString(), name: name || "Anonymous", email, type: type || "Other", message, status: "New" });
-  saveSupport(tickets);
+
   res.json({ success: true });
 });
 

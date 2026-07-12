@@ -6,6 +6,8 @@ data/
 .env
 .env.production
 slippilot-deploy.zip
+deployment.zip
+tmp-*.js
 gen*.js
 boost-generation.js
 deep-comparison.js
