@@ -20,7 +20,7 @@ process.on("unhandledRejection", (reason) => {
   writeCrashLog("UNHANDLED_REJECTION", reason instanceof Error ? reason : new Error(String(reason)));
 });
 
-// Keep-alive: ping /api/health every 4 minutes to prevent cPanel killing idle process
+// Keep-alive: ping /api/health every 90s (cPanel Passenger idle timeout can be as low as 2 min)
 setInterval(() => {
   try {
     const http = require("http");
@@ -28,20 +28,50 @@ setInterval(() => {
       let d = ""; r.on("data", c => d += c); r.on("end", () => {});
     }).on("error", () => {});
   } catch {}
-}, 4 * 60 * 1000);
+}, 90 * 1000);
 
-// Memory management
+// Memory management + cache/rate-limiter housekeeping
 setInterval(() => {
   const mem = process.memoryUsage();
   const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
-  console.log("[MEM] Heap: " + heapMB + "MB");
-  // Clear caches if memory getting high
-  if (heapMB > 250) {
+  const rssMB  = Math.round(mem.rss / 1024 / 1024);
+  console.log(`[MEM] Heap: ${heapMB}MB  RSS: ${rssMB}MB`);
+
+  // Purge expired bookingCache entries (TTL = 5 min) — prevents unbounded growth
+  const now = Date.now();
+  try {
+    for (const [k, v] of bookingCache) {
+      if (now - v.time > BOOKING_CACHE_TTL) bookingCache.delete(k);
+    }
+    // Hard cap: keep only 200 most-recent entries
+    if (bookingCache.size > 200) {
+      const entries = [...bookingCache.entries()].sort((a,b)=>a[1].time-b[1].time);
+      for (let i = 0; i < entries.length - 200; i++) bookingCache.delete(entries[i][0]);
+    }
+  } catch {}
+
+  // Purge expired rate-limiter entries (these NEVER got cleaned — the memory leak)
+  try {
+    for (const [k, v] of bookingRateMap) { if (now > v.reset) bookingRateMap.delete(k); }
+    for (const [k, v] of generateRateMap) { if (now > v.reset) generateRateMap.delete(k); }
+  } catch {}
+
+  // Purge oddsStore beyond 2000 entries (trim oldest half when over cap)
+  try {
+    if (typeof oddsStore !== "undefined" && oddsStore.size > 2000) {
+      const ks = [...oddsStore.keys()];
+      for (let i = 0; i < ks.length - 1000; i++) oddsStore.delete(ks[i]);
+    }
+  } catch {}
+
+  // Emergency clears at high memory
+  if (heapMB > 220) {
     try { bookingCache.clear(); } catch {}
     try { if (typeof oddsStore !== "undefined") oddsStore.clear(); } catch {}
-    console.log("[MEM] Caches cleared at " + heapMB + "MB");
+    try { bookingRateMap.clear(); generateRateMap.clear(); } catch {}
+    console.log(`[MEM] Emergency clear at ${heapMB}MB`);
   }
-  if (heapMB > 400) { console.error("[OOM] " + heapMB + "MB — restarting"); process.exit(1); }
+  if (heapMB > 380) { console.error(`[OOM] ${heapMB}MB — restarting`); process.exit(1); }
 }, 60000);
 require("dotenv").config();
 const express = require("express");
@@ -96,6 +126,15 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json({ limit: "1mb" }));
+
+// Health check for the wrapper, cPanel, and simple uptime probes
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    uptime: Math.round(process.uptime()),
+    time: new Date().toISOString(),
+  });
+});
 
 // Block direct access to sensitive files
 app.use((req, res, next) => {
@@ -1453,10 +1492,14 @@ app.post("/api/admin/regen-merged", requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Regenerate all codes (runs analyze2.js)
+// Regenerate all codes (runs analyze2.js) — guard against concurrent spawns
+let _regenRunning = false;
 app.post("/api/admin/regen-all", requireAdmin, (req, res) => {
+  if (_regenRunning) return res.json({ success: false, message: "Analysis already running — wait for it to finish." });
+  _regenRunning = true;
   const { execFile } = require("child_process");
-  execFile("node", [path.join(__dirname, "analyze2.js")], { timeout: 600000 }, (err, stdout, stderr) => {
+  execFile("node", [path.join(__dirname, "analyze2.js")], { timeout: 300000 }, (err, stdout, stderr) => {
+    _regenRunning = false;
     if (err) return res.json({ success: false, message: "Analysis failed: " + (err.message || stderr).slice(0, 200) });
     res.json({ success: true, message: "Analysis complete. Codes regenerated.", output: stdout.slice(-500) });
   });
@@ -1994,6 +2037,11 @@ function loadOddsBank() {
   try { return JSON.parse(fs.readFileSync(ODDS_BANK_FILE, "utf8")); } catch { return {}; }
 }
 
+// Debounced async write — prevents blocking the event loop on every booking fetch
+let _oddsBankWriteTimer = null;
+let _oddsBankDirty = false;
+let _oddsBankCache = null;
+
 function storeOriginalOdds(bank, selections, timestamp) {
   let changed = false;
   for (const s of selections) {
@@ -2009,7 +2057,17 @@ function storeOriginalOdds(bank, selections, timestamp) {
     }
   }
   if (changed) {
-    try { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(bank, null, 2)); } catch {}
+    _oddsBankDirty = true;
+    _oddsBankCache = bank;
+    // Debounce: write once after 3s of no new entries (not on every request)
+    clearTimeout(_oddsBankWriteTimer);
+    _oddsBankWriteTimer = setTimeout(() => {
+      if (_oddsBankDirty && _oddsBankCache) {
+        try { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(_oddsBankCache, null, 2)); }
+        catch {}
+        _oddsBankDirty = false;
+      }
+    }, 3000);
   }
 }
 
@@ -3398,11 +3456,16 @@ app.use((err, req, res, next) => {
 
 function gracefulShutdown(signal) {
   console.log(`[SHUTDOWN] ${signal} received — closing server`);
-  server.close(() => {
-    console.log("[SHUTDOWN] HTTP server closed");
+  // Flush any pending odds-bank writes before exit
+  if (_oddsBankDirty && _oddsBankCache) {
+    try { fs.writeFileSync(ODDS_BANK_FILE, JSON.stringify(_oddsBankCache, null, 2)); } catch {}
+  }
+  if (typeof server !== 'undefined' && server) {
+    server.close(() => { console.log("[SHUTDOWN] HTTP server closed"); process.exit(0); });
+  } else {
     process.exit(0);
-  });
-  setTimeout(() => { console.error("[SHUTDOWN] Forced exit after 10s"); process.exit(1); }, 10000);
+  }
+  setTimeout(() => { console.error("[SHUTDOWN] Forced exit after 8s"); process.exit(1); }, 8000);
 }
 
 // ── Start ──
