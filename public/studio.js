@@ -273,9 +273,18 @@ function processLeaderboard(raw, targetDate) {
   return { date: targetDate, punters, pendingOnly, avgHR };
 }
 
+// v16 §3 — low-sample punter exclusion for aggregated (weekly/monthly)
+// leaderboard views. "games tracked" = the distinct days that had ANY
+// punter activity in the selected period (the most any punter could have
+// played); a punter who only shows up on a small fraction of those days has
+// too thin a sample to rank fairly alongside fully-tracked punters.
+// Configurable — change CS_MIN_TRACKED_PCT to adjust the threshold.
+const CS_MIN_TRACKED_PCT = 0.40;
+
 function aggregateLeaderboard(raw, startDate, endDate) {
   const list = Array.isArray(raw.leaderboard) ? raw.leaderboard : [];
   const map  = {};
+  const trackedDates = new Set();
 
   list.forEach(p => {
     const name    = normaliseName(p.punter);
@@ -293,23 +302,30 @@ function aggregateLeaderboard(raw, startDate, endDate) {
       agg.games   += c.games   || ((c.won || 0) + (c.lost || 0) + (c.void || 0) + (c.pending || 0));
       agg.days    += 1;
       if (c.code) agg.codes.push(c.code);
+      trackedDates.add(c.date);
     });
   });
 
-  const punters = Object.values(map)
+  const totalTrackedDays = trackedDates.size || 1;
+
+  const allPunters = Object.values(map)
     .map(p => {
       const settled = p.won + p.lost;
       const hitRate = settled > 0 ? Math.round(p.won / settled * 100) : 0;
-      return { ...p, settled, hitRate, totalOdds: null, code: p.codes[0] || null, trend: '—' };
+      return { ...p, settled, hitRate, totalOdds: null, code: p.codes[0] || null, trend: '—', trackedPct: p.days / totalTrackedDays };
     })
-    .filter(p => p.settled >= 2)
+    .filter(p => p.settled >= 2);
+
+  const hiddenLowSample = allPunters.filter(p => p.trackedPct < CS_MIN_TRACKED_PCT).length;
+  const punters = allPunters
+    .filter(p => p.trackedPct >= CS_MIN_TRACKED_PCT)
     .sort((a, b) => b.hitRate - a.hitRate || b.won - a.won);
 
   const avgHR = punters.length
     ? Math.round(punters.reduce((s, p) => s + p.hitRate, 0) / punters.length)
     : 0;
 
-  return { punters, avgHR };
+  return { punters, avgHR, hiddenLowSample, minTrackedPct: CS_MIN_TRACKED_PCT };
 }
 
 // ── League Watch ──────────────────────────────────────────────────────────────
@@ -1008,6 +1024,8 @@ async function _buildReportPayload(type) {
     best:        data.punters[0]?.name   || null,
     bestHR:      data.punters[0]?.hitRate ?? null,
     rankings:    data.punters,
+    hiddenLowSample: data.hiddenLowSample || 0,
+    minTrackedPct:   data.minTrackedPct   || null,
     caption,
     reply,
     leagueWatch: lw,
@@ -1055,8 +1073,11 @@ function csDisplayReport(report) {
     const ts = report.timestamp
       ? new Date(report.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
       : '';
+    const hiddenNote = report.hiddenLowSample
+      ? `  ·  ${report.hiddenLowSample} punter${report.hiddenLowSample === 1 ? '' : 's'} hidden — under ${Math.round((report.minTrackedPct || 0.4) * 100)}% games tracked`
+      : '';
     metaEl.textContent =
-      `Generated ${ts}  ·  ${report.punterCount || data.punters.length} analysts  ·  ${report.avgHR}% avg hit rate`;
+      `Generated ${ts}  ·  ${report.punterCount || data.punters.length} analysts  ·  ${report.avgHR}% avg hit rate${hiddenNote}`;
   }
 
   const c1 = document.getElementById('cs-canvas-1');
@@ -1124,7 +1145,9 @@ async function generateDailyReport(force) {
 
 async function _doGenerate() {
   const btn = document.getElementById('cs-gen-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  // v17 §2 — shared loading-state pattern (spinner + disable), same as
+  // every other async button in the admin app.
+  const restore = btn ? genLoadingButton(btn, 'Generating…') : null;
   csHideError();
   if (!_logoImg) await _loadLogo();
   try {
@@ -1139,12 +1162,12 @@ async function _doGenerate() {
     csDisplayReport(report);
     csStatus('Report saved.', P.green);
     setTimeout(() => csStatus(''), 3000);
+    if (restore) restore();
   } catch (e) {
     console.error('[Studio]', e);
     csShowError(e.message);
     csStatus('');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '✦ Generate Report'; }
+    if (restore) restore(e.message);
   }
 }
 
@@ -1341,6 +1364,7 @@ function switchStudioTab(tab) {
     c.classList.toggle('active', c.dataset.tab === tab));
   if (tab === 'history')   csRenderHistory();
   if (tab === 'templates') csRenderTemplates();
+  if (tab === 'dailypost') loadDailyPost();
   // 'slips' tab is self-contained — user clicks Generate manually
 }
 
@@ -1871,9 +1895,17 @@ function csRenderSpecialPosts(data, analysis) {
 async function loadStudio() {
   csHideError();
   csStatus('Loading…', P.blue);
-  // Default to yesterday — today's data is never complete yet
+  // v16 §1 — shared date selector. Default to yesterday — today's data is
+  // never complete yet. The hidden #cs-date-picker input stays in sync so
+  // getTargetDate() (used throughout this file) doesn't need touching.
   const picker = document.getElementById('cs-date-picker');
   if (picker && !picker.value) picker.value = getYesterday();
+  if (document.getElementById('cs-dateselect')) {
+    renderDateSelector('cs-dateselect', {
+      value: picker.value,
+      onChange: d => { picker.value = d; },
+    });
+  }
   await _loadLogo();
   try {
     const reports = await safeFetch('/api/studio/reports');

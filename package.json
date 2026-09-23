@@ -6,7 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "deploy:zip": "node create-deploy-zip.js"
+    "test:hosting": "node --test test/hosting-safety.test.js",
+    "load:hosting": "node tools/hosting-load-test.js",
+    "deploy:zip": "node create-deploy-zip.js",
+    "autobet:login": "node sporty-autobet.js --login",
+    "autobet:calibrate": "node sporty-autobet.js --calibrate",
+    "autobet:dry": "node sporty-autobet.js"
   },
   "dependencies": {
     "compression": "^1.8.1",
@@ -17,6 +22,7 @@
   },
   "devDependencies": {
     "archiver": "^7.0.1",
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "playwright": "^1.62.0"
   }
 }

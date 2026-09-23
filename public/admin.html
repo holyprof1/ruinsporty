@@ -24,10 +24,30 @@ input:focus{border-color:#00c853}
 .pill{padding:6px 14px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#8a9e8a;font-size:11px;font-weight:600;cursor:pointer}
 .pill:hover{border-color:#00c853;color:#fff}
 .pill.active{background:#00c853;color:#fff;border-color:#00c853}
-.tab-row{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid #1e2e1e;padding-bottom:8px;flex-wrap:wrap}
-.tab-btn{padding:6px 16px;border-radius:100px;border:1px solid #1e2e1e;background:transparent;color:#8a9e8a;font-size:12px;font-weight:600;cursor:pointer}
-.tab-btn.active{background:#00c853;color:#fff;border-color:#00c853}
+/* Admin shell: left sidebar nav (replaces the old horizontal 11-tab row) */
+.admin-shell{display:flex;align-items:flex-start;gap:0;min-height:100vh;margin:-20px;padding:0}
+.admin-sidebar{position:sticky;top:0;flex:0 0 232px;width:232px;height:100vh;display:flex;flex-direction:column;align-items:stretch;background:#0d1810;border-right:1px solid #1e2e1e;padding:18px 12px 14px;gap:2px;overflow-y:auto}
+.admin-sidebar-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:800;color:#e8edf4;letter-spacing:.2px;margin-bottom:16px;padding:0 6px}
+.admin-sidebar-title .badge{font-size:12px;font-weight:900;color:#00c853;border:1.5px solid #00c853;border-radius:7px;width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.admin-sidebar-foot{margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:12px;border-top:1px solid #1e2e1e}
+.admin-sidebar-foot a{font-size:12px;color:#8a9e8a;text-decoration:none;padding:8px 10px;border-radius:8px;display:flex;align-items:center}
+.admin-sidebar-foot a:hover{color:#e8edf4;background:rgba(255,255,255,.04)}
+.admin-main{flex:1;min-width:0;padding:24px 28px;max-width:1600px}
+
+.tab-row{display:flex;flex-direction:column;gap:1px;width:100%;margin-bottom:0;border-bottom:none}
+.tab-btn{padding:9px 10px;border-radius:8px;border:none;background:transparent;color:#9aa89a;font-size:13px;font-weight:600;cursor:pointer;text-align:left;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:9px;width:100%}
+.tab-btn:hover{background:rgba(255,255,255,.04);color:#e8edf4}
+.tab-btn.active{background:rgba(0,200,83,.14);color:#00c853;box-shadow:inset 3px 0 0 #00c853}
 .tab-content{display:none}.tab-content.active{display:block}
+@media(max-width:900px){
+  .admin-shell{flex-direction:column;margin:0}
+  .admin-sidebar{position:static;width:100%;height:auto;flex-direction:column;padding:12px}
+  .admin-sidebar-title{margin-bottom:8px}
+  .tab-row{flex-direction:row;flex-wrap:wrap;justify-content:center;width:auto}
+  .tab-btn{width:auto;padding:7px 12px}
+  .admin-sidebar-foot{flex-direction:row;margin-top:8px;border-top:none;padding-top:0;justify-content:center}
+  .admin-main{padding:14px}
+}
 .punter-card{background:#111811;border:1px solid #1e2e1e;border-radius:12px;margin-bottom:12px;overflow:hidden}
 .punter-header{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer}
 .punter-header:hover{background:rgba(0,200,83,.02)}
@@ -79,9 +99,27 @@ input:focus{border-color:#00c853}
 .cs-dl-btn{padding:5px 12px;border-radius:8px;border:1px solid rgba(37,99,235,0.25);background:rgba(37,99,235,0.08);color:#60A5FA;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
 .cs-dl-btn:hover{background:rgba(37,99,235,0.2);border-color:rgba(37,99,235,0.5)}
 /* ── X Assistant ── */
-.xa-content{display:none}.xa-content.active{display:block}
+.xa-content{display:none}.xa-content.active{display:flex}
 .xa-field{background:#0a0f0a;border:1px solid rgba(124,58,237,0.25);border-radius:8px;color:#fff;font-size:13px;padding:12px;font-family:inherit}
 .xa-field:focus{outline:none;border-color:#7c3aed}
+.xa-msg{display:flex;gap:8px;align-items:flex-start}
+.xa-msg-user{flex-direction:row-reverse}
+.xa-bubble{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;max-width:85%;word-break:break-word}
+.xa-bubble-bot{background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.2);color:#e8edf4;border-radius:4px 12px 12px 12px}
+.xa-bubble-user{background:linear-gradient(135deg,rgba(29,155,240,0.25),rgba(124,58,237,0.25));border:1px solid rgba(29,155,240,0.3);color:#e8edf4;border-radius:12px 4px 12px 12px}
+.xa-bubble pre{background:rgba(0,0,0,0.4);border-radius:6px;padding:8px 10px;font-size:11px;overflow-x:auto;margin:6px 0;white-space:pre-wrap}
+.xa-bubble .xa-code-badge{display:inline-block;font-family:monospace;font-size:14px;font-weight:800;color:#00c853;background:rgba(0,200,83,0.12);border:1px solid rgba(0,200,83,0.3);border-radius:6px;padding:2px 10px;margin:4px 0;letter-spacing:1px;cursor:pointer}
+.xa-bubble .xa-code-badge:hover{background:rgba(0,200,83,0.25)}
+.xa-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.xa-chip{padding:4px 10px;border-radius:100px;border:1px solid rgba(124,58,237,0.4);background:transparent;color:#c4b5fd;font-size:11px;cursor:pointer;font-family:inherit}
+.xa-chip:hover{background:rgba(124,58,237,0.2)}
+.xa-thinking{display:flex;gap:4px;align-items:center;padding:8px 12px}
+.xa-thinking span{width:6px;height:6px;border-radius:50%;background:#7c3aed;animation:xa-pulse 1.2s infinite}
+.xa-thinking span:nth-child(2){animation-delay:.2s}.xa-thinking span:nth-child(3){animation-delay:.4s}
+@keyframes xa-pulse{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+#xa-chat-messages::-webkit-scrollbar{width:4px}
+#xa-chat-messages::-webkit-scrollbar-track{background:transparent}
+#xa-chat-messages::-webkit-scrollbar-thumb{background:rgba(124,58,237,0.3);border-radius:2px}
 .xa-row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
 .xa-row .xa-k{color:#8a9e8a;flex-shrink:0}
 .xa-row .xa-v{color:#fff;text-align:right;word-break:break-word}
@@ -109,10 +147,157 @@ input:focus{border-color:#00c853}
 @media(max-width:600px){.cs-grid-3{grid-template-columns:1fr}}
 /* Intelligence Engine */
 .intel-tab{display:none}.intel-tab.active{display:block}
+/* Advanced Generator */
+.gen-ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
+@media(max-width:600px){.gen-ctrl-grid{grid-template-columns:1fr}}
+.gen-ctrl-label{font-size:11px;color:#8a9e8a;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.gen-ctrl-group{display:flex;flex-direction:column;gap:4px}
+.gen-ctrl-row{display:flex;gap:8px;align-items:center}
+.gen-ctrl-row input,.gen-ctrl-row select{flex:1;padding:7px 10px;background:#0a0f0a;border:1px solid #1e2e1e;border-radius:7px;color:#fff;font-size:12px;outline:none;font-family:inherit}
+.gen-ctrl-row input:focus,.gen-ctrl-row select:focus{border-color:#00c853}
+.gen-check{display:flex;align-items:center;gap:6px;font-size:12px;color:#ccc;padding:6px 0;cursor:pointer}
+.gen-check input[type=checkbox]{width:15px;height:15px;accent-color:#00c853;cursor:pointer}
+.gen-section-hdr{font-size:11px;font-weight:700;color:#8a9e8a;text-transform:uppercase;letter-spacing:.8px;padding:10px 0 6px;border-bottom:1px solid #1e2e1e;margin-bottom:10px}
+.gen-progress-log{font-family:monospace;font-size:11px;color:#4a7a4a;background:#040a06;border:1px solid #1e2e1e;border-radius:8px;padding:12px;max-height:180px;overflow-y:auto;white-space:pre-wrap;display:none;margin-top:12px}
+.gen-code-card{background:#0a0f0a;border:1px solid rgba(0,200,83,0.2);border-radius:12px;padding:16px;margin-bottom:12px}
+.gen-code-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.gen-code-code{font-family:monospace;font-size:18px;font-weight:800;letter-spacing:2px;color:#00c853;cursor:pointer}
+.gen-code-meta{font-size:11px;color:#8a9e8a;display:flex;gap:12px;flex-wrap:wrap}
+/* v19 §8 — table-layout:fixed + explicit per-column widths so Match/Market
+   text wrapping (long team/market names) never shifts the Odds/Status
+   columns out of alignment with the header above them. */
+.gen-pick-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;table-layout:fixed}
+.gen-pick-table th{color:#8a9e8a;font-weight:600;text-align:left;padding:4px 8px;border-bottom:1px solid #1e2e1e;white-space:nowrap}
+.gen-pick-table td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.04);color:#ccc;vertical-align:top;word-break:break-word}
+.gen-pick-table td:first-child{color:#e8edf4}
+.gen-pick-table th:nth-child(1),.gen-pick-table td:nth-child(1){width:36%}
+.gen-pick-table th:nth-child(2),.gen-pick-table td:nth-child(2){width:36%}
+.gen-pick-table th:nth-child(3),.gen-pick-table td:nth-child(3){width:14%;text-align:right}
+.gen-pick-table th:nth-child(4),.gen-pick-table td:nth-child(4){width:14%}
+.gen-conv-badge{display:inline-block;padding:1px 6px;border-radius:100px;font-size:9px;font-weight:700;background:rgba(0,200,83,0.12);border:1px solid rgba(0,200,83,0.3);color:#00c853;margin-left:4px}
+.gen-pick-toggle{font-size:11px;color:#4a7a4a;cursor:pointer;padding:4px 0;display:inline-block;margin-top:4px}
+.gen-pick-toggle:hover{color:#00c853}
+.gen-conv-input{width:100%;padding:8px 12px;background:#0a0f0a;border:1px solid rgba(124,58,237,0.3);border-radius:8px;color:#e8edf4;font-size:13px;font-family:inherit;outline:none;margin-bottom:8px}
+.gen-conv-input:focus{border-color:#7c3aed}
+/* Strategy Engine */
+.strat-rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:100px;font-size:11px;font-weight:800;background:rgba(0,200,83,0.14);border:1px solid rgba(0,200,83,0.35);color:#00c853}
+.strat-card.skipped{opacity:.6;border-style:dashed}
+.strat-meta-row{font-size:11px;color:#8a9e8a;display:flex;gap:14px;flex-wrap:wrap;margin:8px 0}
+.strat-meta-row b{color:#e8edf4}
+.strat-block-hdr{font-size:10px;font-weight:700;color:#8a9e8a;text-transform:uppercase;letter-spacing:.6px;margin:10px 0 4px}
+.strat-reject-row{font-size:11px;color:#9a8a8a;padding:2px 0}
+.strat-top3-banner{background:linear-gradient(135deg,rgba(0,200,83,0.1),rgba(0,137,123,0.05));border:1px solid rgba(0,200,83,0.3);border-radius:12px;padding:16px 18px}
+.strat-top3-item{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;color:#ccc}
+
+/* Table Tennis */
+#tab-tabletennis .cs-stab.active{background:#00c853;border-color:#00c853}
+#tab-tabletennis .cs-stab:hover{border-color:#00c853;color:#F1F5F9}
+.tt-output-odds{font-size:30px;font-weight:900;color:#00c853;font-family:'JetBrains Mono',monospace;letter-spacing:-.5px}
+.tt-output-sub{font-size:11px;color:#8a9e8a;margin-top:3px;line-height:1.5}
+.tt-output-note{font-size:11.5px;color:#d4a017;background:rgba(212,160,23,.08);border:1px solid rgba(212,160,23,.22);border-radius:10px;padding:10px 12px;margin-top:10px;line-height:1.55}
+.tt-output-note.tt-note-ok{color:#00c853;background:rgba(0,200,83,.08);border-color:rgba(0,200,83,.22)}
+.tt-leg-row{display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid #16201a;font-size:12.5px;gap:10px;border-radius:6px;transition:background .12s}
+.tt-leg-row:hover{background:rgba(255,255,255,.02)}
+.tt-leg-row:last-child{border-bottom:none}
+.tt-leg-match{color:#f1f5f1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.tt-leg-market{color:#7a9a7a;font-size:10.5px;margin-top:1px}
+.tt-leg-conf{font-weight:800;font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 9px;border-radius:100px;flex-shrink:0}
+.tt-conf-hi{color:#00c853;background:rgba(0,200,83,.12)}
+.tt-conf-mid{color:#ffb300;background:rgba(255,179,0,.12)}
+.tt-conf-lo{color:#e53935;background:rgba(229,57,53,.12)}
+.tt-known-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.3px;color:#00c853;background:rgba(0,200,83,.12);border-radius:100px;padding:2px 7px;margin-left:6px;vertical-align:middle}
+.tt-flag-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.3px;color:#e53935;background:rgba(229,57,53,.12);border-radius:100px;padding:2px 7px;margin-left:6px;vertical-align:middle}
+.tt-rates-row{display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-bottom:1px solid #16201a;font-size:12.5px}
+.tt-rates-row:last-child{border-bottom:none}
+.tt-rates-row:hover{background:rgba(255,255,255,.02)}
+.tt-share-result{margin-top:12px;padding:14px;background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,200,83,.04));border:1px solid rgba(0,200,83,.35);border-radius:12px;text-align:center}
+.tt-share-code{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:20px;color:#00c853;letter-spacing:3px}
+.tt-output-grid .card{transition:border-color .15s}
+.tt-output-grid .card:hover{border-color:rgba(255,255,255,.15)}
+#tab-tabletennis .card h2{display:flex;align-items:center;gap:8px}
+@media(max-width:900px){.tt-output-grid{grid-template-columns:1fr!important}}
+
+/* Saved Codes & Results — grouped exactly like the Punters tab (rank badge, trust ring,
+   W/L/P counts, expandable code-grid) so the two are directly visually comparable. */
+.tt-log-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tt-log-filter-btn{font-size:11.5px;font-weight:700;padding:6px 13px;border-radius:100px;border:1px solid #1e2e1e;background:#0a0f0a;color:#8a9e8a;cursor:pointer;transition:all .12s}
+.tt-log-filter-btn:hover{border-color:#00c853;color:#F1F5F9}
+.tt-log-filter-btn.active{background:#00c853;border-color:#00c853;color:#04140a}
+.tt-log-empty{color:#8a9e8a;font-size:12px;padding:20px 0;text-align:center}
+
+/* ── Dashboard redesign: sidebar sections, topbar, KPI cards, pipeline, right panel ── */
+.sidebar-section-label{font-size:10px;font-weight:700;color:#526652;text-transform:uppercase;letter-spacing:.8px;padding:14px 10px 6px}
+.nav-badge-new{background:#00c853;color:#04140a;font-size:8px;font-weight:800;padding:2px 5px;border-radius:6px;margin-left:auto;flex-shrink:0}
+.tab-btn{justify-content:flex-start}
+.admin-profile-card{display:flex;align-items:center;gap:9px;padding:10px 8px;margin:8px 0;border-top:1px solid #1e2e1e;border-bottom:1px solid #1e2e1e}
+.admin-profile-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#00c853,#00897b);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#04140a;flex-shrink:0}
+.admin-profile-info{min-width:0}
+.admin-profile-name{font-size:12.5px;font-weight:700;color:#e8edf4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-profile-role{font-size:10px;color:#8a9e8a}
+
+.admin-topbar{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.topbar-icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid #1e2e1e;background:#111811;color:#8a9e8a;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0;position:relative}
+.topbar-icon-btn:hover{border-color:#00c853;color:#00c853}
+.topbar-search{flex:1;max-width:420px;position:relative;display:flex;align-items:center}
+.topbar-search input{width:100%;padding:9px 52px 9px 34px;border-radius:10px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:13px}
+.topbar-search-icon{position:absolute;left:12px;font-size:12px;opacity:.55;pointer-events:none}
+.topbar-search kbd{position:absolute;right:10px;font-size:10px;color:#5a6a5a;border:1px solid #1e2e1e;border-radius:5px;padding:2px 5px;pointer-events:none}
+.topbar-spacer{flex:1}
+.topbar-badge{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:#e53935;border:2px solid #0a0f0a}
+.topbar-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#00c853,#00897b);display:flex;align-items:center;justify-content:center;font-weight:800;color:#04140a;flex-shrink:0;font-size:13px}
+
+.dash-welcome{margin-bottom:20px}
+.dash-welcome h1{font-size:23px;color:#e8edf4;margin-bottom:4px}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.kpi-card{background:#111811;border:1px solid #1e2e1e;border-radius:14px;padding:18px}
+.kpi-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.kpi-icon{width:36px;height:36px;border-radius:10px;background:rgba(0,200,83,.12);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.kpi-label{font-size:10.5px;color:#8a9e8a;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.kpi-val{font-size:25px;font-weight:800;color:#fff;margin-bottom:6px}
+.kpi-delta{font-size:11px;font-weight:600}
+.kpi-delta.up{color:#00c853}.kpi-delta.down{color:#e53935}.kpi-delta.flat{color:#8a9e8a}
+
+.dash-grid{display:grid;grid-template-columns:2.2fr 1fr;gap:18px;align-items:start}
+@media(max-width:1200px){.dash-grid{grid-template-columns:1fr}}
+@media(max-width:1100px){.kpi-grid{grid-template-columns:1fr 1fr}}
+
+.gen-pipeline{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:16px 0}
+.pipeline-step{background:#0a0f0a;border:1px solid #1e2e1e;border-radius:10px;padding:12px 10px;text-align:center}
+.pipeline-step.done{border-color:rgba(0,200,83,.35)}
+.pipeline-step.active{border-color:#ffb300}
+.pipeline-icon{width:30px;height:30px;border-radius:50%;background:#1e2e1e;color:#8a9e8a;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:13px}
+.pipeline-step.done .pipeline-icon{background:#00c853;color:#04140a}
+.pipeline-step.active .pipeline-icon{background:#ffb300;color:#04140a}
+.pipeline-name{font-size:11px;font-weight:700;color:#e8edf4}
+.pipeline-status{font-size:9.5px;color:#8a9e8a;margin-top:2px}
+
+.live-table{width:100%;border-collapse:collapse;font-size:12px}
+.live-table th{text-align:left;color:#8a9e8a;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:6px 10px;border-bottom:1px solid #1e2e1e;white-space:nowrap}
+.live-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:#ddd;white-space:nowrap}
+.status-pill{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:100px;text-transform:uppercase}
+.status-pill.win{background:rgba(0,200,83,.15);color:#00c853}
+.status-pill.pending{background:rgba(255,179,0,.15);color:#ffb300}
+.status-pill.lost{background:rgba(229,57,53,.15);color:#e53935}
+.status-pill.void{background:rgba(138,158,138,.15);color:#8a9e8a}
+.conf-bar-track{width:60px;height:5px;border-radius:100px;background:#1e2e1e;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
+.conf-bar-fill{height:100%;background:#00c853;display:block}
+
+.side-panel-card{background:#111811;border:1px solid #1e2e1e;border-radius:14px;padding:18px;margin-bottom:16px}
+.ai-assist-card{background:linear-gradient(160deg,rgba(0,200,83,.1),rgba(0,137,123,.03));border:1px solid rgba(0,200,83,.25);text-align:center}
+.ai-assist-icon{width:54px;height:54px;border-radius:16px;background:rgba(0,200,83,.14);display:flex;align-items:center;justify-content:center;font-size:24px;margin:4px auto 12px}
+.insight-row,.alert-row{display:flex;gap:8px;align-items:flex-start;padding:7px 0;font-size:12px;color:#ccc;border-bottom:1px solid rgba(255,255,255,.04)}
+.insight-row:last-child,.alert-row:last-child{border-bottom:none}
+.alert-time{font-size:10px;color:#5a6a5a;white-space:nowrap;margin-left:auto;padding-left:8px}
+.quick-actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.quick-action-btn{display:flex;align-items:center;gap:8px;padding:10px 10px;border-radius:10px;border:1px solid #1e2e1e;background:#0a0f0a;color:#ccc;font-size:11.5px;font-weight:600;cursor:pointer;text-align:left}
+.quick-action-btn:hover{border-color:#00c853;color:#00c853}
+.panel-link{font-size:11px;color:#00c853;text-decoration:none;font-weight:600}
+.panel-link:hover{text-decoration:underline}
 </style>
 </head>
 <body>
-<div id="login" class="card">
+<div id="login" class="card" style="display:none">
   <h1>SlipPilot Admin</h1>
   <p class="sub">Enter your password to continue</p>
   <input type="password" id="pw" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()" />
@@ -120,33 +305,138 @@ input:focus{border-color:#00c853}
   <p id="loginErr" style="color:#e53935;margin-top:8px;font-size:13px"></p>
 </div>
 
-<div id="dashboard">
-  <h1>SlipPilot Admin</h1>
-  <p class="sub"><a href="/" style="color:#00c853">Home</a> &middot; <a href="/admin/logout" style="color:#8a9e8a">Logout</a></p>
+<div id="dashboard" class="admin-shell">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-title"><span class="badge">SP</span> SlipPilot</div>
+    <div class="sidebar-section-label">Main Navigation</div>
+    <div class="tab-row">
+      <button class="tab-btn active" data-tab="dashboard" onclick="switchAdminTab('dashboard');loadDashboardHome()">🏠 Dashboard</button>
+      <button class="tab-btn" data-tab="generator" onclick="switchAdminTab('generator');genInit()">⚡ Generator</button>
+      <button class="tab-btn" data-tab="strategy" onclick="switchAdminTab('strategy');stratLoadList()">🧩 Strategy Engine</button>
+      <button class="tab-btn" data-tab="intelligence" onclick="switchAdminTab('intelligence');loadIntelStatus()">🧠 Intelligence</button>
+      <button class="tab-btn" data-tab="punters" onclick="switchAdminTab('punters');loadLB()">🏆 Leaderboard</button>
+      <button class="tab-btn" data-tab="session" onclick="switchAdminTab('session')">👥 Tracked Punters</button>
+      <button class="tab-btn" data-tab="community" onclick="switchAdminTab('community');loadCommunityCodes()">🌐 Community Codes</button>
+      <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">🎟️ Codes</button>
+      <button class="tab-btn" data-tab="autobet" onclick="switchAdminTab('autobet');abInit()">🤖 Auto-Bet <span class="nav-badge-new">NEW</span></button>
+      <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">📩 Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
+      <button class="tab-btn" data-tab="tabletennis" onclick="switchAdminTab('tabletennis');ttInit()">🏓 Table Tennis <span class="nav-badge-new">NEW</span></button>
+      <button class="tab-btn" data-tab="studio" onclick="switchAdminTab('studio');loadStudio()">✦ Studio</button>
+    </div>
+    <div class="sidebar-section-label">System</div>
+    <div class="tab-row">
+      <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">🛠️ Settings</button>
+    </div>
+    <div class="admin-profile-card">
+      <div class="admin-profile-avatar">A</div>
+      <div class="admin-profile-info">
+        <div class="admin-profile-name">Admin</div>
+        <div class="admin-profile-role">Super Administrator</div>
+      </div>
+    </div>
+    <div class="admin-sidebar-foot"><a href="/">🏠 Home</a><a href="/admin/logout">🚪 Logout</a></div>
+  </aside>
 
-  <div class="card" style="padding:14px 20px">
-    <div class="qs-bar">
-      <div class="qs-item"><div class="qs-val" id="qsPunters">0</div><div class="qs-lbl">Punters</div></div>
-      <div class="qs-item"><div class="qs-val" id="qsCodes">0</div><div class="qs-lbl">Codes Today</div></div>
-      <div class="qs-item"><div class="qs-val" id="qsTickets" style="color:#ffb300">0</div><div class="qs-lbl">Tickets</div></div>
-      <div class="qs-item"><div class="qs-val" id="qsBest">-</div><div class="qs-lbl">Best Trust</div></div>
+  <div class="admin-main">
+  <div class="admin-topbar">
+    <button class="topbar-icon-btn" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+    <div class="topbar-search">
+      <span class="topbar-search-icon">🔍</span>
+      <input type="text" id="topbarSearch" placeholder="Search anything..." onkeydown="if(event.key==='Enter')topbarSearchGo()" />
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="topbar-spacer"></div>
+    <button class="topbar-icon-btn" onclick="switchAdminTab('tickets')" title="Tickets / notifications">
+      🔔<span class="topbar-badge" id="topbarNotifDot" style="display:none"></span>
+    </button>
+    <div class="topbar-avatar" title="Admin">A</div>
+  </div>
+
+  <!-- DASHBOARD (landing tab) -->
+  <div class="tab-content active" id="tab-dashboard">
+    <div class="dash-welcome">
+      <h1>Welcome back, Admin 👋</h1>
+      <p class="sub" style="margin-bottom:0">Here's what's happening with your SlipPilot system today.</p>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-top"><div class="kpi-icon">👥</div><div class="kpi-label">Active Punters</div></div>
+        <div class="kpi-val" id="qsPunters">0</div>
+        <div class="kpi-delta flat" id="qsPuntersDelta">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top"><div class="kpi-icon">🎟️</div><div class="kpi-label">Codes Today</div></div>
+        <div class="kpi-val" id="qsCodes">0</div>
+        <div class="kpi-delta flat" id="qsCodesDelta">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top"><div class="kpi-icon">📩</div><div class="kpi-label">Generated Tickets</div></div>
+        <div class="kpi-val" id="qsTickets">0</div>
+        <div class="kpi-delta flat" id="qsTicketsDelta">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top"><div class="kpi-icon">🎯</div><div class="kpi-label">Hit Rate (settled)</div></div>
+        <div class="kpi-val" id="qsHitRate">—</div>
+        <div class="kpi-delta flat" id="qsHitRateDelta">—</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div>
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+            <h2 style="margin:0">Advanced Generator</h2>
+            <span class="nav-badge-new" style="position:static;border-radius:100px;padding:2px 8px">REAL PIPELINE</span>
+          </div>
+          <p class="sub" style="margin-bottom:14px">Runs the actual pipeline: fetch punter/community codes → score &amp; risk-check → convert risky markets → build booking codes. Same engine as the Generator tab.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+            <button class="btn" id="dashGenBtn" onclick="dashRunGenerator()">🚀 Generate Now</button>
+            <span id="dashGenStatus" style="font-size:12px;color:#8a9e8a"></span>
+          </div>
+          <div class="gen-pipeline" id="dashPipeline"></div>
+          <div class="gen-progress-log" id="dashGenLog"></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <div style="width:8px;height:8px;border-radius:50%;background:#00c853"></div>
+            <h2 style="margin:0">Live Results</h2>
+            <span id="liveResultsBadge" style="font-size:11px;color:#8a9e8a"></span>
+            <a class="panel-link" style="margin-left:auto" href="javascript:void(0)" onclick="switchAdminTab('studio');loadStudio()">View All Results →</a>
+          </div>
+          <div id="liveResultsTable" style="overflow-x:auto"><p style="color:#8a9e8a;font-size:12px">Loading…</p></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="side-panel-card">
+          <h2 style="margin-bottom:8px;font-size:14px">📊 Today's Insights</h2>
+          <div id="dashInsights"><p style="color:#8a9e8a;font-size:12px">Loading…</p></div>
+        </div>
+
+        <div class="side-panel-card">
+          <h2 style="margin-bottom:8px;font-size:14px">⚠️ Recent Alerts</h2>
+          <div id="dashAlerts"><p style="color:#8a9e8a;font-size:12px">Loading…</p></div>
+        </div>
+
+        <div class="side-panel-card">
+          <h2 style="margin-bottom:10px;font-size:14px">⚡ Quick Actions</h2>
+          <div class="quick-actions-grid">
+            <button class="quick-action-btn" onclick="dashRunGenerator()">⚡ Generate Slips</button>
+            <button class="quick-action-btn" onclick="switchAdminTab('community');loadCommunityCodes()">📥 Import Codes</button>
+            <button class="quick-action-btn" onclick="switchAdminTab('punters');loadLB()">🔁 Run Review</button>
+            <button class="quick-action-btn" onclick="switchAdminTab('tabletennis');ttInit()">🏓 Table Tennis</button>
+            <button class="quick-action-btn" onclick="switchAdminTab('intelligence');loadIntelStatus()">📈 View Analytics</button>
+            <button class="quick-action-btn" onclick="switchAdminTab('codes')">📤 Export Results</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="tab-row">
-    <button class="tab-btn active" data-tab="punters" onclick="switchAdminTab('punters')">Leaderboard</button>
-    <button class="tab-btn" data-tab="session" onclick="switchAdminTab('session')">Tracked Punters</button>
-    <button class="tab-btn" data-tab="community" onclick="switchAdminTab('community');loadCommunityCodes()">Community Codes</button>
-    <button class="tab-btn" data-tab="codes" onclick="switchAdminTab('codes')">Codes</button>
-    <button class="tab-btn" data-tab="tickets" onclick="switchAdminTab('tickets')">Tickets <span id="ticketBadge" style="background:#e53935;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span></button>
-    <button class="tab-btn" data-tab="settings" onclick="switchAdminTab('settings')">Settings</button>
-    <button class="tab-btn" data-tab="studio" onclick="switchAdminTab('studio');loadStudio()">✦ Studio</button>
-    <button class="tab-btn" data-tab="xassistant" onclick="switchAdminTab('xassistant');loadXaHistory()">🔮 X Assistant</button>
-    <button class="tab-btn" data-tab="intelligence" onclick="switchAdminTab('intelligence');loadIntelStatus()">🧠 Intelligence</button>
-  </div>
-
   <!-- LEADERBOARD -->
-  <div class="tab-content active" id="tab-punters">
+  <div class="tab-content" id="tab-punters">
     <div class="card" style="margin-bottom:12px">
       <h2>Today's Punter Codes</h2>
       <p style="font-size:11px;color:#8a9e8a;margin-bottom:12px">Update each punter's daily booking code here. Saved instantly.</p>
@@ -200,6 +490,50 @@ input:focus{border-color:#00c853}
         <button class="pill" onclick="filterGroup('F',this)">Permutation</button>
       </div>
       <div id="codesTable"></div>
+    </div>
+  </div>
+
+  <!-- AUTO-BET -->
+  <div class="tab-content" id="tab-autobet">
+    <div class="card">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <h2 style="margin:0">🤖 Auto-Bet</h2>
+        <span id="abSessionPill" class="pill" style="cursor:default">checking…</span>
+        <button class="btn-sm" onclick="abSignIn()">Sign in to SportyBet</button>
+        <button class="btn-sm" onclick="abStatus()">Recheck</button>
+        <span id="abEnv" style="color:#8a9e8a;font-size:11px"></span>
+      </div>
+      <div style="color:#8a9e8a;font-size:12px;line-height:1.6;margin-bottom:14px">
+        Paste booking codes, hit Play. Stake is locked at
+        <strong style="color:#00c853">₦<span id="abStake">10</span></strong> per code and cannot be raised here.
+        Codes with fewer than <span id="abMinLegs">3</span> legs, two markets on the same match, or any leg
+        already kicked off are never played. Anything over
+        <span id="abFlexTrigger">20,000</span>x is flexed if a cut still returns
+        <span id="abFlexMin">100</span>x or better.
+      </div>
+
+      <textarea id="abCodes" class="field" rows="4" spellcheck="false"
+        style="width:100%;font-family:'JetBrains Mono',monospace;text-transform:uppercase"
+        placeholder="V563NF HR7C6J QD0J89 — paste codes separated by space, comma or new line"></textarea>
+
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <button class="btn-sm" onclick="abCheck()">Check only</button>
+        <button class="btn-sm" onclick="abStart(true)">Dry run</button>
+        <button class="btn-sm" id="abPlayBtn" onclick="abStart(false)"
+          style="background:#00c853;color:#04170b;font-weight:700">▶ Play for real</button>
+        <button class="btn-sm" id="abStopBtn" onclick="abStop()" style="display:none;background:#e53935;color:#fff">■ Stop</button>
+        <span id="abProgress" style="color:#8a9e8a;font-size:12px"></span>
+      </div>
+    </div>
+
+    <div class="card" id="abResultsCard" style="display:none">
+      <h2 style="margin:0 0 10px">Results</h2>
+      <div id="abResults"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px">Log</h2>
+      <pre id="abLog" style="max-height:340px;overflow:auto;background:#0b120b;padding:12px;border-radius:8px;font-size:12px;line-height:1.55;margin:0;white-space:pre-wrap">Idle.</pre>
     </div>
   </div>
 
@@ -281,9 +615,10 @@ input:focus{border-color:#00c853}
         <h2 style="color:#F1F5F9;margin:0">Content Studio</h2>
         <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="cs-status" style="display:none;font-size:12px;color:#64748B"></span>
-          <input type="date" id="cs-date-picker"
-            style="background:#0d1117;border:1px solid #21262d;border-radius:8px;color:#e6edf3;font-size:13px;padding:7px 10px;cursor:pointer"
-            title="Select date to generate report for">
+          <!-- v16 §1 — the shared date selector; cs-date-picker stays as a hidden
+               store so getTargetDate() (studio.js) doesn't need touching everywhere -->
+          <div id="cs-dateselect"></div>
+          <input type="hidden" id="cs-date-picker">
           <button class="btn" id="cs-gen-btn" onclick="generateDailyReport(false)" style="background:linear-gradient(135deg,#2563EB,#06B6D4);padding:9px 22px;font-size:13px">✦ Generate Report</button>
           <button class="btn-sm" id="cs-rebuild-btn" onclick="csRebuildReport()" title="Re-fetch punter codes from SportyBet and rebuild the analysis for selected date" style="border-color:#ffb300;color:#ffb300">↺ Rebuild Data</button>
         </div>
@@ -299,6 +634,7 @@ input:focus{border-color:#00c853}
         <button class="cs-stab"        data-tab="history"   onclick="switchStudioTab('history')">History</button>
         <button class="cs-stab"        data-tab="templates" onclick="switchStudioTab('templates')">Templates</button>
         <button class="cs-stab"        data-tab="slips"     onclick="switchStudioTab('slips')">⚡ Smart Slips</button>
+        <button class="cs-stab"        data-tab="dailypost" onclick="switchStudioTab('dailypost')">📣 Daily Post</button>
       </div>
 
       <!-- ── DAILY ── -->
@@ -564,6 +900,91 @@ input:focus{border-color:#00c853}
         </div>
       </div>
 
+      <!-- ── DAILY POST — v25: moved here from the (now-removed) X Assistant
+           tab. Merges all today's punter codes into one slip (via
+           /api/admin/regen-merged) and includes that "🔗 MERGED" code in
+           the post, same as before — plus a shareable image card. -->
+      <div class="cs-content" data-tab="dailypost">
+        <div style="font-size:15px;font-weight:700;color:#F1F5F9;margin-bottom:2px">📣 Daily Post</div>
+        <p style="font-size:12px;color:#64748B;margin:0 0 16px">Today's punter codes, ready to copy as a post — plus a shareable image card (code, folds, odds) you can attach directly.</p>
+        <div id="dp-punters" style="background:#0a0f14;border:1px solid rgba(37,99,235,0.15);border-radius:8px;padding:12px;margin-bottom:14px;min-height:48px">
+          <p style="color:#64748B;font-size:12px;margin:0">Loading punter codes...</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+          <button class="btn" id="dp-gen-btn" style="background:linear-gradient(135deg,#2563EB,#06B6D4);flex:1;min-width:160px" onclick="generateDailyPost()">Generate Post</button>
+          <button class="btn" id="dp-img-btn" style="background:linear-gradient(135deg,#7c3aed,#2563EB);flex:1;min-width:160px" onclick="generateDailyPostImage()">🖼 Generate Image</button>
+        </div>
+        <div id="dp-output" style="display:none;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:#64748B;text-transform:uppercase;font-weight:700">Ready to post</span>
+            <button class="btn" style="padding:4px 14px;font-size:11px" onclick="copyDailyPost()">Copy</button>
+          </div>
+          <textarea id="dp-text" rows="12" style="width:100%;font-size:12px;line-height:1.6;background:#0a0f14;border:1px solid rgba(37,99,235,0.2);border-radius:8px;padding:12px;color:#e6edf3;resize:vertical;font-family:monospace" readonly></textarea>
+        </div>
+        <div id="dp-img-output" style="display:none;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:#64748B;text-transform:uppercase;font-weight:700">Image card</span>
+            <a id="dp-img-download" download="slippilot-codes.png" class="btn" style="padding:4px 14px;font-size:11px;text-decoration:none">Download</a>
+          </div>
+          <canvas id="dp-canvas" style="max-width:100%;border-radius:8px;border:1px solid rgba(37,99,235,0.2)"></canvas>
+        </div>
+        <span id="dp-msg" style="font-size:11px;color:#64748B"></span>
+
+        <!-- ── THEMED REPOST — v26: "only overs/unders... only handicaps...
+             anyone wey go reach at least 30" — filters today's REAL codes
+             (fresh-scanned, not just the frozen headline odds) by dominant
+             market type and a minimum combined-odds bar, for a themed
+             follow-up post.
+             v33: redesigned per feedback — pools matching LEGS from EVERY
+             punter (not whole codes) and merges them into ONE real code
+             (same "MERGED" pattern as the main Daily Post), added a Max
+             odds ceiling alongside Min odds, and a Safe toggle that shifts
+             Over/Under legs to a safer line (Under +1, Over -1) before
+             building the code. -->
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid rgba(37,99,235,0.15)">
+          <div style="font-size:14px;font-weight:700;color:#F1F5F9;margin-bottom:2px">🔁 Themed Repost</div>
+          <p style="font-size:12px;color:#64748B;margin:0 0 12px">Pick a market theme and an odds range — pools matching games from EVERY punter, ranks them by league/market quality + real H2H, and merges the best 50 into one real code.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+            <select id="dp-theme-category" style="padding:8px 12px;font-size:12px;background:#0a0f14;border:1px solid rgba(37,99,235,0.25);border-radius:8px;color:#e6edf3">
+              <option value="all">All markets</option>
+              <option value="overunder">Only Over/Under</option>
+              <option value="fullgameover">Full Game — Over Only</option>
+              <option value="handicap">Only Handicap</option>
+              <option value="dcdnb">Only Double Chance / DNB</option>
+            </select>
+            <label style="font-size:12px;color:#64748B;display:flex;align-items:center;gap:6px">Min odds
+              <input type="number" id="dp-theme-minodds" value="30" min="1" style="width:80px;padding:8px 10px;font-size:12px;background:#0a0f14;border:1px solid rgba(37,99,235,0.25);border-radius:8px;color:#e6edf3">x
+            </label>
+            <label style="font-size:12px;color:#64748B;display:flex;align-items:center;gap:6px">Max odds
+              <input type="number" id="dp-theme-maxodds" value="" min="1" placeholder="none" style="width:80px;padding:8px 10px;font-size:12px;background:#0a0f14;border:1px solid rgba(37,99,235,0.25);border-radius:8px;color:#e6edf3">x
+            </label>
+            <label style="font-size:12px;color:#64748B;display:flex;align-items:center;gap:6px" title="Splits the ranked pool into this many separate ≤50-leg codes instead of one">Codes
+              <input type="number" id="dp-theme-variants" value="1" min="1" max="5" style="width:50px;padding:8px 10px;font-size:12px;background:#0a0f14;border:1px solid rgba(37,99,235,0.25);border-radius:8px;color:#e6edf3">
+            </label>
+            <label style="font-size:12px;color:#64748B;display:flex;align-items:center;gap:6px;cursor:pointer" title="Shifts Over/Under legs to a safer line before merging: Under +1, Over -1">
+              <input type="checkbox" id="dp-theme-safe" checked style="width:15px;height:15px;cursor:pointer"> Safe (Under +1 / Over -1)
+            </label>
+            <button class="btn" id="dp-theme-btn" style="background:linear-gradient(135deg,#06B6D4,#2563EB)" onclick="generateThemedRepost()">Build Themed Repost</button>
+            <button class="btn" id="dp-theme-master-btn" title="Builds every real theme (Over/Under, Full Game Over, Handicap, DC/DNB) in one go, using the same odds/Safe/Codes settings above" style="background:linear-gradient(135deg,#9c6dff,#06B6D4)" onclick="generateThemedRepostMaster()">🎯 Master (All Themes)</button>
+          </div>
+          <div id="dp-theme-output" style="display:none;margin-bottom:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <span style="font-size:11px;color:#64748B;text-transform:uppercase;font-weight:700">Themed post</span>
+              <button class="btn" style="padding:4px 14px;font-size:11px" onclick="copyThemedRepost()">Copy</button>
+            </div>
+            <textarea id="dp-theme-text" rows="10" style="width:100%;font-size:12px;line-height:1.6;background:#0a0f14;border:1px solid rgba(37,99,235,0.2);border-radius:8px;padding:12px;color:#e6edf3;resize:vertical;font-family:monospace" readonly></textarea>
+          </div>
+          <span id="dp-theme-msg" style="font-size:11px;color:#64748B"></span>
+          <!-- v38 — runs as a server-side background job now (survives tab
+               close/refresh), so history is real build history, not just
+               "what's in the box right now". -->
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(37,99,235,0.08)">
+            <div style="font-size:10px;color:#64748B;text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px">History</div>
+            <div id="dp-theme-history"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -658,9 +1079,11 @@ input:focus{border-color:#00c853}
     </div>
 
     <div class="card">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <h2 style="margin:0">Saved Community Codes</h2>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <h2 style="margin:0;flex:1">Saved Community Codes</h2>
         <button class="btn-sm" onclick="loadCommunityCodes()">↻ Refresh</button>
+        <button class="btn-sm" id="ccRescanAllBtn" onclick="ccRescanAll(this)" style="border-color:#ffb300;color:#ffb300">↻ Rescan All</button>
+        <span id="cc-rescan-msg" style="font-size:11px;color:#8a9e8a;width:100%;display:none"></span>
       </div>
       <div id="cc-list"><p style="color:#8a9e8a">Loading...</p></div>
     </div>
@@ -675,61 +1098,297 @@ input:focus{border-color:#00c853}
   </div>
 
   <!-- X ASSISTANT -->
-  <div class="tab-content" id="tab-xassistant">
-    <div class="card" style="background:#0f0a1a;border-color:rgba(124,58,237,0.25)">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
-        <div style="width:8px;height:8px;border-radius:50%;background:#7c3aed;box-shadow:0 0 10px #7c3aed;flex-shrink:0"></div>
-        <h2 style="margin:0">SlipPilot X Assistant</h2>
+  <!-- INTELLIGENCE ENGINE -->
+  <!-- ADVANCED GENERATOR v2 -->
+  <div class="tab-content" id="tab-generator">
+    <style>
+      .gen-dash{--gen-bg:#050a0f;--gen-panel:#0a0f14;--gen-border:#1e2a33;--gen-green:#00c853;--gen-purple:#9c6dff;--gen-amber:#ffb300;--gen-red:#e53935;--gen-teal:#00bcd4;--gen-blue:#2196f3;color:#e8edf4}
+      .gen-dash .card{background:var(--gen-panel);border:1px solid var(--gen-border);border-radius:12px}
+      .gen-header-bar{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;padding:16px 18px;margin-bottom:14px}
+      .gen-header-bar h2{margin:0;font-size:19px;display:flex;align-items:center;gap:10px}
+      .gen-subtitle{font-size:12px;color:#8a9e8a;margin:4px 0 0}
+      .gen-chip{font-size:10px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+      .gen-chip-idle{background:#1c2530;color:#8a9e8a}
+      .gen-chip-live{background:rgba(0,200,83,.15);color:var(--gen-green)}
+      .gen-chip-live .gen-dot{width:7px;height:7px;border-radius:50%;background:var(--gen-green);animation:genPulse 1.4s infinite}
+      .gen-chip-stopped{background:rgba(229,57,53,.15);color:var(--gen-red)}
+      .gen-chip-done{background:rgba(0,200,83,.15);color:var(--gen-green)}
+      @keyframes genPulse{0%,100%{opacity:1}50%{opacity:.25}}
+      .gen-runid{font-size:11px;color:#5a6a72;font-family:monospace}
+      .gen-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+      /* v18 — the ONE navigation: two plain tabs, Codes | Report. Every
+         other page this feature used to have (Daily Review, Run History,
+         Performance, Log, a "Reports & Tools" dropdown) is gone. */
+      .gen-page-tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--gen-border)}
+      .gen-page-tab{background:none;border:none;border-bottom:2px solid transparent;color:#8a9e8a;font-size:13px;font-weight:700;padding:10px 16px;cursor:pointer;margin-bottom:-1px}
+      .gen-page-tab:hover{color:#e8edf4}
+      .gen-page-tab.active{color:var(--gen-purple);border-bottom-color:var(--gen-purple)}
+      .gen-section-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.02em;padding:14px 18px 8px;color:#e8edf4}
+      .gen-live-dot{width:8px;height:8px;border-radius:50%;background:var(--gen-green);animation:genPulse 1.2s infinite;display:none}
+      .gen-live-dot.on{display:inline-block}
+      .gen-out-table{width:100%;border-collapse:collapse;font-size:12px}
+      .gen-out-table th{text-align:left;color:#5a6a72;font-size:10px;text-transform:uppercase;padding:6px 12px;border-bottom:1px solid var(--gen-border);cursor:pointer;user-select:none;white-space:nowrap}
+      .gen-out-table th:hover{color:var(--gen-purple)}
+      .gen-out-table td{padding:9px 12px;border-bottom:1px solid #10161c;vertical-align:middle}
+      .gen-out-row:hover td{background:#0d141b}
+      /* v21 — REAL BUG: `.gen-out-table th{text-align:left}` above is MORE
+         specific (class+tag) than a bare `.gen-col-odds{text-align:right}`
+         (class only), so it won the cascade for the header cell — the
+         "ODDS" header sat left-aligned while its <td> values (nothing else
+         competing for those) went right-aligned, visibly not lining up.
+         Targeting th/td explicitly makes this rule win for both. */
+      .gen-out-table th.gen-col-odds, .gen-out-table td.gen-col-odds{text-align:right}
+      .gen-out-table th.gen-col-conf, .gen-out-table td.gen-col-conf{text-align:right}
+      /* v19 §3 — generation grouping is back: collapsed box per run, newest
+         on top, nothing auto-expanded. */
+      .gen-generation-block{border:1px solid var(--gen-border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+      .gen-generation-header{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:700;color:#c7d3da;background:#0a0f14}
+      .gen-generation-header:hover{background:#0d141b}
+      .gen-generation-header .gen-gen-count{font-weight:400;color:#5a6a72;font-size:11px}
+      .gen-generation-caret{transition:transform .15s;color:#5a6a72}
+      .gen-generation-block.collapsed .gen-generation-caret{transform:rotate(-90deg)}
+      .gen-generation-block.collapsed .gen-generation-body{display:none}
+      /* v19 §4 — search box */
+      .gen-codes-search{background:#0a0f14;border:1px solid var(--gen-border);border-radius:6px;color:#e8edf4;padding:6px 10px;font-size:12px;width:220px}
+      /* v20 — explicit copy affordance: obvious at a glance, not something
+         you have to discover by clicking plain text. */
+      .gen-copy-icon-btn{background:none;border:none;color:#5a6a72;cursor:pointer;font-size:12px;padding:0 0 0 6px;vertical-align:middle;line-height:1}
+      .gen-copy-icon-btn:hover{color:var(--gen-purple)}
+      .gen-code-mono{font-family:monospace;color:var(--gen-green);font-weight:700;cursor:pointer}
+      .gen-type-badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.02em}
+      .gen-copy-btn{background:none;border:1px solid var(--gen-border);color:#8a9e8a;font-size:10px;padding:3px 8px;border-radius:5px;cursor:pointer}
+      .gen-copy-btn.copied{color:var(--gen-green);border-color:var(--gen-green)}
+      .gen-donut{display:inline-flex;align-items:center;justify-content:center;position:relative;width:34px;height:34px}
+      .gen-donut svg{transform:rotate(-90deg)}
+      .gen-donut span{position:absolute;font-size:9px;font-weight:700}
+      .gen-below-tag{font-size:9px;color:var(--gen-amber);border:1px solid var(--gen-amber);border-radius:4px;padding:1px 5px}
+      .gen-expand-row td{background:#080c10;padding:12px 18px}
+      .gen-summary-bar{display:none;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:14px 0}
+      .gen-summary-tile{background:var(--gen-panel);border:1px solid var(--gen-border);border-radius:10px;padding:12px 14px}
+      .gen-summary-tile .lbl{font-size:10px;color:#5a6a72;text-transform:uppercase;margin-bottom:4px}
+      .gen-summary-tile .val{font-size:20px;font-weight:700}
+      .gen-summary-tile .sub{font-size:10px;color:#8a9e8a;margin-top:2px}
+      .gen-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center}
+      .gen-modal{background:var(--gen-panel);border:1px solid var(--gen-border);border-radius:12px;padding:22px;max-width:680px;width:94%;max-height:85vh;overflow:auto}
+      .gen-modal h3{margin:0 0 14px}
+      .gen-modal-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #10161c;flex-wrap:wrap}
+      .gen-modal-row label{font-size:12px;color:#c7d3da;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+      .gen-modal-row input{width:100px;background:#0a0f14;border:1px solid var(--gen-border);border-radius:6px;color:#e8edf4;padding:5px 8px;font-size:12px;text-align:right}
+      .gen-info-icon{position:relative;color:#5a6a72;cursor:help;font-size:12px;display:inline-block}
+      .gen-info-icon:hover,.gen-info-icon:focus{color:var(--gen-purple)}
+      .gen-tooltip{display:none;position:absolute;left:0;top:20px;z-index:50;width:260px;background:#0d1620;border:1px solid var(--gen-purple);border-radius:8px;padding:10px;font-size:11px;line-height:1.5;color:#c7d3da;white-space:normal;font-weight:400;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+      .gen-info-icon:hover .gen-tooltip,.gen-info-icon:focus .gen-tooltip{display:block}
+      .gen-recommended-chip{font-size:9px;color:#8a9e8a;background:#10161c;border:1px solid var(--gen-border);border-radius:10px;padding:1px 7px;white-space:nowrap}
+      .gen-reset-btn{background:none;border:1px solid var(--gen-border);color:#8a9e8a;border-radius:5px;width:22px;height:22px;cursor:pointer;font-size:12px;line-height:1}
+      .gen-reset-btn:hover{color:var(--gen-purple);border-color:var(--gen-purple)}
+
+      /* v16 §1 — THE ONE date selector, shared by Report and Studio. Uses
+         --gen-purple where available (Generator tab) and falls back to a
+         sane default elsewhere (Studio). */
+      .date-sel{display:inline-flex;gap:4px;align-items:center}
+      .date-sel-btn{background:#0a0f14;border:1px solid var(--gen-border,#1e2a33);color:#8a9e8a;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
+      .date-sel-btn:hover{color:#e8edf4;border-color:var(--gen-purple,#2563EB)}
+      .date-sel-btn.active{background:var(--gen-purple,#2563EB);border-color:var(--gen-purple,#2563EB);color:#fff;font-weight:700}
+
+      /* v17 §2 — the ONE shared loading-state pattern: button spinner +
+         content skeleton, reused everywhere instead of a bespoke per-page
+         loading treatment. */
+      .gen-spinner{display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:genSpin .6s linear infinite;vertical-align:middle;margin-right:3px}
+      @keyframes genSpin{to{transform:rotate(360deg)}}
+      .gen-skel-wrap{display:flex;flex-direction:column;gap:8px;padding:14px}
+      .gen-skel-row{height:14px;border-radius:6px;background:linear-gradient(90deg,#131a22 25%,#1c252f 37%,#131a22 63%);background-size:400% 100%;animation:genSkelPulse 1.4s ease-in-out infinite}
+      .gen-skel-row:nth-child(2){width:85%}
+      .gen-skel-row:nth-child(3){width:70%}
+      @keyframes genSkelPulse{0%{background-position:100% 50%}100%{background-position:0 50%}}
+    </style>
+
+    <div class="gen-dash">
+    <!-- HEADER BAR -->
+    <div class="card gen-header-bar">
+      <div>
+        <h2>Advanced Generator <span id="gen-status-chip" class="gen-chip gen-chip-idle">IDLE</span></h2>
+        <p class="gen-subtitle">Building intelligent, high-probability slips from punters & community</p>
       </div>
-      <p class="sub" style="margin-bottom:20px">Paste a tweet URL, tweet text, or a screenshot. Runs Scanner / Optimizer / Convert on your real data, drafts a reply — no paid X API needed. You copy &amp; post manually.</p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span id="gen-runid-label" class="gen-runid"></span>
+        <button class="btn-sm" onclick="genOpenSettings()">⚙ Settings</button>
+        <button class="btn-sm" id="gen-stop-btn" onclick="genStopRun()" style="display:none;background:var(--gen-red);color:#fff;border-color:var(--gen-red)">■ Stop Run</button>
+      </div>
+    </div>
 
-      <div style="display:flex;gap:6px;margin-bottom:18px">
-        <button class="cs-stab active" data-xtab="new" onclick="xaSwitchTab('new')">New</button>
-        <button class="cs-stab" data-xtab="dailypost" onclick="xaSwitchTab('dailypost');loadDailyPost()">Daily Post</button>
-        <button class="cs-stab" data-xtab="history" onclick="xaSwitchTab('history')">History</button>
+    <!-- v18 — the ONE navigation: Codes | Report. No other page exists. -->
+    <div class="gen-page-tabs">
+      <button class="gen-page-tab active" data-page="codes" onclick="genSwitchPage('codes')">Codes</button>
+      <button class="gen-page-tab" data-page="report" onclick="genSwitchPage('report')">Report</button>
+    </div>
+
+    <!-- ══════════════════════ PAGE 1 — CODES ══════════════════════ -->
+    <div id="gen-page-codes">
+      <div class="gen-controls">
+        <button class="btn" id="gen-run-btn" onclick="genStart()" style="min-width:220px">🚀 START ADVANCED GENERATOR</button>
+        <select id="gen-regen-mode" class="btn-sm" style="cursor:pointer;padding:6px 8px" title="Mode for both Start and Regenerate">
+          <option value="full">Full ▾</option>
+          <option value="punters">Punters Only</option>
+          <option value="mixtures">Builders Only</option>
+        </select>
+        <button class="btn-sm" onclick="genRegenerate()" title="Adds new tickets to the top — nothing is cleared, and a ticket that already exists (same code) is updated in place instead of duplicated">⟳ Regenerate</button>
       </div>
 
-      <!-- NEW -->
-      <div class="xa-content active" data-xtab="new">
-        <label style="font-size:11px;color:#8a9e8a;text-transform:uppercase;font-weight:700">Tweet URL, tweet text, or a direct command</label><br>
-        <textarea id="xa-input" class="xa-field" rows="4" style="width:100%;margin:8px 0" placeholder="e.g. https://x.com/someone/status/123...  or  @SlipPilot remove Brazil and reduce odds to around 700  or  Is KKPS84 really 11/12?"></textarea>
+      <!-- v19 §3/§4 — a collapsed box per generation, newest on top, plus
+           one search box and click-to-sort on Odds. Nothing else added back. -->
+      <div id="gen-output-card" class="card" style="overflow:hidden">
+        <div class="gen-section-label">
+          <span class="gen-live-dot" id="gen-live-dot"></span>CODES
+          <input type="text" class="gen-codes-search" placeholder="Search punter/ticket…" oninput="genSetCodesQuery(this.value)" style="margin-left:auto">
+          <button type="button" class="btn-sm" id="gen-copy-all-btn" onclick="genCopyAllCodes()" title="Copy every code currently loaded, one per line">📋 Copy All Codes</button>
+        </div>
+        <div id="gen-generations-container"></div>
+        <div id="gen-ticket-empty" style="padding:16px 18px;font-size:12px;color:#5a6a72">No tickets yet.</div>
+      </div>
+    </div>
 
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
-          <button class="btn" style="margin-left:auto;background:linear-gradient(135deg,#1d9bf0,#7c3aed)" onclick="xaAnalyze()" id="xa-analyze-btn">Analyze</button>
+    <!-- ══════════════════════ PAGE 2 — REPORT ══════════════════════ -->
+    <div id="gen-page-report" style="display:none">
+      <div class="card" style="padding:14px 18px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <h3 style="margin:0">Report</h3>
+          <div id="gen-report-dateselect"></div>
+          <button class="btn-sm" onclick="genLoadReport(true)">↻ Rescan</button>
+          <span id="gen-report-status" style="font-size:11px;color:#8a9e8a"></span>
+        </div>
+        <div id="gen-report-adjustments" style="display:none"></div>
+        <div id="gen-report-banner"></div>
+        <div id="gen-report-headline" class="gen-summary-bar" style="display:grid;margin-bottom:14px"></div>
+        <div id="gen-report-body"></div>
+      </div>
+    </div>
+
+    <!-- Generator Settings modal — also home to occasionally-needed tools
+         (Simulate Auto-Run, League Blacklist, Intelligence Backfill) that
+         don't need their own page. -->
+    <div id="gen-settings-modal" class="gen-modal-backdrop" onclick="if(event.target===this)genCloseSettings()">
+      <div class="gen-modal">
+        <h3>⚙ Generator Settings</h3>
+        <div id="gen-settings-body"></div>
+
+        <div style="margin-top:18px;border-top:1px solid var(--gen-border);padding-top:14px">
+          <div style="font-size:11px;font-weight:700;color:#9c6dff;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px">Tools</div>
+          <button class="btn-sm" onclick="genSimulateAutoRun()" title="Test the morning path now: Daily Review on yesterday, then a fresh run">🌅 Simulate Auto-Run</button>
+          <button class="btn-sm" onclick="genDeleteResults()" style="color:#e53935;border-color:#e53935" title="Deletes every saved result — the one exception to 'never clear'">🗑 Clear Completed Results</button>
         </div>
 
-        <div id="xa-error-box" class="xa-warn" style="display:none"></div>
-        <div id="xa-result" style="display:none"></div>
-      </div>
-
-      <!-- DAILY POST -->
-      <div class="xa-content" data-xtab="dailypost">
-        <p style="font-size:12px;color:#8a9e8a;margin:0 0 16px">Merges all today's punter codes into one slip automatically, then builds the X post. Copy and post manually.</p>
-
-        <div id="dp-punters" style="background:#0a0f14;border:1px solid #1e2e1e;border-radius:8px;padding:12px;margin-bottom:14px;min-height:48px">
-          <p style="color:#8a9e8a;font-size:12px;margin:0">Loading punter codes...</p>
-        </div>
-
-        <button class="btn" id="dp-gen-btn" style="background:linear-gradient(135deg,#1d9bf0,#7c3aed);width:100%;margin-bottom:14px" onclick="generateDailyPost()">Generate Post</button>
-
-        <div id="dp-output" style="display:none">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <span style="font-size:11px;color:#8a9e8a;text-transform:uppercase;font-weight:700">Ready to post</span>
-            <button class="btn" style="padding:4px 14px;font-size:11px" onclick="copyDailyPost()">Copy</button>
+        <div style="margin-top:18px;border-top:1px solid var(--gen-border);padding-top:14px">
+          <div style="font-size:11px;font-weight:700;color:#e53935;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px">League Blacklist — HARD vs SOFT</div>
+          <p style="font-size:11px;color:#8a9e8a;margin-bottom:8px">HARD = always excluded. SOFT = penalized + capped, not excluded. One league per line.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div>
+              <div style="font-size:11px;color:#e53935;font-weight:700;margin-bottom:4px">HARD (excluded)</div>
+              <textarea id="gen-blacklist-hard" rows="5" style="width:100%;font-size:12px;background:#0a0f14;border:1px solid #1e3e1e;border-radius:8px;padding:10px;color:#e6edf3;font-family:monospace"></textarea>
+            </div>
+            <div>
+              <div style="font-size:11px;color:#ffb300;font-weight:700;margin-bottom:4px">SOFT (penalized, not excluded)</div>
+              <textarea id="gen-blacklist-soft" rows="5" style="width:100%;font-size:12px;background:#0a0f14;border:1px solid #1e3e1e;border-radius:8px;padding:10px;color:#e6edf3;font-family:monospace"></textarea>
+            </div>
           </div>
-          <textarea id="dp-text" rows="14" style="width:100%;font-size:12px;line-height:1.6;background:#0a0f14;border:1px solid #1e3e1e;border-radius:8px;padding:12px;color:#e6edf3;resize:vertical;font-family:monospace" readonly></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+            <button class="btn-sm" onclick="genSaveBlacklist()">Save Blacklist</button>
+            <span id="gen-blacklist-msg" style="font-size:11px;color:#8a9e8a"></span>
+          </div>
+          <div style="margin-top:14px;border-top:1px solid #1e3e1e;padding-top:10px">
+            <div style="font-size:11px;color:#ffb300;font-weight:700;margin-bottom:6px">⚠ Blacklist candidates (auto, from Daily Review)</div>
+            <div id="gen-blacklist-candidates" style="font-size:11px;color:#8a9e8a">Loading…</div>
+          </div>
         </div>
-        <span id="dp-msg" style="font-size:11px;color:#8a9e8a"></span>
-      </div>
 
-      <!-- HISTORY -->
-      <div class="xa-content" data-xtab="history">
-        <div id="xa-history-list"><p style="color:#8a9e8a;font-size:12px">Loading...</p></div>
+        <div style="margin-top:18px;border-top:1px solid var(--gen-border);padding-top:14px">
+          <div style="font-size:11px;font-weight:700;color:#00c853;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px">Rebuild Intelligence From History</div>
+          <p style="font-size:11px;color:#8a9e8a;margin-bottom:8px">Replays every settled leg in data/reports/*.json — additive, safe to run repeatedly.</p>
+          <button class="btn-sm" onclick="genBackfillIntelligence()">Rebuild Intelligence From History</button>
+          <span id="gen-backfill-msg" style="font-size:11px;color:#8a9e8a;margin-left:8px"></span>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <span id="gen-settings-msg" style="font-size:11px;color:#8a9e8a;margin-right:auto;align-self:center"></span>
+          <button class="btn-sm" onclick="genCloseSettings()">Cancel</button>
+          <button class="btn-sm" onclick="genSaveSettingsModal()" style="background:var(--gen-green);color:#031b0f">Save</button>
+        </div>
       </div>
+    </div>
+    </div>
+
+    <!-- Hidden internal log buffer — no longer a navigable page, but many
+         status messages still append here for debugging via devtools. -->
+    <div id="gen-log" style="display:none"></div>
+  </div>
+
+  <!-- STRATEGY ENGINE -->
+  <div class="tab-content" id="tab-strategy">
+    <div class="card" style="background:#070d14;border-color:rgba(0,200,83,0.2)">
+      <h2 style="color:#e8edf4;margin-bottom:4px">🧩 Strategy Engine</h2>
+      <p style="font-size:12px;color:#8a9e8a;margin-bottom:20px">Every run builds independent portfolios from the same master pool — each strategy follows completely different construction rules. Pick one, or run all 16 and get a safest→riskiest ranking with a top-3 staking recommendation.</p>
+
+      <div class="gen-ctrl-grid" style="margin-bottom:16px">
+        <div class="gen-ctrl-group" style="grid-column:span 2">
+          <div class="gen-ctrl-label">Strategy</div>
+          <div class="gen-ctrl-row">
+            <select id="strat-select" style="flex:1">
+              <option value="all">▶ Run All 16 &amp; Rank Safest → Riskiest</option>
+              <option value="safe_consensus">1. Safe Consensus</option>
+              <option value="low_odds_machine">2. Low Odds Machine</option>
+              <option value="big_teams_only">3. Big Teams Only</option>
+              <option value="league_filter">4. League Filter</option>
+              <option value="goals_only">5. Goals Only</option>
+              <option value="double_chance_only">6. Double Chance Only</option>
+              <option value="conservative_builder">7. Conservative Builder</option>
+              <option value="aggressive_builder">8. Aggressive Builder</option>
+              <option value="early_matches">9. Early Matches Only</option>
+              <option value="evening_matches">10. Evening Matches Only</option>
+              <option value="top10_games">11. Top 10 Games</option>
+              <option value="top20_games">12. Top 20 Games</option>
+              <option value="pure_value">13. Pure Value</option>
+              <option value="pure_consensus">14. Pure Consensus</option>
+              <option value="zero_risk_mode">15. Zero Risk Mode</option>
+              <option value="h2h_favorites">16. H2H Favorites</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="strat-desc" style="font-size:12px;color:#4a7a4a;margin-bottom:16px"></div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="strat-run-btn" onclick="stratRun()" style="min-width:160px">🧩 Build Portfolio(s)</button>
+        <span id="strat-status" style="font-size:12px;color:#8a9e8a"></span>
+      </div>
+      <div class="gen-progress-log" id="strat-log"></div>
+    </div>
+
+    <!-- Top-3 recommendation banner -->
+    <div id="strat-top3" style="display:none;margin-bottom:16px"></div>
+
+    <!-- Results -->
+    <div id="strat-results" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <h2 style="margin:0;color:#e8edf4">Generated Portfolios</h2>
+        <span id="strat-summary" style="font-size:12px;color:#8a9e8a"></span>
+      </div>
+      <div id="strat-list"></div>
+    </div>
+
+    <!-- Refine a manually-built code against H2H Favorites' rules -->
+    <div class="card" style="background:#070d14;border-color:rgba(0,200,83,0.2);margin-top:20px">
+      <h2 style="color:#e8edf4;margin-bottom:4px">🔍 Refine My Code (H2H Favorites)</h2>
+      <p style="font-size:12px;color:#8a9e8a;margin-bottom:14px">Paste one or more booking codes you built by hand (comma-separated to merge them). Legs that already fit H2H Favorites (1X2/DNB, Home or Away, odds 1.05–2.05) are left exactly as they are — only the ones that don't get a live-checked suggestion. A real code is generated from the result automatically.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input id="h2h-refine-code" placeholder="Booking code(s), e.g. GJUJ2G, MX6GLS" style="flex:1;min-width:180px;padding:8px 10px;background:#0a0f0a;border:1px solid #1e2e1e;border-radius:8px;color:#e8edf4" />
+        <button class="btn" id="h2h-refine-btn" onclick="h2hRefineRun()">Analyze</button>
+        <span id="h2h-refine-status" style="font-size:12px;color:#8a9e8a"></span>
+      </div>
+      <div id="h2h-refine-summary" style="font-size:12px;color:#8a9e8a;margin-bottom:10px"></div>
+      <div id="h2h-refine-generated" style="margin-bottom:14px"></div>
+      <div id="h2h-refine-results"></div>
     </div>
   </div>
 
-  <!-- INTELLIGENCE ENGINE -->
   <div class="tab-content" id="tab-intelligence">
     <div class="card" style="background:#070d14;border-color:rgba(0,200,83,0.2)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
@@ -796,22 +1455,471 @@ input:focus{border-color:#00c853}
     </div>
   </div>
 
+  <!-- TABLE TENNIS -->
+  <div class="tab-content" id="tab-tabletennis">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+        <h2 style="margin:0">🏓 Table Tennis</h2>
+        <span class="nav-badge-new" style="position:static;border-radius:100px;padding:2px 8px">NEW</span>
+      </div>
+      <p class="sub" style="margin-bottom:14px">Paste 2-3 live codes to see what's on tonight's board, run a deep cross-market analysis, and get real 1K&ndash;1M booking codes. All 4 tracked markets used: G1 Under 19.5, G1 Over 17.5, FM Under, and Handicap.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;border-bottom:1px solid #1e2e1e;padding-bottom:14px">
+        <button class="cs-stab active" data-tttab="scan" onclick="ttSwitchSubtab('scan')">🔍 Scan &amp; Analyze</button>
+        <button class="cs-stab" data-tttab="history" onclick="ttSwitchSubtab('history');ttLoadHistoryView()">📚 All-Time History &amp; Players</button>
+        <button class="cs-stab" data-tttab="ingest" onclick="ttSwitchSubtab('ingest')">📥 Bulk Ingest Historical Codes</button>
+        <button class="cs-stab" data-tttab="log" onclick="ttSwitchSubtab('log');ttLoadLogView()">💾 Saved Codes &amp; Results</button>
+      </div>
+
+      <!-- SCAN & ANALYZE -->
+      <div class="tt-subtab active" data-tttab="scan">
+        <textarea id="ttCodes" placeholder="One or more codes — comma, space, or newline separated" rows="3" style="width:100%;max-width:520px;padding:10px 14px;border-radius:8px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:13px;font-family:'JetBrains Mono',monospace;resize:vertical;display:block;margin-bottom:10px"></textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="ttScanBtn" onclick="ttScan()">Scan &amp; Analyze</button>
+          <button class="btn-sm" onclick="ttRescanLast()" id="ttReviewBtn" style="display:none">🔁 Run Review (re-scan these codes for results)</button>
+          <button class="btn-sm" onclick="ttRunBatch()" id="ttBatchBtn" style="display:none;border-color:#a371f7;color:#a371f7">🎲 Generate Batch (5&ndash;10 codes)</button>
+        </div>
+        <p id="ttError" style="color:#e53935;font-size:13px;margin-top:8px;display:none"></p>
+        <p id="ttRestoredNote" style="color:#8a9e8a;font-size:11.5px;margin-top:8px;display:none"></p>
+        <div id="ttProgress" style="display:none;margin-top:10px;font-size:13px;color:#00c853"></div>
+      </div>
+
+      <!-- BULK INGEST -->
+      <div class="tt-subtab" data-tttab="ingest" style="display:none">
+        <p style="font-size:12px;color:#8a9e8a;margin-bottom:10px">Paste a big batch of <strong>already-decided</strong> historical codes here — this builds the permanent player database (win/loss history per player) without running the slower live-market scoring pass. This is how "we have a lot of data, let's input them" actually gets built.</p>
+        <textarea id="ttBulkCodes" placeholder="Many codes — comma, space, or newline separated (up to 200 at once)" rows="6" style="width:100%;max-width:640px;padding:10px 14px;border-radius:8px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:13px;font-family:'JetBrains Mono',monospace;resize:vertical;display:block;margin-bottom:10px"></textarea>
+        <button class="btn" id="ttBulkBtn" onclick="ttBulkIngest()">📥 Ingest All</button>
+        <p id="ttBulkError" style="color:#e53935;font-size:13px;margin-top:8px;display:none"></p>
+        <div id="ttBulkProgress" style="display:none;margin-top:10px;font-size:13px;color:#00c853"></div>
+        <div id="ttBulkResult" style="margin-top:14px"></div>
+      </div>
+
+      <!-- ALL-TIME HISTORY & PLAYERS -->
+      <div class="tt-subtab" data-tttab="history" style="display:none">
+        <div id="ttHistorySummary" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px"><p style="color:#8a9e8a;font-size:12px">Loading…</p></div>
+        <div class="card" style="margin-bottom:16px">
+          <h2>Every Tracked Market — All-Time</h2>
+          <div id="ttAllMarketsTable"><p style="color:#8a9e8a;font-size:12px">Loading…</p></div>
+        </div>
+        <input type="text" id="ttPlayerSearch" placeholder="Search player..." style="max-width:220px;font-size:12px;padding:6px 12px;margin-bottom:10px" oninput="ttRenderPlayers()" />
+        <div id="ttPlayersTable" style="overflow-x:auto;max-height:500px;overflow-y:auto"></div>
+      </div>
+
+      <!-- SAVED CODES & RESULTS -->
+      <div class="tt-subtab" data-tttab="log" style="display:none">
+        <p class="sub" style="margin-bottom:10px">Every code this workspace has generated, plus anything you add manually (other AIs, tipsters, your own picks) — all in one place, kept permanently, with real live results on demand.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-bottom:12px">
+          <textarea id="ttTrackCodes" placeholder="Add codes to track — comma, space, or newline separated" rows="2" style="flex:1;min-width:260px;max-width:520px;padding:8px 12px;border-radius:8px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff;font-size:13px;font-family:'JetBrains Mono',monospace;resize:vertical"></textarea>
+          <input type="text" id="ttTrackSource" placeholder="Source (e.g. grok, tipster)" style="width:160px;font-size:12px;padding:8px 12px" />
+          <button class="btn" id="ttTrackAddBtn" onclick="ttTrackAdd()">+ Add to Saved</button>
+        </div>
+        <button class="btn-sm" id="ttTrackCheckBtn" onclick="ttCheckResults()" style="border-color:#00c853;color:#00c853;margin-bottom:12px">🔄 Run Analysis (check real results)</button>
+        <p id="ttTrackError" style="color:#e53935;font-size:13px;margin-bottom:8px;display:none"></p>
+        <p class="sub" style="margin-bottom:10px">Grouped by source — same layout as the Punters tab, so you can compare win/loss side by side. Click a row to expand its individual codes.</p>
+        <div id="ttLogTable"><p style="color:#8a9e8a;font-size:12px">Loading…</p></div>
+      </div>
+    </div>
+
+    <div id="ttResults" style="display:none">
+      <div class="card">
+        <h2>Real Market Rates <span id="ttRatesBadge" style="font-size:11px;color:#8a9e8a;font-weight:400"></span></h2>
+        <p class="sub" style="margin-bottom:4px">All-time performance across the 4 tracked markets — updates automatically every time you scan or bulk-ingest.</p>
+        <p id="ttDataWindow" class="sub" style="margin-bottom:8px;color:#4a7a4a"></p>
+        <div id="ttRatesTable"></div>
+      </div>
+
+      <div id="ttTierGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px" class="tt-output-grid"></div>
+
+      <div class="card" id="ttBatchCard" style="display:none;margin-top:16px;border-color:rgba(163,113,247,.35)">
+        <h2 style="color:#a371f7">🎲 Batch (5&ndash;10 diversified codes)</h2>
+        <p class="sub" style="margin-bottom:8px">Each code below uses a different rotation through the same real confidence-ranked pool, capped at 3 appearances per player so no single player dominates a code's exposure — every code respects the 50-leg max and the 1,000&times; floor.</p>
+        <div id="ttBatchResults"></div>
+      </div>
+
+      <div class="card" id="ttMarketGenCard" style="display:none;margin-top:16px;border-color:rgba(255,255,255,.12)">
+        <h2>🎯 Generate by Market</h2>
+        <p class="sub" style="margin-bottom:8px">Pick one specific market and generate a code from every match in this pool that currently offers it — not necessarily each match's overall best pick.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="ttMarketSelect" style="font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid #1e2e1e;background:#0a0f0a;color:#fff">
+            <option value="G1_Under19.5">G1 Under 19.5</option>
+            <option value="G1_Over17.5">G1 Over 17.5</option>
+            <option value="FM_Under77.5">FM Under 77.5</option>
+            <option value="FM_Under78.5">FM Under 78.5</option>
+            <option value="FM_Under79.5">FM Under 79.5</option>
+            <option value="FM_Under80.5">FM Under 80.5</option>
+            <option value="Handicap">Handicap (best confidence per match)</option>
+            <option value="Handicap_Highest">Handicap (highest cushion per match)</option>
+            <option value="G1_ExtraPoints_No">Extra Points - No (G1 ends normally)</option>
+            <option value="G1_ExtraPoints_Yes">Extra Points - Yes (G1 goes to deuce)</option>
+          </select>
+          <button class="btn-sm" onclick="ttMarketGen()" id="ttMarketGenBtn">⚡ Gen</button>
+        </div>
+        <div id="ttMarketGenResult" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <h2 style="margin:0">All Scored Matches <span id="ttMatchesBadge" style="font-size:11px;color:#8a9e8a;font-weight:400"></span></h2>
+          <span style="font-size:11px;color:#8a9e8a;margin-left:auto">Click a row to see all 4 market candidates, not just the best one</span>
+        </div>
+        <div id="ttMatchesTable"></div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /admin-main -->
+
 </div>
 
 <script>
 var adminPw='', profiles={}, generatedCodes={}, currentSort='consistency', currentGroup='all';
 
+const LAST_TAB_KEY = 'slippilot_admin_last_tab';
+
 function switchAdminTab(id) {
   document.querySelectorAll('.tab-row .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + id));
+  localStorage.setItem(LAST_TAB_KEY, id);
+}
+
+// Restores whichever tab was open before a reload. Done by re-clicking the
+// matching nav button rather than re-implementing each tab's init call here
+// — every button's onclick already chains switchAdminTab() with its own
+// loader (abInit(), genInit(), etc.), so a real click stays correct even as
+// tabs are added or their init calls change, with nothing to keep in sync.
+// No URL/query string involved — purely local to this browser.
+document.addEventListener('DOMContentLoaded', () => {
+  const last = localStorage.getItem(LAST_TAB_KEY);
+  if (!last || last === 'dashboard') return; // dashboard is already the default
+  const btn = document.querySelector(`.tab-row .tab-btn[data-tab="${CSS.escape(last)}"]`);
+  if (btn) btn.click();
+});
+
+function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+
+// ── Auto-Bet ─────────────────────────────────────────────────────────────────
+// Local-dev only; every endpoint 503s in production. The stake is never sent
+// from here — the server fixes it — so there is nothing in this UI that can
+// raise it.
+var abState = { runId: null, src: null, lastSeq: -1, running: false };
+
+function abHeaders() { return { 'Content-Type': 'application/json', 'x-admin-password': adminPw }; }
+
+function abLog(line) {
+  const el = document.getElementById('abLog');
+  if (!el) return;
+  if (el.textContent === 'Idle.') el.textContent = '';
+  el.textContent += (el.textContent ? '\n' : '') + line;
+  el.scrollTop = el.scrollHeight;
+}
+
+const AB_CODES_KEY = 'slippilot_autobet_codes';
+// v21 — "when i click one link, it should change color so i can know what
+// i've clicked" — going through a results list of many READY/SKIPPED codes,
+// tapping each one's SportyBet link to manually check/place it, there was no
+// way to tell at a glance which ones had already been opened. Persisted
+// (not just hover/session state) so it survives a reload, same idea as a
+// browser's visited-link color.
+const AB_VISITED_KEY = 'slippilot_autobet_visited_codes';
+function abGetVisited() { try { return new Set(JSON.parse(localStorage.getItem(AB_VISITED_KEY) || '[]')); } catch { return new Set(); } }
+function abMarkVisited(code, linkEl) {
+  const visited = abGetVisited();
+  visited.add(code);
+  localStorage.setItem(AB_VISITED_KEY, JSON.stringify([...visited]));
+  const row = linkEl?.closest('tr');
+  if (row) abApplyVisitedStyle(row, true, true);
+}
+// v23 — REAL FINDING: SportyBet's own share-code page takes several real
+// seconds to load the correct slip — a brief "⏳ loading" cue right after a
+// fresh click sets the honest expectation (give it a few seconds) instead
+// of jumping straight to "✓ Opened", which could read as "this should show
+// your game right now". `justClicked` only fires that transient state on a
+// real click, not on the initial render of an already-visited row.
+function abApplyVisitedStyle(row, visited, justClicked) {
+  const codeCell = row.querySelector('[data-role="ab-code"]');
+  const link = row.querySelector('[data-role="ab-open-link"]');
+  if (codeCell) codeCell.style.color = visited ? '#5a6a72' : '';
+  if (link) {
+    if (justClicked) {
+      link.style.color = '#ffb300';
+      link.textContent = '⏳ Loading your slip…';
+      setTimeout(() => { link.style.color = '#4a5a62'; link.textContent = '✓ Opened'; }, 3000);
+    } else {
+      link.style.color = visited ? '#4a5a62' : '#00c853';
+      link.textContent = visited ? '✓ Opened' : 'Tap to open →';
+    }
+  }
+}
+
+// Codes persist across reloads so a refresh (needed after every update to
+// this tab) doesn't force retyping the same list every time.
+function abInit() {
+  abStatus();
+  const saved = localStorage.getItem(AB_CODES_KEY);
+  if (saved) document.getElementById('abCodes').value = saved;
+  document.getElementById('abCodes').addEventListener('input', e => {
+    localStorage.setItem(AB_CODES_KEY, e.target.value);
+  });
+}
+
+async function abStatus() {
+  const pill = document.getElementById('abSessionPill');
+  if (pill) { pill.textContent = 'checking…'; pill.style.color = '#9aa89a'; }
+  try {
+    const r = await fetch('/api/admin/autobet/status', { headers: abHeaders() });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'unavailable');
+    setText('abStake', d.stake);
+    setText('abMinLegs', d.minLegs);
+    setText('abFlexTrigger', Number(d.flexTrigger).toLocaleString());
+    setText('abFlexMin', d.flexMinOdds);
+    const env = document.getElementById('abEnv');
+    if (env) env.textContent = d.browser ? `${d.browser} · ${d.profile}` : '';
+    if (!pill) return;
+    if (!d.playwright) { pill.textContent = '⚠ Playwright missing'; pill.style.color = '#ffb300'; }
+    else if (d.chromeRunning) { pill.textContent = '⚠ Close Chrome first'; pill.style.color = '#e53935'; }
+    else if (d.signedIn) { pill.textContent = '● Signed in'; pill.style.color = '#00c853'; }
+    else { pill.textContent = '○ Not signed in'; pill.style.color = '#ffb300'; }
+  } catch (e) {
+    if (pill) { pill.textContent = '✗ ' + e.message; pill.style.color = '#e53935'; }
+  }
+}
+
+async function abSignIn() {
+  abLog('Opening a SportyBet window in Chrome — log in there, then come back. (Up to 5 minutes.)');
+  abLog('You only do this once. The session is kept, so later runs never ask again.');
+  let ok = false;
+  try {
+    const r = await fetch('/api/admin/autobet/signin', { method: 'POST', headers: abHeaders(), body: '{}' });
+    const d = await r.json();
+    ok = !!d.success;
+    abLog(ok ? '✓ Signed in — session saved.' : '✗ Sign-in failed: ' + (d.error || 'unknown'));
+  } catch (e) { abLog('✗ Sign-in failed: ' + e.message); }
+
+  // Recheck everything the moment we are in: session state, and every code
+  // already sitting in the box — kickoff times move on while you log in, so a
+  // check from before sign-in is already stale.
+  await abStatus();
+  if (ok && document.getElementById('abCodes').value.trim()) {
+    abLog('Rechecking the codes in the box…');
+    await abCheck();
+  }
+}
+
+async function abCheck() {
+  const codes = document.getElementById('abCodes').value;
+  if (!codes.trim()) return alert('Paste some booking codes first.');
+  abLog(`── ${new Date().toLocaleTimeString()} — Check only ──`);
+  try {
+    const r = await fetch('/api/admin/autobet/check', { method: 'POST', headers: abHeaders(), body: JSON.stringify({ codes }) });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    // playCode is the code as it will actually be played (kicked-off legs
+    // dropped and reposted) — that's what belongs in the tap link, not the
+    // pasted code, which may no longer match what's on the slip.
+    abRenderResults(d.checks.map(c => ({
+      code: c.originalCode || c.code, playCode: c.code, legs: c.legs, odds: c.odds,
+      status: c.ok ? 'ready' : 'skipped',
+      reason: c.ok
+        ? `${c.betType === 'flex' ? 'FLEX' : 'Sports'} · ₦${d.stake}${c.dropped ? ` · dropped ${c.dropped} kicked-off leg(s)` : ''}`
+        : c.reason,
+      betType: c.betType,
+    })));
+    d.checks.forEach(c => {
+      const shown = c.originalCode || c.code;
+      if (!c.ok) { abLog(`  ✗ ${shown} — ${c.reason}`); return; }
+      abLog(`  ✓ ${shown}${c.dropped ? ` → ${c.code} (dropped ${c.dropped})` : ''} — ${c.legs} legs, ${Number(c.odds).toLocaleString()}x → ${c.betType === 'flex' ? 'FLEX' : 'Sports'}`);
+    });
+  } catch (e) { abLog('✗ ' + e.message); }
+}
+
+async function abStart(dryRun) {
+  const codes = document.getElementById('abCodes').value;
+  if (!codes.trim()) return alert('Paste some booking codes first.');
+  if (!dryRun && !confirm('Place these for real at ₦10 each?')) return;
+
+  document.getElementById('abLog').textContent = '';
+  document.getElementById('abResults').innerHTML = '';
+  abState.lastSeq = -1;
+  abState.resultRows = new Map();
+  abSetRunning(true);
+
+  try {
+    const r = await fetch('/api/admin/autobet/start', { method: 'POST', headers: abHeaders(), body: JSON.stringify({ codes, dryRun }) });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    abState.runId = d.runId;
+    abLog((dryRun ? 'DRY RUN' : 'LIVE') + ` — ${d.total} code(s) at ₦${d.stake} each`);
+    abAttachStream(d.runId);
+  } catch (e) {
+    abLog('✗ ' + e.message);
+    abSetRunning(false);
+  }
+}
+
+function abSetRunning(on) {
+  abState.running = on;
+  const play = document.getElementById('abPlayBtn'), stop = document.getElementById('abStopBtn');
+  if (play) play.disabled = on;
+  if (stop) stop.style.display = on ? '' : 'none';
+}
+
+function abAttachStream(runId) {
+  if (abState.src) { try { abState.src.close(); } catch (_) {} }
+  const src = new EventSource(`/api/admin/autobet/stream/${runId}?fromSeq=${abState.lastSeq + 1}`);
+  abState.src = src;
+
+  const track = d => { if (typeof d.seq === 'number') abState.lastSeq = d.seq; };
+  src.addEventListener('log', e => { const d = JSON.parse(e.data); track(d); abLog(d.msg); });
+  src.addEventListener('result', e => { const d = JSON.parse(e.data); track(d); abAddResult(d); });
+  // 'run-error', not 'error' — EventSource fires a native 'error' on every
+  // connection drop, which would otherwise look like a failed run.
+  src.addEventListener('run-error', e => { let d = {}; try { d = JSON.parse(e.data); } catch (_) {} abFinish(d, true); });
+  src.addEventListener('done', e => { let d = {}; try { d = JSON.parse(e.data); } catch (_) {} abFinish(d, false); });
+  src.onerror = () => { if (abState.running) abLog('(stream interrupted — the run continues; press Recheck for final state)'); };
+}
+
+function abFinish(state, isError) {
+  if (abState.src) { try { abState.src.close(); } catch (_) {} abState.src = null; }
+  abSetRunning(false);
+  if (isError) abLog('✗ ' + (state.error || 'run failed'));
+  const p = document.getElementById('abProgress');
+  if (p && state.total != null) p.textContent = `${state.placed || 0} placed · ${state.skipped || 0} skipped · ${state.failed || 0} failed`;
+  abLog(`Finished — ${state.placed || 0} placed, ${state.skipped || 0} skipped, ${state.failed || 0} failed.`);
+}
+
+// Rows are keyed by code and updated in place rather than always appended —
+// a code can legitimately be reported more than once (e.g. an SSE stream
+// reconnect replaying its buffer), and without this a single result could
+// render as two rows for the same code.
+function abAddResult(row) {
+  const card = document.getElementById('abResultsCard');
+  if (card) card.style.display = '';
+  const body = document.getElementById('abResults');
+  if (!body) return;
+  if (!body.querySelector('table')) { body.innerHTML = abResultsTableShell(); abState.resultRows = new Map(); }
+  if (!abState.resultRows) abState.resultRows = new Map();
+
+  const key = row.code;
+  const existing = abState.resultRows.get(key);
+  if (existing && existing.isConnected) {
+    existing.outerHTML = abResultRow(row);          // replaces in place; detaches `existing`
+    abState.resultRows.set(key, body.querySelector(`tr[data-code="${CSS.escape(key)}"]`));
+    return;
+  }
+  body.querySelector('tbody').insertAdjacentHTML('beforeend', abResultRow(row));
+  abState.resultRows.set(key, body.querySelector(`tr[data-code="${CSS.escape(key)}"]`));
+}
+
+function abRenderResults(rows) {
+  const card = document.getElementById('abResultsCard');
+  if (card) card.style.display = '';
+  const body = document.getElementById('abResults');
+  body.innerHTML = abResultsTableShell();
+  body.querySelector('tbody').innerHTML = rows.map(abResultRow).join('');
+  abState.resultRows = new Map([...body.querySelectorAll('tbody tr')].map(tr => [tr.dataset.code, tr]));
+}
+
+function abResultsTableShell() {
+  return '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+    '<thead><tr style="text-align:left;color:#8a9e8a">' +
+    '<th style="padding:6px 8px">Code</th><th style="padding:6px 8px">Legs</th>' +
+    '<th style="padding:6px 8px">Odds</th><th style="padding:6px 8px">Status</th>' +
+    '<th style="padding:6px 8px">Detail</th><th style="padding:6px 8px">Open</th></tr></thead><tbody></tbody></table>';
+}
+
+function abResultRow(r) {
+  const colour = r.status === 'placed' ? '#00c853' : r.status === 'failed' ? '#e53935'
+    : r.status === 'ready' ? '#4fc3f7' : '#ffb300';
+  const label = r.status === 'placed' ? '✓ PLACED' : r.status === 'failed' ? '✗ FAILED'
+    : r.status === 'ready' ? '● READY' : '– SKIPPED';
+  const flex = r.flexCut ? ` <span style="color:#4fc3f7">flex ${r.flexCut}</span>` : '';
+  const playCode = r.playCode || r.code;
+  const isVisited = abGetVisited().has(r.code);
+  // The mobile site (m.sportybet / .../ng/m/sport) is what a phone tap
+  // actually opens, so the link targets that, not the desktop URL.
+  const open = (r.status === 'ready' || r.status === 'skipped') && playCode
+    // v23 — REAL BUG, CAUGHT LIVE: a "shared tab" was tried here to speed up
+    // loading, but SportyBet's betslip is CUMULATIVE within a tab/session —
+    // loading a share code ADDS to whatever's already in the slip instead of
+    // replacing it (documented right in this same codebase, see the note
+    // above placeOne() in autobet-engine.js). Reusing one tab across
+    // DIFFERENT codes meant selections from an earlier click were still
+    // sitting in the slip when a new code loaded — confirmed by a real
+    // screenshot showing SportyBet's own "Exceeding 50 Selections" dialog
+    // on a ticket we generated at 35 legs. Reverted to a fresh "_blank" tab
+    // per click — slower to warm up, but the only way to guarantee one
+    // click's selections can never bleed into another's.
+    ? `<a href="https://www.sportybet.com/ng/m/sport?shareCode=${encodeURIComponent(playCode)}" target="_blank" rel="noopener"
+         data-role="ab-open-link" onclick="abMarkVisited('${r.code}', this)"
+         style="color:${isVisited ? '#4a5a62' : '#00c853'};text-decoration:none;font-weight:600">${isVisited ? '✓ Opened' : 'Tap to open →'}</a>`
+    : '';
+  return `<tr data-code="${r.code}" style="border-top:1px solid rgba(255,255,255,.06)">
+    <td data-role="ab-code" style="padding:6px 8px;font-family:'JetBrains Mono',monospace;color:${isVisited ? '#5a6a72' : ''}">${r.code}${playCode !== r.code ? `<br><span style="color:#8a9e8a;font-size:11px">→ ${playCode}</span>` : ''}</td>
+    <td style="padding:6px 8px">${r.legs ?? '—'}</td>
+    <td style="padding:6px 8px">${r.odds ? Number(r.odds).toLocaleString() : '—'}</td>
+    <td style="padding:6px 8px;color:${colour};font-weight:600;white-space:nowrap">${label}${flex}</td>
+    <td style="padding:6px 8px">${open}</td>
+    <td style="padding:6px 8px;color:#8a9e8a">${(r.reason || '').replace(/</g, '&lt;')}</td></tr>`;
+}
+
+async function abStop() {
+  if (!abState.runId) return;
+  await fetch(`/api/admin/autobet/stop/${abState.runId}`, { method: 'POST', headers: abHeaders() });
+  abLog('Stop requested — finishing the code in flight, then halting.');
+}
+
+function toggleSidebar() {
+  const el = document.getElementById('adminSidebar');
+  if (!el) return;
+  el.style.display = (el.style.display === 'none') ? '' : 'none';
+}
+
+// Lightweight "search anything" — jumps to a matching tab, or to the
+// Leaderboard filtered to a matching punter name. No fabricated results.
+function topbarSearchGo() {
+  const q = (document.getElementById('topbarSearch').value || '').trim().toLowerCase();
+  if (!q) return;
+  const tabNames = {
+    dashboard: 'dashboard', generator: 'generator', strategy: 'strategy engine',
+    intelligence: 'intelligence', punters: 'leaderboard', session: 'tracked punters',
+    community: 'community codes', codes: 'codes', tickets: 'tickets',
+    tabletennis: 'table tennis', studio: 'studio', settings: 'settings',
+  };
+  const tabMatch = Object.entries(tabNames).find(([, label]) => label.includes(q) || q.includes(label));
+  if (tabMatch) {
+    document.querySelector(`.tab-btn[data-tab="${tabMatch[0]}"]`)?.click();
+    return;
+  }
+  const punterMatch = Object.keys(profiles || {}).find(name => name.toLowerCase().includes(q));
+  if (punterMatch) {
+    switchAdminTab('punters');
+    const search = document.getElementById('lbSearch');
+    if (search) { search.value = punterMatch; loadLB(); }
+  }
+}
+
+function showDashboard(pw) {
+  adminPw = pw || '';
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'flex';
+  loadAll();
 }
 
 async function doLogin() {
   const pw = document.getElementById('pw').value;
   const r = await fetch('/admin/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pw})});
-  if (r.ok) { adminPw = pw; document.getElementById('login').style.display = 'none'; document.getElementById('dashboard').style.display = 'block'; loadAll(); }
+  if (r.ok) showDashboard(pw);
   else document.getElementById('loginErr').textContent = 'Wrong password';
 }
+
+// Show login only if server requires auth; hide it otherwise
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('/api/admin/dashboard');
+    if (r.ok) { showDashboard(''); return; }
+  } catch {}
+  document.getElementById('login').style.display = 'block';
+});
 
 async function loadAll() {
   const h = {'x-admin-password': adminPw};
@@ -832,15 +1940,190 @@ async function loadAll() {
   try { loadSessionHistory(); } catch(e) { console.error('loadSessionHistory:', e); }
   try { if (typeof ssRestoreLastResult === 'function') ssRestoreLastResult(); } catch(e) { console.error('ssRestoreLastResult:', e); }
   try { loadIntelStatus(); } catch(e) { console.error('loadIntelStatus:', e); }
+  try { loadDashboardHome(); } catch(e) { console.error('loadDashboardHome:', e); }
 }
 
 function updateQuickStats() {
   const pList = Object.values(profiles);
-  document.getElementById('qsPunters').textContent = pList.length;
-  const totalCodes = Object.values(generatedCodes).flat().filter(c => c && c.code).length;
-  document.getElementById('qsCodes').textContent = totalCodes;
-  const best = [...pList].sort((a,b) => b.trustScore - a.trustScore)[0];
-  if (best) document.getElementById('qsBest').textContent = best.name + ' ' + best.trustScore;
+  setText('qsPunters', pList.length);
+  let totalCodes = 0;
+  try { totalCodes = Object.values(generatedCodes).flat().filter(c => c && c.code).length; } catch {}
+  setText('qsCodes', totalCodes);
+
+  // Real aggregate hit rate across all tracked punters' settled (won+lost) games —
+  // not fabricated, computed straight from punter-profiles.
+  const settled = pList.reduce((acc, p) => { acc.won += (p.won || 0); acc.lost += (p.lost || 0); return acc; }, { won: 0, lost: 0 });
+  const totalSettled = settled.won + settled.lost;
+  setText('qsHitRate', totalSettled > 0 ? Math.round(settled.won / totalSettled * 100) + '%' : '—');
+  setText('qsHitRateDelta', totalSettled > 0 ? `${settled.won}W-${settled.lost}L settled` : 'No settled games yet');
+}
+
+// ── DASHBOARD (landing tab) ──────────────────────────────────────────────────
+
+function dashEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const DASH_PIPELINE_STEPS = [
+  { icon: '🗄️', name: 'Collect Data' },
+  { icon: '🔍', name: 'Analyse' },
+  { icon: '🛡️', name: 'Risk Score' },
+  { icon: '🔁', name: 'Smart Conversion' },
+  { icon: '📋', name: 'Build Slips' },
+  { icon: '⚡', name: 'Optimise' },
+  { icon: '☁️', name: 'Output' },
+];
+
+function renderDashPipeline(doneCount, activeIdx) {
+  const el = document.getElementById('dashPipeline');
+  if (!el) return;
+  el.innerHTML = DASH_PIPELINE_STEPS.map((s, i) => {
+    const cls = i < doneCount ? 'done' : (i === activeIdx ? 'active' : '');
+    const icon = i < doneCount ? '✓' : s.icon;
+    const status = i < doneCount ? 'Completed' : (i === activeIdx ? 'Running…' : 'Pending');
+    return `<div class="pipeline-step ${cls}"><div class="pipeline-icon">${icon}</div><div class="pipeline-name">${s.name}</div><div class="pipeline-status">${status}</div></div>`;
+  }).join('');
+}
+
+// Runs the REAL pipeline (same two endpoints the Intelligence/Generator tabs use) —
+// steps 1-4 map to run-analysis (fetch+score+risk-check+convert all happen inside
+// that one call), steps 5-7 map to booking-codes (build+optimise+output). Progress
+// is reported at those two real milestones, not fabricated per-step ticks.
+async function dashRunGenerator() {
+  const btn = document.getElementById('dashGenBtn');
+  const status = document.getElementById('dashGenStatus');
+  const log = document.getElementById('dashGenLog');
+  if (!btn) return;
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+  log.textContent = ''; status.textContent = ''; status.style.color = '#8a9e8a';
+  renderDashPipeline(0, 0);
+  const h = { 'Content-Type': 'application/json', 'x-admin-password': adminPw };
+  try {
+    log.textContent += 'Collecting punter/community codes, scoring, risk-checking, converting risky markets…\n';
+    const r1 = await fetch('/api/admin/run-analysis', { method: 'POST', headers: h, body: '{}' });
+    const j1 = await r1.json();
+    if (!j1.success) throw new Error(j1.error || 'run-analysis failed');
+    log.textContent += (j1.logs || []).join('\n') + '\n';
+    log.scrollTop = log.scrollHeight;
+    renderDashPipeline(4, 4);
+    status.textContent = `✓ Pool built: ${j1.poolSize} eligible games (${j1.excludedCount} excluded)`;
+    status.style.color = '#00c853';
+
+    log.textContent += '\nBuilding themed booking codes…\n';
+    const r2 = await fetch('/api/admin/booking-codes', { method: 'POST', headers: h, body: '{}' });
+    const j2 = await r2.json();
+    if (!j2.success) throw new Error(j2.error || 'booking-codes failed');
+    log.textContent += (j2.logs || []).join('\n') + '\n';
+    log.scrollTop = log.scrollHeight;
+    renderDashPipeline(7, 7);
+    status.textContent = `✓ Done — ${j2.count} codes generated from a ${j1.poolSize}-game pool`;
+
+    // booking-codes doesn't persist to a report file the "Live Results" table
+    // reads from — show the actual codes we just built directly, so nothing
+    // generated here silently disappears.
+    renderJustGenerated(j2.codes || []);
+    updateQuickStats();
+    try { renderCodes(); } catch {}
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+    status.style.color = '#e53935';
+    log.textContent += '\nERROR: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '🚀 Generate Now';
+  }
+}
+
+// Real recent selections from today's daily report — not fabricated.
+async function loadLiveResults() {
+  const el = document.getElementById('liveResultsTable');
+  const badge = document.getElementById('liveResultsBadge');
+  if (!el) return;
+  const h = { 'x-admin-password': adminPw };
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const r = await fetch(`/api/studio/report/${today}`, { headers: h });
+    if (!r.ok) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No report for today yet — click Generate Now to build one.</p>'; if (badge) badge.textContent = ''; return; }
+    const report = await r.json();
+    const all = report.analysis?.allSelections || [];
+    if (badge) badge.textContent = `(${all.length} selections today)`;
+    let sels = [...all].sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff)).slice(0, 8);
+    if (!sels.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No selections recorded yet today.</p>'; return; }
+    el.innerHTML = `<table class="live-table"><thead><tr><th>Time</th><th>Match</th><th>League</th><th>Prediction</th><th>Odds</th><th>Status</th></tr></thead><tbody>
+      ${sels.map(s => {
+        const t = s.kickoff ? new Date(s.kickoff).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+        const statusClass = s.verdict === 'WON' ? 'win' : s.verdict === 'LOST' ? 'lost' : s.verdict === 'VOID' ? 'void' : 'pending';
+        const statusLabel = s.verdict === 'WON' ? 'WIN' : (s.verdict || 'PENDING');
+        return `<tr><td>${t}</td><td><strong>${dashEsc(s.homeTeam)}</strong> vs ${dashEsc(s.awayTeam)}</td><td>${dashEsc(s.league || '')}</td><td>${dashEsc(s.outcome || s.market || '')}</td><td>${s.odds != null ? Number(s.odds).toFixed(2) : '—'}</td><td><span class="status-pill ${statusClass}">${statusLabel}</span></td></tr>`;
+      }).join('')}
+    </tbody></table>`;
+  } catch (e) {
+    el.innerHTML = '<p style="color:#e53935;font-size:12px">Failed to load: ' + dashEsc(e.message) + '</p>';
+  }
+}
+
+// Renders the codes booking-codes just returned — this is the actual output of
+// "Generate Now" and isn't persisted anywhere else, so it has to be shown here
+// directly or it would silently vanish after the request completes.
+function renderJustGenerated(codes) {
+  const el = document.getElementById('liveResultsTable');
+  const badge = document.getElementById('liveResultsBadge');
+  if (!el) return;
+  if (badge) badge.textContent = `(${codes.length} just generated)`;
+  if (!codes.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No codes came back from this run — pool may have been too thin.</p>'; return; }
+  el.innerHTML = `<table class="live-table"><thead><tr><th>Theme</th><th>Code</th><th>Games</th><th>Odds</th><th>Avg Conf</th><th>Floor</th></tr></thead><tbody>
+    ${codes.map(c => {
+      const oddsStr = c.odds >= 1e6 ? (c.odds / 1e6).toFixed(2) + 'M' : c.odds >= 1e3 ? (c.odds / 1e3).toFixed(2) + 'K' : Math.round(c.odds) + 'x';
+      const confClass = c.avgConfidence >= 80 ? 'win' : c.avgConfidence >= 65 ? 'pending' : 'lost';
+      return `<tr><td>${dashEsc(c.theme)}</td><td><strong style="color:#00c853;cursor:pointer" title="Click to copy" onclick="navigator.clipboard.writeText('${dashEsc(c.code)}')">${dashEsc(c.code)}</strong></td><td>${c.games}</td><td>${oddsStr}</td><td><span class="status-pill ${confClass}">${c.avgConfidence}%</span></td><td>${c.minConfidence}%</td></tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+// Insights/alerts pulled straight from the real daily analysis report — the same
+// bullets/ticketKillers already computed by generateDailyAnalysis(), just surfaced here.
+async function loadDashInsightsAndAlerts() {
+  const insEl = document.getElementById('dashInsights');
+  const alertEl = document.getElementById('dashAlerts');
+  if (!insEl && !alertEl) return;
+  const h = { 'x-admin-password': adminPw };
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const r = await fetch(`/api/studio/report/${today}`, { headers: h });
+    if (!r.ok) throw new Error('no report yet');
+    const report = await r.json();
+    const bullets = (report.analysis?.bullets || report.analysis?.insights || []).slice(0, 5);
+    if (insEl) insEl.innerHTML = bullets.length
+      ? bullets.map(b => `<div class="insight-row">✅ <span>${dashEsc(b)}</span></div>`).join('')
+      : '<p style="color:#8a9e8a;font-size:12px">No insights yet today — generate first.</p>';
+
+    const killers = (report.analysis?.ticketKillers || []).slice(0, 5);
+    if (alertEl) alertEl.innerHTML = killers.length
+      ? killers.map(k => `<div class="alert-row">⚠️ <span>${dashEsc(k.homeTeam || '')} vs ${dashEsc(k.awayTeam || '')} <span style="color:#8a9e8a">(${dashEsc(k.league || '')})</span></span></div>`).join('')
+      : '<p style="color:#8a9e8a;font-size:12px">No flagged risk patterns today.</p>';
+  } catch (e) {
+    if (insEl) insEl.innerHTML = '<p style="color:#8a9e8a;font-size:12px">Generate today\'s codes to populate insights.</p>';
+    if (alertEl) alertEl.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No alerts yet.</p>';
+  }
+}
+
+function loadAiAssistSummary() {
+  const el = document.getElementById('aiAssistSummary');
+  if (!el) return;
+  // Reads the already-rendered KPI values rather than recomputing from a
+  // different source — avoids the two numbers ever disagreeing on-screen.
+  const pCount = document.getElementById('qsPunters')?.textContent || '0';
+  const codesCount = document.getElementById('qsCodes')?.textContent || '0';
+  el.textContent = `Tracking ${pCount} punters and ${codesCount} generated codes. Open the chat for match analysis and code generation.`;
+}
+
+function loadDashboardHome() {
+  renderDashPipeline(0, -1);
+  loadLiveResults();
+  loadDashInsightsAndAlerts();
+  loadAiAssistSummary();
+  // Other loaders (renderLB, loadTickets) populate qsPunters/qsCodes async —
+  // refresh the summary text once they've almost certainly landed.
+  setTimeout(loadAiAssistSummary, 1200);
 }
 
 // ── LEADERBOARD (enhanced) ──
@@ -924,9 +2207,7 @@ function renderLB(list) {
 
   try {
     const humans = list.filter(p => !p.isAI && !p.punter.startsWith('AI (') && p.punter !== 'SlipPilot');
-    document.getElementById('qsPunters').textContent = humans.length;
-    const best = [...list].sort((a,b) => (b.trustScore||0) - (a.trustScore||0))[0];
-    if (best && best.trustScore) document.getElementById('qsBest').textContent = best.punter + ' ' + best.trustScore;
+    setText('qsPunters', humans.length);
   } catch {}
 
   // Pre-filter: hide punters with zero codes for selected period
@@ -968,7 +2249,19 @@ function renderLB(list) {
 
     const allCodes = (p.codes || []).filter(c => c && (c.games > 0 || c.status === 'active'));
     allCodes.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    const codes = filterCodesByPeriod(allCodes, p.todayCode);
+    // Single-code punters: deduplicate per date — if they changed code mid-day,
+    // keep only the LAST entry added for that date (highest original index).
+    // Multi-code punters (oddspilot etc.) keep all entries; comma codes expand to rows later.
+    const isMultiCodePunter = (p.todayCode || '').includes(',');
+    const deduped = isMultiCodePunter ? allCodes : (() => {
+      const seen = new Map();
+      for (let i = allCodes.length - 1; i >= 0; i--) {
+        const c = allCodes[i];
+        if (!seen.has(c.date)) seen.set(c.date, c);
+      }
+      return Array.from(seen.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    })();
+    const codes = filterCodesByPeriod(deduped, p.todayCode);
     const periodWon = codes.reduce((a, c) => a + (c.won || 0), 0);
     const periodLost = codes.reduce((a, c) => a + (c.lost || 0), 0);
     const pending = codes.reduce((a, c) => a + (c.pending || 0), 0);
@@ -987,10 +2280,32 @@ function renderLB(list) {
     const riskC = p.riskProfile === 'low' ? '#00c853' : p.riskProfile === 'high' ? '#e53935' : '#ffb300';
     const hrC = showHR >= 70 ? '#00c853' : showHR >= 55 ? '#ffb300' : '#e53935';
 
-    const codeRows = codes.slice(0, 10).map(c => {
+    // v42 — was hardcapped to 10 rows regardless of real history length,
+    // hiding data that's now MORE complete than before (see the leaderboard
+    // capture-on-save + generator-history backfill fixes) behind an
+    // arbitrary limit. Raised to 30, same cap already used elsewhere for
+    // history lists in this app (Themed Repost's history, for one).
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const codeRows = codes.slice(0, 30).flatMap(c => {
       const d = c.date ? c.date.slice(5) : '-';
       const rc2 = (c.hitRate||0) >= 75 ? '#00c853' : (c.hitRate||0) >= 60 ? '#ffb300' : '#e53935';
-      return `<div style="display:grid;grid-template-columns:80px 50px 40px 40px 40px 40px 50px 1fr;gap:4px;align-items:center;font-size:11px;padding:4px 12px;border-bottom:1px solid rgba(255,255,255,.03)"><span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${esc(c.code)}</span><span style="color:#8a9e8a">${d}</span><span>${c.games||0}</span><span style="color:#00c853">${c.won||0}</span><span style="color:#e53935">${c.lost||0}</span><span style="color:#ffb300">${c.pending||0}</span><span style="color:${rc2};font-weight:700">${c.hitRate||0}%</span><span style="display:flex;gap:4px"><button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(c.code)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)" style="padding:2px 8px;font-size:9px">Copy</button><button class="btn-sm" onclick="event.stopPropagation();scanCodeInline(this,'${esc(c.code)}')" style="padding:2px 8px;font-size:9px;border-color:rgba(33,150,243,.3);color:#2196f3">Scan</button></span></div>`;
+      const isToday = c.date === todayStr;
+      // If multiple codes stored as comma-separated, expand into one row per code
+      const codeList = (c.code||'').includes(',') ? c.code.split(',').map(x=>x.trim()).filter(x=>x) : [c.code||''];
+      return codeList.map((singleCode, ci) =>
+        `<div style="display:grid;grid-template-columns:80px 50px 40px 40px 40px 40px 50px 1fr;gap:4px;align-items:center;font-size:11px;padding:4px 12px;border-bottom:1px solid rgba(255,255,255,.03);${isToday ? 'background:rgba(0,200,83,.1);border-left:2px solid #00c853' : ''}">` +
+        `<span style="font-family:monospace;font-weight:800;color:#00c853;letter-spacing:1px">${esc(singleCode)}</span>` +
+        `<span style="color:#8a9e8a">${ci === 0 ? d : ''}</span>` +
+        `<span>${ci === 0 ? (c.games||0) : ''}</span>` +
+        `<span style="color:#00c853">${ci === 0 ? (c.won||0) : ''}</span>` +
+        `<span style="color:#e53935">${ci === 0 ? (c.lost||0) : ''}</span>` +
+        `<span style="color:#ffb300">${ci === 0 ? (c.pending||0) : ''}</span>` +
+        `<span style="color:${rc2};font-weight:700">${ci === 0 ? (c.hitRate||0)+'%' : ''}</span>` +
+        `<span style="display:flex;gap:4px">` +
+        `<button class="btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${esc(singleCode)}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)" style="padding:2px 8px;font-size:9px">Copy</button>` +
+        `<button class="btn-sm" onclick="event.stopPropagation();scanCodeInline(this,'${esc(singleCode)}')" style="padding:2px 8px;font-size:9px;border-color:rgba(33,150,243,.3);color:#2196f3">Scan</button>` +
+        `</span></div>`
+      );
     }).join('');
 
     return `<div style="background:#111811;border:1px solid #1e2e1e;border-radius:8px;margin-bottom:6px;overflow:hidden" id="${id}">
@@ -999,7 +2314,7 @@ function renderLB(list) {
         <div style="flex:1;min-width:0">
           <span style="font-weight:800;font-size:13px">${icon}${esc(p.punter)}</span>
           <span style="font-size:10px;color:#8a9e8a;margin-left:4px">${esc(p.handle||'')}</span>
-          ${p.todayCode ? '<span style="font-size:10px;color:#00c853;font-family:monospace;font-weight:700;margin-left:6px">'+esc(p.todayCode)+'</span>' : ''}
+          ${p.todayCode ? p.todayCode.split(',').map(c=>c.trim()).filter(c=>c).map(c=>'<span style="font-size:10px;color:#00c853;font-family:monospace;font-weight:700;margin-left:4px">'+esc(c)+'</span>').join('') : ''}
           ${badgesHtml ? '<span style="margin-left:4px">'+badgesHtml+'</span>' : ''}
         </div>
         <div style="display:flex;gap:10px;align-items:center;font-size:12px;font-weight:700;flex-shrink:0">
@@ -1032,11 +2347,13 @@ function toggleLBCard(id) {
 }
 
 async function rescanAll(btn) {
-  btn.disabled = true; btn.textContent = 'Starting…';
+  btn.disabled = true;
+  const periodLabel = lbPeriod === 'today' ? 'Today' : lbPeriod === '24h' ? '24h' : lbPeriod === 'week' ? '7 Days' : 'All';
+  btn.textContent = 'Starting…';
   const msg = document.getElementById('rescanMsg');
-  msg.textContent = 'Kicking off rescan…'; msg.style.color = '#ffb300';
+  msg.textContent = `Kicking off rescan (${periodLabel})…`; msg.style.color = '#ffb300';
   try {
-    const r = await fetch('/api/admin/rescan-all', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}});
+    const r = await fetch('/api/admin/rescan-all', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body: JSON.stringify({dateFilter: lbPeriod})});
     const j = await r.json();
     if (!r.ok || j.error) {
       msg.textContent = j.error || ('HTTP ' + r.status);
@@ -1133,7 +2450,7 @@ function renderCodes() {
         <div style="font-size:14px;font-weight:700;color:#E3B341;margin-left:auto">${oddsStr}×</div>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn-sm" onclick="scanCodeInline(this,'${c.code}')" style="border-color:rgba(33,150,243,.3);color:#2196f3;font-size:11px">Scan</button>
-          <a href="https://www.sportybet.com/ng/?shareCode=${c.code}" target="_blank" style="color:#8a9e8a;text-decoration:none;font-size:11px;padding:3px 8px;border:1px solid #1e2e1e;border-radius:6px" onmouseenter="this.style.color='#00c853'" onmouseleave="this.style.color='#8a9e8a'">Open ↗</a>
+          <a href="https://www.sportybet.com/ng/m/sport?shareCode=${c.code}" target="_blank" style="color:#8a9e8a;text-decoration:none;font-size:11px;padding:3px 8px;border:1px solid #1e2e1e;border-radius:6px" onmouseenter="this.style.color='#00c853'" onmouseleave="this.style.color='#8a9e8a'">Open ↗</a>
         </div>
       </div>
     </div>`;
@@ -1174,6 +2491,9 @@ async function loadTickets() {
     document.getElementById('qsTickets').textContent = newCount;
     const badge = document.getElementById('ticketBadge');
     if (newCount > 0) { badge.textContent = newCount; badge.style.display = 'inline'; } else { badge.style.display = 'none'; }
+    const notifDot = document.getElementById('topbarNotifDot');
+    if (notifDot) notifDot.style.display = newCount > 0 ? 'block' : 'none';
+    setText('qsTicketsDelta', newCount > 0 ? `${newCount} new` : 'All clear');
     if (!tickets.length) { document.getElementById('ticketsList').innerHTML = '<p style="color:#8a9e8a">No tickets yet. Users can submit via the ? button on the main site.</p>'; return; }
     document.getElementById('ticketsList').innerHTML = tickets.map(t => {
       const bc = t.status === 'New' ? 'badge-new' : 'badge-done';
@@ -1203,11 +2523,22 @@ async function markTicket(id, status) {
 // ── PUNTER CODES ──
 
 let punterCodes = {};
+// v24 — frozen combined odds per CODE STRING, "once shown it must not
+// change forever, till everything clears again" — populated from the
+// server's per-code freeze (see PUNTER_CODE_ODDS_FILE), never computed or
+// refreshed client-side. Keyed by code, so multiple punters/codes each keep
+// their own snapshot regardless of what else changes.
+let punterCodeOdds = {};
 
 async function loadPunterCodes() {
   try {
     const r = await fetch('/api/admin/punter-codes', {headers:{'x-admin-password':adminPw}});
-    if (r.ok) punterCodes = await r.json();
+    if (r.ok) {
+      const j = await r.json();
+      punterCodeOdds = j._oddsFrozen || {};
+      delete j._oddsFrozen;
+      punterCodes = j;
+    }
   } catch {}
   renderPunterCodesEditor();
 }
@@ -1220,11 +2551,29 @@ function renderPunterCodesEditor() {
   const pending = names.filter(n => !(punterCodes[n] || '').trim());
   function makeRow(name) {
     const code = punterCodes[name] || '';
-    const hascode = code.trim().length > 0;
+    const codeList = code.includes(',') ? code.split(',').map(c => c.trim()).filter(c => c) : [code];
+    const hascode = codeList.some(c => c.length > 0);
     const badge = hascode
       ? `<span style="font-size:9px;background:#1b5e20;color:#69f0ae;padding:1px 5px;border-radius:3px;margin-left:4px">✅ IN</span>`
       : `<span style="font-size:9px;background:#37170a;color:#ff7043;padding:1px 5px;border-radius:3px;margin-left:4px">⏳</span>`;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:100px;font-size:12px;font-weight:600">${esc(name)}${badge}</span><input type="text" value="${esc(code)}" id="pc_${name.replace(/\s/g,'_')}" style="flex:1;max-width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px;font-size:12px" placeholder="CODE" /><button class="btn-sm" onclick="this.previousElementSibling.value='';this.previousElementSibling.focus()" style="padding:2px 8px;font-size:9px;color:#e53935;border-color:#e53935">X</button></div>`;
+    const safeId = name.replace(/\W/g, '_');
+    // v24 — "once an odd is shown, it must not change forever, till
+    // everything clears again": this reads ONLY from the server-frozen
+    // punterCodeOdds snapshot (keyed by the exact code string) — never
+    // recomputed or live-refreshed here. A code with no frozen entry yet
+    // (brand new, not yet saved/scanned) shows nothing until the next save.
+    const inputRows = codeList.map((c, i) => {
+      const frozen = punterCodeOdds[c.toUpperCase()];
+      const oddsHtml = frozen
+        ? `<span style="font-size:11px;color:#00c853;font-weight:700;white-space:nowrap" title="Frozen at first save — never live-updates">${frozen.odds.toLocaleString()}x 🔒</span>`
+        : (c ? `<span style="font-size:10px;color:#8a9e8a">(save to freeze odds)</span>` : '');
+      return `<div style="display:flex;align-items:center;gap:6px;${i > 0 ? 'margin-top:3px' : ''}">` +
+        `<input type="text" value="${esc(c)}" id="pc_${safeId}_${i}" style="width:140px;text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px;font-size:12px" placeholder="CODE" />` +
+        oddsHtml +
+        `<button class="btn-sm" onclick="this.parentElement.querySelector('input').value='';this.parentElement.querySelector('input').focus()" style="padding:2px 8px;font-size:9px;color:#e53935;border-color:#e53935">X</button>` +
+        `</div>`;
+    }).join('');
+    return `<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="min-width:100px;font-size:12px;font-weight:600;padding-top:5px">${esc(name)}${badge}</span><div style="display:flex;flex-direction:column">${inputRows}</div></div>`;
   }
   let html = '';
   if (submitted.length) {
@@ -1239,15 +2588,53 @@ function renderPunterCodesEditor() {
 }
 
 async function savePunterCodes() {
+  // v37 — REAL BUG (user report: "even if i have 10 tabs and put diff
+  // codes.. all should save" — they didn't, and clearing a code to blank
+  // "no work"): this used to send EVERY punter's current field value on
+  // every save, not just the one(s) actually edited. The server's merge is
+  // `{...current, ...body}` — correct in isolation, but `body` covered every
+  // punter this tab knew about, so whichever tab saved LAST silently
+  // overwrote every OTHER tab's more recent edits for punters it never even
+  // touched, using its own stale snapshot from whenever IT loaded the page.
+  // With 10 tabs open on different punters, only the last save effectively
+  // "won" — the rest looked like they never saved at all. A deliberate
+  // blank (clearing a bad code) was just as likely to get silently
+  // reverted back to a stale non-blank value by another tab's save.
+  // Fixed: only send punters whose value actually CHANGED on this tab since
+  // it last loaded/saved — the server-side merge already does the right
+  // thing once it isn't being fed everyone else's stale state too.
   const updated = {};
   for (const name of Object.keys(punterCodes)) {
-    const el = document.getElementById('pc_' + name.replace(/\s/g, '_'));
-    updated[name] = el ? el.value.trim().toUpperCase() : '';
+    const safeId = name.replace(/\W/g, '_');
+    const vals = [];
+    let i = 0;
+    while (true) {
+      const el = document.getElementById(`pc_${safeId}_${i}`);
+      if (!el) break;
+      const v = el.value.trim().toUpperCase();
+      if (v) vals.push(v);
+      i++;
+    }
+    const newVal = vals.join(', ');
+    if (newVal !== (punterCodes[name] || '')) updated[name] = newVal;
+  }
+  if (!Object.keys(updated).length) {
+    document.getElementById('saveCodesMsg').textContent = 'Nothing changed';
+    setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 1500);
+    return;
   }
   try {
+    document.getElementById('saveCodesMsg').textContent = 'Saving… freezing odds for any new codes';
     const r = await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(updated)});
     const j = await r.json();
-    if (j.success) { punterCodes = j.codes; document.getElementById('saveCodesMsg').textContent = 'Saved!'; setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 2000); loadLB(); }
+    if (j.success) {
+      punterCodes = j.codes;
+      punterCodeOdds = j.oddsFrozen || punterCodeOdds; // v24 — newly-saved codes now have a frozen odds snapshot
+      renderPunterCodesEditor();
+      document.getElementById('saveCodesMsg').textContent = 'Saved!';
+      setTimeout(()=>document.getElementById('saveCodesMsg').textContent='', 2000);
+      loadLB();
+    }
   } catch(e) { document.getElementById('saveCodesMsg').textContent = 'Error: ' + e.message; }
 }
 
@@ -1291,12 +2678,14 @@ async function loadVisitors() {
 
 async function scanCodeInline(btn, code) {
   btn.disabled = true; btn.textContent = '...';
+  // Strip any accidental comma in case a legacy combined value reaches here
+  const singleCode = code.split(',')[0].trim();
   try {
     let j;
-    const r = await fetch('/api/admin/scan-code', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code})});
+    const r = await fetch('/api/admin/scan-code', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify({code: singleCode})});
     if (r.ok) { j = await r.json(); }
     else {
-      const r2 = await fetch('/api/scan/' + encodeURIComponent(code));
+      const r2 = await fetch('/api/scan/' + encodeURIComponent(singleCode));
       j = await r2.json();
     }
     if (j.error) { btn.textContent = 'Err'; btn.style.color = '#e53935'; btn.disabled = false; return; }
@@ -1377,9 +2766,23 @@ function esc(s) { const e = document.createElement('span'); e.textContent = s ||
 // ── DAILY SESSION ──
 
 let sessionPunters = {};
+// v37 — last server-confirmed state, for diffing on save (see savePunterCodes'
+// v37 comment for the full multi-tab-overwrite root cause this addresses —
+// this panel writes to the exact same /api/admin/punter-codes file and had
+// the identical bug). Updated whenever fresh data is loaded from or
+// confirmed saved to the server — never touched by in-progress local edits.
+let sessionPunterCodesSynced = {};
 
 async function loadSessionPunters() {
-  try { const r = await fetch('/api/admin/punter-codes', {headers:{'x-admin-password':adminPw}}); if (r.ok) sessionPunters = await r.json(); } catch {}
+  try {
+    const r = await fetch('/api/admin/punter-codes', {headers:{'x-admin-password':adminPw}});
+    if (r.ok) {
+      const j = await r.json();
+      delete j._oddsFrozen; // v37 — REAL BUG: this leaked in as a fake "_oddsFrozen" punter row (value "[object Object]") — same class of bug already fixed for the Daily Post punter list, never fixed here
+      sessionPunters = j;
+      sessionPunterCodesSynced = { ...j };
+    }
+  } catch {}
   renderSessionPunterEditor();
 }
 
@@ -1412,11 +2815,17 @@ async function saveSessionCodes() {
   const map = getSessionPunterMap();
   const btn = document.getElementById('saveSessionBtn');
   const msg = document.getElementById('saveSessionMsg');
+  if (!Object.keys(map).length) { if (msg) { msg.textContent = 'Nothing changed'; setTimeout(() => msg.textContent='', 1500); } return; }
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
     const r = await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(map)});
     const j = await r.json();
-    if (j.success) { sessionPunters = { ...sessionPunters, ...j.codes }; if (msg) { msg.textContent = 'Saved!'; setTimeout(() => msg.textContent='', 2000); } }
+    if (j.success) {
+      sessionPunters = { ...sessionPunters, ...j.codes };
+      sessionPunterCodesSynced = { ...j.codes }; // v37 — resync after a confirmed save, so the next diff is against real server state
+      renderSessionPunterEditor();
+      if (msg) { msg.textContent = 'Saved!'; setTimeout(() => msg.textContent='', 2000); }
+    }
     else if (msg) msg.textContent = j.error || 'Save failed';
   } catch(e) { if (msg) msg.textContent = 'Error: ' + e.message; }
   finally { if (btn) { btn.disabled = false; btn.textContent = 'Save Codes'; } }
@@ -1425,17 +2834,29 @@ async function saveSessionCodes() {
 async function removeSessionPunter(name) {
   if (!confirm('Remove ' + name + ' from today\'s tracking?')) return;
   delete sessionPunters[name];
+  // v37 — REAL BUG: this only deleted the local key, so getSessionPunterMap()
+  // never even mentioned this punter in the outgoing save — the server never
+  // saw a removal, just kept the punter's old code forever (it would keep
+  // showing up in Today's Punter Codes / getting its odds scanned). A
+  // removal must explicitly clear the code server-side, not just vanish
+  // from this tab's own view.
+  sessionPunterCodesSynced[name] = ''; // force the diff below to see this as a real change
   renderSessionPunterEditor();
-  // Auto-save after removal
   await saveSessionCodes();
 }
 
+// v37 — diff-based: only sends punters whose value actually changed since the
+// last load/save (sessionPunterCodesSynced), not every punter this tab knows
+// about. See savePunterCodes' v37 comment — same multi-tab-overwrite bug,
+// same fix, applied here too since this panel writes the same shared file.
+// Unlike the old version, a deliberate blank (clearing a code) is now
+// included — it used to be silently dropped since it only sent truthy values.
 function getSessionPunterMap() {
   const map = {};
   for (const name of Object.keys(sessionPunters)) {
     const el = document.getElementById('sp_' + name.replace(/[^a-zA-Z0-9]/g,'_'));
     const val = el ? el.value.trim().toUpperCase() : '';
-    if (val) map[name] = val;
+    if (val !== (sessionPunterCodesSynced[name] || '')) map[name] = val;
   }
   return map;
 }
@@ -1448,7 +2869,11 @@ async function runSession() {
 
   // Save codes first
   const map = getSessionPunterMap();
-  try { await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(map)}); } catch {}
+  try {
+    const r = await fetch('/api/admin/punter-codes', {method:'POST', headers:{'Content-Type':'application/json','x-admin-password':adminPw}, body:JSON.stringify(map)});
+    const j = await r.json();
+    if (j.success) { sessionPunters = { ...sessionPunters, ...j.codes }; sessionPunterCodesSynced = { ...j.codes }; }
+  } catch {}
 
   // Start generation — expand engine section
   const engBody = document.getElementById('genEngineBody');
@@ -1507,7 +2932,7 @@ async function loadSessionResult() {
           <span>${s.games}g</span>
           <span style="color:#ffb300;font-weight:700">${odds}x</span>
           <span>${s.avgScore}</span>
-          <span class="gen-actions"><button class="btn-sm" onclick="navigator.clipboard.writeText('${code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)">Copy</button><a href="https://www.sportybet.com/ng/?shareCode=${code}" target="_blank">Load ↗</a></span>
+          <span class="gen-actions"><button class="btn-sm" onclick="navigator.clipboard.writeText('${code}');this.textContent='OK';setTimeout(()=>this.textContent='Copy',800)">Copy</button><a href="https://www.sportybet.com/ng/m/sport?shareCode=${code}" target="_blank">Load ↗</a></span>
         </div>`;
       }
       html += '</div>';
@@ -1586,33 +3011,40 @@ async function loadCommunityCodes() {
 function renderCommunityCodes() {
   const el = document.getElementById('cc-list');
   if (!el) return;
-  if (!_communityCodes.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No community codes yet. Add one above.</p>'; return; }
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
-    <thead><tr style="color:#8a9e8a;border-bottom:1px solid #1e2e1e">
-      <th style="text-align:left;padding:6px 8px">Code</th>
-      <th style="text-align:left;padding:6px 8px">Source</th>
-      <th style="text-align:left;padding:6px 8px">Platform</th>
-      <th style="text-align:left;padding:6px 8px">Status</th>
-      <th style="text-align:left;padding:6px 8px">Added</th>
-      <th style="text-align:right;padding:6px 8px">Actions</th>
-    </tr></thead>
-    <tbody>${_communityCodes.map(cc => `
-      <tr style="border-bottom:1px solid rgba(255,255,255,.04)" id="ccrow-${cc.id}">
-        <td style="padding:8px;font-family:monospace;font-weight:800;color:#69f0ae;letter-spacing:1px">${esc(cc.code)}</td>
-        <td style="padding:8px;color:#8a9e8a">${esc(cc.source||'-')}</td>
-        <td style="padding:8px">${esc(cc.platform||'SportyBet')}</td>
-        <td style="padding:8px"><span id="cc-status-${cc.id}" style="font-size:10px;padding:2px 6px;border-radius:3px;background:${cc.status==='promoted'?'#1b5e20':cc.status==='scanned'?'#0d2b4a':'#2a1a00'};color:${cc.status==='promoted'?'#69f0ae':cc.status==='scanned'?'#29b6f6':'#ffb300'}">${cc.status||'pending'}</span></td>
-        <td style="padding:8px;color:#8a9e8a">${cc.dateAdded||''}</td>
-        <td style="padding:8px;text-align:right;white-space:nowrap">
-          <button class="btn-sm" onclick="ccScan('${cc.id}')" style="margin-right:4px">Scan</button>
-          <button class="btn-sm" onclick="ccPromote('${cc.id}')" style="margin-right:4px;border-color:#00c853;color:#00c853">Promote</button>
-          <button class="btn-sm" onclick="ccDelete('${cc.id}')" style="border-color:#e53935;color:#e53935">Delete</button>
-        </td>
-      </tr>
-      ${cc.scanResult ? `<tr style="border-bottom:1px solid rgba(255,255,255,.04)"><td colspan="6" style="padding:4px 8px 8px;color:#8a9e8a;font-size:11px">↳ Scan: ${cc.scanResult.won||0}W / ${cc.scanResult.lost||0}L / ${cc.scanResult.pending||0} pending — Hit Rate ${cc.scanResult.hitRate||0}% (${cc.scanResult.total||0} games)</td></tr>` : ''}
-      ${cc.notes ? `<tr><td colspan="6" style="padding:0 8px 8px;color:#6e7a6e;font-size:11px;font-style:italic">Notes: ${esc(cc.notes)}</td></tr>` : ''}
-    `).join('')}</tbody>
-  </table>`;
+  if (!_communityCodes.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:13px;padding:12px 0">No community codes yet. Add one above.</p>'; return; }
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px">${_communityCodes.map(cc => {
+    const sc = cc.status === 'promoted' ? '#69f0ae' : cc.status === 'scanned' ? '#29b6f6' : '#ffb300';
+    const sb = cc.status === 'promoted' ? 'rgba(105,240,174,.08)' : cc.status === 'scanned' ? 'rgba(41,182,246,.08)' : 'rgba(255,179,0,.08)';
+    const sr = cc.scanResult;
+    const hr = sr?.hitRate ?? null;
+    const hc = hr >= 70 ? '#69f0ae' : hr >= 50 ? '#ffb300' : hr !== null ? '#e53935' : '#8a9e8a';
+    return `<div id="ccrow-${cc.id}" style="background:#0d150d;border:1px solid #1e2e1e;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-family:monospace;font-size:20px;font-weight:800;color:#69f0ae;letter-spacing:2px">${esc(cc.code)}</span>
+        <span id="cc-status-${cc.id}" style="font-size:10px;padding:3px 10px;border-radius:100px;background:${sb};color:${sc};border:1px solid ${sc}40;font-weight:700;text-transform:uppercase">${cc.status||'pending'}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:12px;color:#ccc;font-weight:600">${esc(cc.source||'Unknown source')}</span>
+        <span style="font-size:11px;color:#8a9e8a;background:#1a251a;padding:2px 8px;border-radius:4px">${esc(cc.platform||'SportyBet')}</span>
+        ${cc.dateAdded ? `<span style="font-size:10px;color:#5a6a5a;margin-left:auto">${cc.dateAdded}</span>` : ''}
+      </div>
+      ${sr ? `<div style="background:#071207;border:1px solid #1e2e1e;border-radius:8px;padding:10px 12px">
+        <div style="display:flex;gap:14px;align-items:center">
+          <span style="font-size:14px;font-weight:800;color:#69f0ae">${sr.won||0}W</span>
+          <span style="font-size:14px;font-weight:800;color:#e53935">${sr.lost||0}L</span>
+          ${(sr.pending||0)>0 ? `<span style="font-size:14px;font-weight:800;color:#ffb300">${sr.pending}⏳</span>` : ''}
+          <span style="margin-left:auto;font-size:15px;font-weight:800;color:${hc}">${sr.hitRate||0}%</span>
+        </div>
+        <div style="font-size:10px;color:#5a6a5a;margin-top:4px">${sr.total||0} game${(sr.total||0)!==1?'s':''} · hit rate</div>
+      </div>` : `<div style="font-size:11px;color:#5a6a5a;padding:6px 0">Not scanned yet — tap Scan to check results</div>`}
+      ${cc.notes ? `<div style="font-size:11px;color:#8a9e8a;border-left:2px solid #1e2e1e;padding-left:8px">${esc(cc.notes)}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:2px">
+        <button class="btn-sm" onclick="ccScan('${cc.id}')" style="flex:1;padding:6px 0">Scan</button>
+        <button class="btn-sm" onclick="ccPromote('${cc.id}')" style="flex:1;padding:6px 0;border-color:#00c853;color:#00c853">Promote</button>
+        <button class="btn-sm" onclick="ccDelete('${cc.id}')" style="padding:6px 10px;border-color:#e53935;color:#e53935">✕</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 async function addCommunityCode() {
@@ -1647,6 +3079,29 @@ async function ccScan(id) {
       if (idx >= 0) { _communityCodes[idx] = j.entry; renderCommunityCodes(); }
     } else alert('Scan failed: ' + (j.error||'unknown error'));
   } catch(e) { alert('Scan error: ' + e.message); }
+}
+
+async function ccRescanAll(btn) {
+  const toScan = _communityCodes.filter(c => c.status !== 'promoted');
+  if (!toScan.length) return;
+  const msg = document.getElementById('cc-rescan-msg');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Scanning...'; }
+  if (msg) { msg.style.display = ''; msg.textContent = `Scanning ${toScan.length} code${toScan.length>1?'s':''}…`; }
+  let done = 0;
+  for (const cc of toScan) {
+    const statusEl = document.getElementById('cc-status-' + cc.id);
+    if (statusEl) { statusEl.textContent = 'scanning…'; statusEl.style.color = '#ffb300'; }
+    try {
+      const r = await fetch(`/api/admin/community-codes/${cc.id}/scan`, {method:'POST', headers:{'x-admin-password':adminPw}});
+      const j = await r.json();
+      if (j.success) { const idx = _communityCodes.findIndex(c => c.id === cc.id); if (idx >= 0) _communityCodes[idx] = j.entry; }
+    } catch {}
+    done++;
+    if (msg) msg.textContent = `Scanned ${done} / ${toScan.length}…`;
+  }
+  renderCommunityCodes();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Rescan All'; }
+  if (msg) { msg.textContent = `Done — ${toScan.length} code${toScan.length>1?'s':''} rescanned`; setTimeout(()=>{ msg.style.display='none'; }, 4000); }
 }
 
 async function ccPromote(id) {
@@ -1692,8 +3147,9 @@ document.addEventListener('keydown', function(e) {
   }
 });
 </script>
-<script src="/studio.js?v=20260712"></script>
-<script src="/x-assistant.js?v=20260712"></script>
+<script src="/date-selector.js?v=20260724"></script>
+<script src="/studio.js?v=20260728"></script>
+<script src="/x-assistant.js?v=20260909"></script>
 <script>
 // ── Smart Slip Builder ────────────────────────────────────────────────────────
 
@@ -1901,7 +3357,7 @@ async function csRebuildReport() {
   if (!date) { alert('Select a date first using the date picker.'); return; }
   const btn = document.getElementById('cs-rebuild-btn');
   const msg = document.getElementById('cs-rebuild-msg');
-  btn.disabled = true; btn.textContent = '⏳ Fetching…';
+  const restore = genLoadingButton(btn, 'Fetching…');
   msg.style.display = 'block';
   msg.textContent = `Re-fetching punter codes for ${date} from SportyBet…`;
   try {
@@ -1912,15 +3368,17 @@ async function csRebuildReport() {
     if (j.success) {
       msg.style.color = '#00c853'; msg.style.borderColor = 'rgba(0,200,83,0.3)'; msg.style.background = 'rgba(0,200,83,0.08)';
       msg.textContent = `✓ ${date} rebuilt: ${j.selections} selections, ${j.settled} settled, ${j.ticketKillers} killers, ${j.consensusWins} consensus wins. Now click ✦ Generate Report.`;
+      restore();
     } else {
       msg.style.color = '#f87171'; msg.style.borderColor = 'rgba(239,68,68,0.3)'; msg.style.background = 'rgba(239,68,68,0.06)';
       msg.textContent = '✗ ' + (j.message || j.error || 'Rebuild failed');
+      restore(j.error || 'failed');
     }
   } catch(e) {
     msg.style.color = '#f87171';
     msg.textContent = '✗ ' + e.message;
+    restore(e.message);
   }
-  btn.disabled = false; btn.textContent = '↺ Rebuild Data';
 }
 
 // ── Intelligence Engine v6 ────────────────────────────────────────────────────
@@ -2108,5 +3566,614 @@ function intelRenderCodes(codes) {
   }).join('');
 }
 </script>
+<script>
+// ── Table Tennis workspace ──
+var ttPollTimer = null;
+var ttLastScanId = null;
+var ttInitDone = false;
+
+function ttConfClass(pct) { return pct >= 70 ? "tt-conf-hi" : pct >= 55 ? "tt-conf-mid" : "tt-conf-lo"; }
+function ttParseCodes(raw) { return [...new Set((raw || "").split(/[\s,]+/).map(c => c.trim().toUpperCase()).filter(Boolean))]; }
+function ttTimeAgo(iso) {
+  if (!iso) return "earlier";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  return Math.round(hrs / 24) + "d ago";
+}
+
+// "Result scanned doesn't save on refresh" fix: on tab open (including after a page reload),
+// pull back whatever the server last scanned (persisted server-side, not per-browser) and
+// render it immediately - no need to wait several minutes for a fresh rescan just to see what
+// you already saw. Runs once per page load; an in-progress scan is never clobbered by it.
+async function ttInit() {
+  if (ttInitDone) return;
+  ttInitDone = true;
+  try {
+    const r = await fetch("/api/tt/scan/last", { headers: { "x-admin-password": adminPw } });
+    if (!r.ok) return;
+    const persisted = await r.json();
+    if (!persisted || !persisted.result) return;
+    ttLastScanId = persisted.scanId;
+    if (persisted.codes && persisted.codes.length) document.getElementById("ttCodes").value = persisted.codes.join(", ");
+    document.getElementById("ttReviewBtn").style.display = "inline-block";
+    document.getElementById("ttBatchBtn").style.display = "inline-flex";
+    const note = document.getElementById("ttRestoredNote");
+    note.textContent = `Showing your last scan (${ttTimeAgo(persisted.savedAt)}) — click Scan & Analyze to run a fresh one.`;
+    note.style.display = "block";
+    ttRenderResult(persisted.result);
+  } catch {}
+}
+
+async function ttScan() {
+  const codes = ttParseCodes(document.getElementById("ttCodes").value);
+  const errEl = document.getElementById("ttError");
+  errEl.style.display = "none"; errEl.textContent = "";
+  document.getElementById("ttRestoredNote").style.display = "none";
+  if (!codes.length) { errEl.textContent = "Enter at least one booking code."; errEl.style.display = "block"; return; }
+  if (ttPollTimer) { clearInterval(ttPollTimer); ttPollTimer = null; }
+
+  const btn = document.getElementById("ttScanBtn");
+  btn.disabled = true; btn.textContent = "Scanning...";
+  document.getElementById("ttResults").style.display = "none";
+  const progressEl = document.getElementById("ttProgress");
+  progressEl.style.display = "block";
+  progressEl.textContent = "Decoding " + codes.length + " code(s)...";
+
+  function reset() { btn.disabled = false; btn.textContent = "Scan & Analyze"; progressEl.style.display = "none"; }
+
+  let scanId;
+  try {
+    const r = await fetch("/api/tt/scan", { method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": adminPw }, body: JSON.stringify({ codes }) });
+    const j = await r.json();
+    if (j.error) { errEl.textContent = j.error; errEl.style.display = "block"; reset(); return; }
+    scanId = j.scanId;
+  } catch (e) { errEl.textContent = "Network error: " + e.message; errEl.style.display = "block"; reset(); return; }
+
+  ttPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch("/api/tt/scan/" + scanId, { headers: { "x-admin-password": adminPw } });
+      const job = await r.json();
+      if (job.error) { clearInterval(ttPollTimer); ttPollTimer = null; errEl.textContent = job.error; errEl.style.display = "block"; reset(); return; }
+      if (job.status === "running") {
+        const p = job.progress || {};
+        progressEl.textContent = `Decoding codes: ${p.decoded || 0}/${p.totalCodes || codes.length} | Scoring matches: ${p.scored || 0}/${p.totalUnplayed || "?"}`;
+        return;
+      }
+      clearInterval(ttPollTimer); ttPollTimer = null;
+      if (job.status === "error") { errEl.textContent = job.error || "Scan failed"; errEl.style.display = "block"; reset(); return; }
+      ttLastScanId = scanId;
+      document.getElementById("ttBatchBtn").style.display = "inline-flex";
+      ttRenderResult(job.result);
+      reset();
+    } catch (e) {
+      clearInterval(ttPollTimer); ttPollTimer = null;
+      errEl.textContent = "Lost connection while scanning: " + e.message; errEl.style.display = "block";
+      reset();
+    }
+  }, 1500);
+}
+
+function ttRenderResult(result) {
+  document.getElementById("ttResults").style.display = "block";
+  document.getElementById("ttRatesBadge").textContent = "(" + result.scoredMatches + " matches scored)";
+  if (result.dataWindow) {
+    const dw = result.dataWindow;
+    document.getElementById("ttDataWindow").textContent = `Model trained on ${dw.totalHistoryRecords} real results from ${dw.earliestRecord} to ${dw.latestRecord} — not just tonight.`;
+  }
+
+  fetch("/api/tt/leaderboards", { headers: { "x-admin-password": adminPw } }).then(r => r.json()).then(({ leaderboards, handicapRates }) => {
+    const lines = [];
+    for (const [name, l] of Object.entries(leaderboards)) {
+      if (name === "_meta" || !l || l.plays == null) continue;
+      lines.push(`<div class="tt-rates-row"><span>${name.replace(/_/g, " ")}</span><span>${l.winRate}% <span style="color:#4a6a4a">(${l.plays} plays, ROI ${l.roiPct > 0 ? "+" : ""}${l.roiPct}%)</span></span></div>`);
+    }
+    lines.push(`<div class="tt-rates-row"><span>Handicap (all cushions)</span><span>${handicapRates.overall.winRate}% <span style="color:#4a6a4a">(${handicapRates.overall.plays} plays)</span></span></div>`);
+    for (const u of handicapRates.underperformingLeagues || []) lines.push(`<div class="tt-rates-row"><span>⚠ ${u.league} handicap</span><span style="color:#e53935">${u.winRate}% vs ${u.othersWinRate}% elsewhere</span></div>`);
+    for (const u of handicapRates.underperformingBuckets || []) lines.push(`<div class="tt-rates-row"><span>⚠ Cushion ${u.bucket}</span><span style="color:#e53935">${u.winRate}% vs ${u.othersWinRate}% at other cushions</span></div>`);
+    document.getElementById("ttRatesTable").innerHTML = lines.join("") || `<p style="color:#8a9e8a;font-size:12px">No rate history yet.</p>`;
+  }).catch(() => {});
+
+  const sel = result.selections;
+  const sourceCodes = ttParseCodes(document.getElementById("ttCodes").value);
+  ttRenderTierGrid(sel, sourceCodes);
+  document.getElementById("ttBatchResults").innerHTML = "";
+  document.getElementById("ttBatchCard").style.display = "none";
+  document.getElementById("ttMarketGenCard").style.display = "block";
+  document.getElementById("ttMarketGenResult").innerHTML = "";
+
+  document.getElementById("ttMatchesBadge").textContent = "(" + result.matches.length + ")";
+  document.getElementById("ttMatchesTable").innerHTML = result.matches.map((m, i) => {
+    const b = m.best;
+    const confPct = (b.confidence * 100).toFixed(1);
+    const known = m.knownPlayers ? `<span class="tt-known-badge">KNOWN</span>` : "";
+    const flag = b.underperformingLeague ? `<span class="tt-flag-badge" title="${b.underperformNote || ""}">RISK</span>` : "";
+    const gapBadge = (b.gapAdjustNote) ? `<span class="tt-known-badge" style="color:#a371f7;background:rgba(163,113,247,.1)" title="${b.gapAdjustNote}">OPP-ADJ</span>` : (m.strengthGap != null ? `<span style="color:#4a7a4a;font-size:10px;margin-left:6px">gap ${m.strengthGap.toFixed(1)}</span>` : "");
+    const others = (m.allCandidates || []).filter(c => c !== b && c.type !== b.type);
+    const othersHtml = others.length ? others.map(c => {
+      const cp = (c.confidence * 100).toFixed(1);
+      return `<div class="tt-leg-row" style="padding-left:16px;opacity:.75"><div><div class="tt-leg-market" style="color:#ccc">${c.type} @${c.odds}</div></div><span class="tt-leg-conf ${ttConfClass(cp)}">${cp}%</span></div>`;
+    }).join("") : `<p style="padding-left:16px;font-size:11px;color:#8a9e8a">No other tracked market had a live line for this match.</p>`;
+    return `<div class="tt-leg-row" style="cursor:pointer" onclick="ttToggleCandidates(${i})"><div><div class="tt-leg-match">${m.home} vs ${m.away}${known}${flag}${gapBadge} <span style="color:#4a7a4a;font-size:10px" id="tt-toggle-${i}">▼ all 4 markets</span></div><div class="tt-leg-market">${b.type} @${b.odds} <span style="color:#4a7a4a">(best of ${(m.allCandidates||[]).length})</span></div></div><span class="tt-leg-conf ${ttConfClass(confPct)}">${confPct}%</span></div>
+      <div id="tt-candidates-${i}" style="display:none">${othersHtml}</div>`;
+  }).join("") || `<p style="color:#8a9e8a;font-size:12px">No usable matches found across the submitted codes.</p>`;
+
+  // Remember these codes so "Run Review" can re-scan them later for results.
+  try {
+    const codes = ttParseCodes(document.getElementById("ttCodes").value);
+    localStorage.setItem("tt_last_codes", JSON.stringify(codes));
+    const reviewBtn = document.getElementById("ttReviewBtn");
+    if (reviewBtn) reviewBtn.style.display = codes.length ? "inline-block" : "none";
+  } catch {}
+}
+
+function ttToggleCandidates(i) {
+  const el = document.getElementById("tt-candidates-" + i);
+  const label = document.getElementById("tt-toggle-" + i);
+  if (!el) return;
+  const open = el.style.display !== "none";
+  el.style.display = open ? "none" : "block";
+  if (label) label.textContent = open ? "▼ all 4 markets" : "▲ hide";
+}
+
+// "Run Review" — re-submit the same codes later; /api/tt/scan automatically
+// ingests any legs that have since resolved into permanent history.
+function ttRescanLast() {
+  try {
+    const codes = JSON.parse(localStorage.getItem("tt_last_codes") || "[]");
+    if (!codes.length) return;
+    document.getElementById("ttCodes").value = codes.join(", ");
+    ttScan();
+  } catch {}
+}
+
+// Tier ladder: one card per odds floor (1K/10K/100K/1M) plus a MAX-ceiling card - replaces
+// the old fixed 3-card layout. Every tier is floor-enforced (see tt-engine buildSelections),
+// so there is no "best" card that can show a 6x code anymore.
+const TT_TIER_COLORS = ["#00c853", "#2ecc71", "#a371f7", "#e6a817", "#e53935"];
+function ttRenderTierGrid(sel, sourceCodes) {
+  const grid = document.getElementById("ttTierGrid");
+  const cards = (sel.tiers || []).map((t, i) => ({
+    key: "tier" + i, title: (t.floor >= 1000000 ? (t.floor / 1000000) + "M" : t.floor >= 1000 ? (t.floor / 1000) + "K" : t.floor) + "× floor",
+    view: t, color: TT_TIER_COLORS[i % TT_TIER_COLORS.length], tier: "floor-" + t.floor,
+  }));
+  if (sel.maxTier) cards.push({ key: "maxtier", title: "🚀 Max (ceiling, ≤" + sel.maxLegs + " legs)", view: sel.maxTier, color: "#e53935", tier: "max" });
+
+  grid.innerHTML = cards.map(c => `
+    <div class="card" style="border-color:${c.color}59">
+      <h2 style="color:${c.color};font-size:15px">${c.title}</h2>
+      <div id="ttCard-${c.key}"></div>
+    </div>
+  `).join("");
+
+  for (const c of cards) {
+    const isOk = c.view.floorMet !== false;
+    document.getElementById("ttCard-" + c.key).innerHTML = ttRenderSelectionCard(c.view, c.view.tradeoffNote, isOk, "ttGenBtn-" + c.key);
+    const btn = document.getElementById("ttGenBtn-" + c.key);
+    if (btn) btn.addEventListener("click", () => ttGenerate(c.view, "ttGenBtn-" + c.key, c.tier, sourceCodes));
+  }
+}
+
+function ttRenderSelectionCard(view, note, isOk, btnId) {
+  if (!view || !view.legs) return `<p style="color:#8a9e8a;font-size:12px">Not enough matches to build a selection.</p>`;
+  const legsHtml = view.matches.map(m => {
+    const known = m.knownPlayers ? `<span class="tt-known-badge">KNOWN</span>` : "";
+    const flag = m.underperformingLeague ? `<span class="tt-flag-badge" title="${m.underperformNote || ""}">RISK</span>` : "";
+    const gapBadge = m.gapAdjustNote ? `<span class="tt-known-badge" style="color:#a371f7;background:rgba(163,113,247,.1)" title="${m.gapAdjustNote}">OPP-ADJ</span>` : "";
+    return `<div class="tt-leg-row"><div><div class="tt-leg-match">${m.match}${known}${flag}${gapBadge}</div><div class="tt-leg-market">${m.market} @${m.odds}</div></div><span class="tt-leg-conf ${ttConfClass(m.confidencePct)}">${m.confidencePct}%</span></div>`;
+  }).join("");
+  return `
+    <div class="tt-output-odds">${view.combinedOdds != null ? view.combinedOdds + "×" : "—"}</div>
+    <div class="tt-output-sub">${view.legs} legs | real straight-win chance: <strong>${view.straightWinPct != null ? view.straightWinPct + "%" : "—"}</strong> | avg confidence: ${view.avgConfidencePct != null ? view.avgConfidencePct + "%" : "—"}</div>
+    ${note ? `<div class="tt-output-note ${isOk ? "tt-note-ok" : ""}">${note}</div>` : ""}
+    <div style="margin-top:10px;max-height:260px;overflow-y:auto">${legsHtml}</div>
+    <button class="btn" id="${btnId}" style="margin-top:12px;width:100%">Generate Booking Code</button>
+    <div id="${btnId}-result"></div>
+  `;
+}
+
+function ttCopyCode(code, btn) {
+  navigator.clipboard.writeText(code).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  }).catch(() => { btn.textContent = "Copy failed"; });
+}
+
+async function ttGenerate(view, btnId, tier, sourceCodes) {
+  if (!view || !view.selections || !view.selections.length) return;
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+  const resultEl = document.getElementById(btnId + "-result");
+  const marketMix = {};
+  (view.matches || []).forEach(m => { marketMix[m.market] = (marketMix[m.market] || 0) + 1; });
+  try {
+    const r = await fetch("/api/tt/generate", {
+      method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": adminPw },
+      body: JSON.stringify({ selections: view.selections, tier, sourceCodes, combinedOdds: view.combinedOdds, straightWinPct: view.straightWinPct, marketMix }),
+    });
+    const j = await r.json();
+    if (j.success && j.shareCode) {
+      if (resultEl) resultEl.innerHTML = `<div class="tt-share-result"><div class="tt-share-code">${j.shareCode}</div><div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn-sm" onclick="ttCopyCode('${j.shareCode}', this)">📋 Copy Code</button><span class="tt-output-sub" style="margin:0">Load on SportyBet — logged in 📜 Saved Codes</span></div></div>`;
+    } else if (resultEl) {
+      resultEl.innerHTML = `<div class="tt-output-note">Generate failed: ${j.error || "Unknown error"}</div>`;
+    }
+  } catch (e) {
+    if (resultEl) resultEl.innerHTML = `<div class="tt-output-note">Network error: ${e.message}</div>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Generate Booking Code"; }
+  }
+}
+
+// Batch: 5-10 diversified codes from the last completed scan, each a different rotation
+// through the same real confidence-ranked pool (see /api/tt/batch/:scanId + tt-engine buildBatch).
+async function ttRunBatch() {
+  if (!ttLastScanId) return;
+  const btn = document.getElementById("ttBatchBtn");
+  btn.disabled = true; btn.textContent = "Building batch...";
+  const card = document.getElementById("ttBatchCard");
+  const out = document.getElementById("ttBatchResults");
+  card.style.display = "block";
+  out.innerHTML = `<p style="color:#8a9e8a;font-size:12px">Building...</p>`;
+  const sourceCodes = ttParseCodes(document.getElementById("ttCodes").value);
+  try {
+    const r = await fetch("/api/tt/batch/" + ttLastScanId, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": adminPw },
+      body: JSON.stringify({ count: 8, minLegs: 5, maxLegs: 50, floor: 1000 }),
+    });
+    const j = await r.json();
+    if (!j.codes || !j.codes.length) { out.innerHTML = `<p style="color:#8a9e8a;font-size:12px">${j.note || "Could not build any distinct codes from this pool."}</p>`; return; }
+    out.innerHTML = j.codes.map((c, i) => `
+      <div class="tt-leg-row" style="flex-direction:column;align-items:flex-start;gap:6px;padding:12px 0">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+          <strong>Code ${i + 1}</strong>
+          <span class="${c.floorMet ? 'tt-conf-hi' : 'tt-conf-lo'}" style="padding:2px 8px;border-radius:100px;font-size:11px;font-weight:800">${c.combinedOdds}×</span>
+        </div>
+        <div class="tt-output-sub">${c.legs} legs | real straight-win: ${c.straightWinPct}% | avg confidence ${c.avgConfidencePct}%</div>
+        <button class="btn-sm" id="ttBatchGen-${i}" style="width:100%">Generate Booking Code</button>
+        <div id="ttBatchGen-${i}-result" style="width:100%"></div>
+      </div>
+    `).join("");
+    j.codes.forEach((c, i) => {
+      document.getElementById("ttBatchGen-" + i).addEventListener("click", () => ttGenerate(c, "ttBatchGen-" + i, "batch", sourceCodes));
+    });
+  } catch (e) {
+    out.innerHTML = `<div class="tt-output-note">Network error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = "🎲 Generate Batch (5–10 codes)";
+  }
+}
+
+// "gen X, under 78.5" / "gen X, highest handicap" - single-click generate for one specific
+// market across the last scan's pool (see /api/tt/market-select/:scanId + tt-engine buildMarketSelection).
+async function ttMarketGen() {
+  if (!ttLastScanId) return;
+  const market = document.getElementById("ttMarketSelect").value;
+  const btn = document.getElementById("ttMarketGenBtn");
+  const out = document.getElementById("ttMarketGenResult");
+  btn.disabled = true; btn.textContent = "Generating...";
+  out.innerHTML = `<p style="color:#8a9e8a;font-size:12px">Building...</p>`;
+  try {
+    const r = await fetch("/api/tt/market-select/" + ttLastScanId, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": adminPw },
+      body: JSON.stringify({ market, maxLegs: 50 }),
+    });
+    const j = await r.json();
+    if (!j.success) { out.innerHTML = `<div class="tt-output-note">${j.error || "No matches currently offer this market."}</div>`; return; }
+    const legsHtml = j.matches.map(m => `<div class="tt-leg-row"><div><div class="tt-leg-match">${m.match}</div><div class="tt-leg-market">${m.market} @${m.odds}</div></div><span class="tt-leg-conf ${ttConfClass(m.confidencePct)}">${m.confidencePct}%</span></div>`).join("");
+    out.innerHTML = `
+      <div class="tt-share-result">
+        <div class="tt-share-code">${j.shareCode}</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn-sm" onclick="ttCopyCode('${j.shareCode}', this)">📋 Copy Code</button><span class="tt-output-sub" style="margin:0">Logged in 📜 Saved Codes</span></div>
+      </div>
+      <div class="tt-output-sub" style="margin-top:8px">${j.legs} legs | ${j.combinedOdds}× | real straight-win ${j.straightWinPct}% | avg confidence ${j.avgConfidencePct}%</div>
+      <div style="margin-top:10px;max-height:260px;overflow-y:auto">${legsHtml}</div>
+    `;
+  } catch (e) {
+    out.innerHTML = `<div class="tt-output-note">Network error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = "⚡ Gen";
+  }
+}
+
+// "Generated Code Log" — every code this workspace has ever produced, retrievable any
+// time via GET /api/tt/log (backed by data/tt-generated-log.json, kept permanently).
+const TT_TIER_LABEL = { "confidence-5": "Best 5 (legacy)", "target-fit": "Target-Fit (legacy)", "high-odds": "High Odds (legacy)", "external": "External", "max": "🚀 Max Ceiling", "batch": "🎲 Batch" };
+function ttTierLabel(tier) {
+  if (TT_TIER_LABEL[tier]) return TT_TIER_LABEL[tier];
+  if (!tier) return "Unknown";
+  if (tier.startsWith("floor-")) { const n = Number(tier.slice(6)); return "🎯 " + (n >= 1000000 ? n / 1000000 + "M" : n / 1000 + "K") + "× Floor"; }
+  if (tier.startsWith("market:")) return "🎯 Market: " + tier.slice(7).replace(/_/g, " ");
+  return tier;
+}
+const TT_STATUS_COLOR = { won: "#00c853", lost: "#e53935", in_progress: "#ffb300", not_found: "#8a9e8a", error: "#8a9e8a" };
+const TT_STATUS_LABEL = { won: "WON", lost: "LOST", in_progress: "PENDING", not_found: "NOT FOUND", error: "ERROR" };
+const TT_STATUS_ICON = { won: "✅", lost: "❌", in_progress: "⏳", not_found: "❓", error: "⚠️" };
+var ttLogCache = []; // last-loaded Saved Codes log, for client-side filtering
+var ttLogFilter = "all";
+
+// Grouped by source, laid out EXACTLY like the Punters leaderboard (rank badge, trust ring,
+// W/L/P counts, expandable code-grid table) so wins/losses read the same way as everywhere
+// else in the app and different sources sit side by side for direct comparison.
+function ttGroupKey(entry) {
+  if (entry.source && entry.source !== "external") return entry.source;
+  if (entry.tier === "external") return entry.label || "External";
+  return "SlipPilot Engine";
+}
+const TT_LOG_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "won", label: "✅ Won" },
+  { key: "lost", label: "❌ Lost" },
+  { key: "in_progress", label: "⏳ Pending / Unchecked" },
+];
+function ttRenderLogFilters() {
+  return `<div class="tt-log-filters">${TT_LOG_FILTERS.map(f => `<button class="tt-log-filter-btn ${ttLogFilter === f.key ? "active" : ""}" onclick="ttSetLogFilter('${f.key}')">${f.label}</button>`).join("")}</div>`;
+}
+function ttSetLogFilter(key) { ttLogFilter = key; ttRenderLogFromCache(); }
+
+function ttRenderLogGroup(g, i) {
+  const id = "ttlg_" + i;
+  const rc = i === 0 ? "rank-1" : i === 1 ? "rank-2" : i === 2 ? "rank-3" : "rank-n";
+  const hrC = g.hr >= 70 ? "#00c853" : g.hr >= 55 ? "#ffb300" : "#e53935";
+  const trust = g.settled ? Math.min(100, Math.round(g.hr * 0.7 + Math.min(g.settled, 30))) : 0;
+  const ringBg = trust >= 80 ? "rgba(0,200,83,.12)" : trust >= 60 ? "rgba(255,179,0,.1)" : trust > 0 ? "rgba(229,57,53,.1)" : "rgba(138,158,138,.06)";
+  const ringC = trust >= 80 ? "#00c853" : trust >= 60 ? "#ffb300" : trust > 0 ? "#e53935" : "#8a9e8a";
+  const sorted = [...g.codes].sort((a, b) => new Date(b.generatedAt) - new Date(a.generatedAt));
+  const codeRows = sorted.map(c => {
+    const d = c.generatedAt ? c.generatedAt.slice(5, 10) : "-";
+    const statusColor = TT_STATUS_COLOR[c.status] || "#8a9e8a";
+    return `<div class="code-grid" style="grid-template-columns:76px 40px 40px 30px 30px 30px 44px 1fr">
+      <span class="code-val">${esc(c.shareCode)}</span>
+      <span style="color:#8a9e8a">${d}</span>
+      <span>${c.legs ?? "-"}</span>
+      <span style="color:#00c853">${c.won ?? 0}</span>
+      <span style="color:#e53935">${c.lost ?? 0}</span>
+      <span style="color:#ffb300">${c.pending ?? 0}</span>
+      <span style="color:${statusColor};font-weight:700">${c.hitRatePct != null ? c.hitRatePct + "%" : "-"}</span>
+      <button class="btn-sm" onclick="event.stopPropagation();ttCopyCode('${esc(c.shareCode)}', this)" style="padding:2px 8px;font-size:9px">Copy</button>
+    </div>`;
+  }).join("");
+  return `<div class="punter-card" id="${id}">
+    <div class="punter-header" onclick="ttToggleLogGroup('${id}')">
+      <div class="rank-badge ${rc}" style="width:26px;height:26px;font-size:12px">${i + 1}</div>
+      <div style="flex:1;min-width:0">
+        <span style="font-weight:800;font-size:13px">${esc(g.name)}</span>
+        <span style="font-size:10px;color:#8a9e8a;margin-left:6px">${g.codes.length} code${g.codes.length === 1 ? "" : "s"}</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;font-size:12px;font-weight:700;flex-shrink:0">
+        <span style="color:#00c853">${g.won}W</span>
+        <span style="color:#e53935">${g.lost}L</span>
+        <span style="color:#ffb300">${g.pending}P</span>
+        <span style="color:${hrC}">${g.hr}%</span>
+        <div class="trust-ring" style="width:30px;height:30px;font-size:11px;background:${ringBg};border:2px solid ${ringC};color:${ringC}">${trust || "-"}</div>
+      </div>
+    </div>
+    <div class="code-section ttlg-body" style="display:none">
+      <div class="code-grid hdr" style="grid-template-columns:76px 40px 40px 30px 30px 30px 44px 1fr"><span>CODE</span><span>DATE</span><span>LEGS</span><span>W</span><span>L</span><span>P</span><span>HR</span><span></span></div>
+      ${codeRows}
+    </div>
+  </div>`;
+}
+function ttToggleLogGroup(id) {
+  const card = document.getElementById(id);
+  const section = card && card.querySelector(".ttlg-body");
+  if (section) section.style.display = section.style.display === "none" ? "block" : "none";
+}
+
+function ttRenderLogFromCache(prefixHtml) {
+  const el = document.getElementById("ttLogTable");
+  let list = ttLogCache;
+  if (ttLogFilter !== "all") {
+    list = ttLogFilter === "in_progress"
+      ? ttLogCache.filter(e => !e.status || e.status === "in_progress" || e.status === "not_found")
+      : ttLogCache.filter(e => e.status === ttLogFilter);
+  }
+  if (!list.length) { el.innerHTML = (prefixHtml || "") + ttRenderLogFilters() + `<p class="tt-log-empty">Nothing in this filter yet.</p>`; return; }
+  const groupsMap = {};
+  for (const e of list) (groupsMap[ttGroupKey(e)] ||= []).push(e);
+  const groups = Object.entries(groupsMap).map(([name, codes]) => {
+    const won = codes.reduce((s, c) => s + (c.won || 0), 0);
+    const lost = codes.reduce((s, c) => s + (c.lost || 0), 0);
+    const pending = codes.reduce((s, c) => s + (c.pending || 0), 0);
+    const settled = won + lost;
+    const hr = settled ? Math.round((won / settled) * 100) : 0;
+    return { name, codes, won, lost, pending, settled, hr };
+  });
+  groups.sort((a, b) => (b.hr - a.hr) || (b.settled - a.settled) || (b.codes.length - a.codes.length));
+  el.innerHTML = (prefixHtml || "") + ttRenderLogFilters() + groups.map(ttRenderLogGroup).join("");
+}
+
+async function ttLoadLogView() {
+  const el = document.getElementById("ttLogTable");
+  el.innerHTML = `<p style="color:#8a9e8a;font-size:12px">Loading…</p>`;
+  try {
+    const r = await fetch("/api/tt/log", { headers: { "x-admin-password": adminPw } });
+    const { log } = await r.json();
+    if (!log || !log.length) { el.innerHTML = `<p class="tt-log-empty">Nothing saved yet — generate a code or add one above.</p>`; return; }
+    ttLogCache = log;
+    ttRenderLogFromCache();
+  } catch (e) {
+    el.innerHTML = `<p style="color:#e53935;font-size:12px">Failed to load log: ${e.message}</p>`;
+  }
+}
+
+async function ttTrackAdd() {
+  const raw = document.getElementById("ttTrackCodes").value;
+  const codes = ttParseCodes(raw);
+  const errEl = document.getElementById("ttTrackError");
+  errEl.style.display = "none";
+  if (!codes.length) { errEl.textContent = "Enter at least one code."; errEl.style.display = "block"; return; }
+  const source = document.getElementById("ttTrackSource").value.trim() || "external";
+  const btn = document.getElementById("ttTrackAddBtn");
+  btn.disabled = true; btn.textContent = "Adding...";
+  try {
+    const r = await fetch("/api/tt/track", { method: "POST", headers: { "Content-Type": "application/json", "x-admin-password": adminPw }, body: JSON.stringify({ codes, source }) });
+    const j = await r.json();
+    if (j.error) { errEl.textContent = j.error; errEl.style.display = "block"; }
+    else {
+      document.getElementById("ttTrackCodes").value = "";
+      await ttLoadLogView();
+    }
+  } catch (e) {
+    errEl.textContent = "Network error: " + e.message; errEl.style.display = "block";
+  } finally {
+    btn.disabled = false; btn.textContent = "+ Add to Saved";
+  }
+}
+
+async function ttCheckResults() {
+  const btn = document.getElementById("ttTrackCheckBtn");
+  btn.disabled = true; btn.textContent = "Checking real results...";
+  const el = document.getElementById("ttLogTable");
+  try {
+    const r = await fetch("/api/tt/track/status", { headers: { "x-admin-password": adminPw } });
+    const { codes, truncated, ingestedNewLegs, totalHistoryRecords } = await r.json();
+    if (!codes || !codes.length) { el.innerHTML = `<p style="color:#8a9e8a;font-size:12px">Nothing saved yet.</p>`; return; }
+    const learnNote = ingestedNewLegs > 0
+      ? `<p style="color:#00c853;font-size:11.5px;margin-bottom:8px">✓ ${ingestedNewLegs} newly-resolved result(s) fed back into history (${totalHistoryRecords} total) and rebuilt — player stats, handicap rates, and calibration just updated from these.</p>`
+      : `<p style="color:#8a9e8a;font-size:11.5px;margin-bottom:8px">No new resolved results this pass — nothing new to rebuild from.</p>`;
+    const truncNote = truncated ? `<p style="color:#ffb300;font-size:11px;margin-bottom:8px">Showing the 60 most recent - older saved codes not checked this pass.</p>` : "";
+    ttLogCache = codes;
+    ttRenderLogFromCache(learnNote + truncNote);
+  } catch (e) {
+    document.getElementById("ttTrackError").textContent = "Failed to check results: " + e.message;
+    document.getElementById("ttTrackError").style.display = "block";
+  } finally {
+    btn.disabled = false; btn.textContent = "🔄 Run Analysis (check real results)";
+  }
+}
+
+// ── TT sub-tabs (Scan / History & Players / Bulk Ingest) ──────────────────────
+function ttSwitchSubtab(name) {
+  document.querySelectorAll('#tab-tabletennis .cs-stab').forEach(b => b.classList.toggle('active', b.dataset.tttab === name));
+  document.querySelectorAll('#tab-tabletennis .tt-subtab').forEach(el => { el.style.display = el.dataset.tttab === name ? 'block' : 'none'; });
+  if (name === 'scan') {
+    try {
+      const codes = JSON.parse(localStorage.getItem('tt_last_codes') || '[]');
+      const reviewBtn = document.getElementById('ttReviewBtn');
+      if (reviewBtn) reviewBtn.style.display = codes.length ? 'inline-block' : 'none';
+    } catch {}
+  }
+}
+
+// "All information about table tennis we ever had" — browsable any time, no
+// scan required first. Backed by GET /api/tt/leaderboards + GET /api/tt/players.
+let ttPlayersCache = [];
+async function ttLoadHistoryView() {
+  const sumEl = document.getElementById('ttHistorySummary');
+  const marketsEl = document.getElementById('ttAllMarketsTable');
+  const h = { 'x-admin-password': adminPw };
+  try {
+    const [lbRes, plRes, calRes] = await Promise.all([
+      fetch('/api/tt/leaderboards', { headers: h }),
+      fetch('/api/tt/players', { headers: h }),
+      fetch('/api/tt/loss-analysis', { headers: h }),
+    ]);
+    const { leaderboards, handicapRates } = await lbRes.json();
+    const pl = await plRes.json();
+    const lossData = await calRes.json();
+    ttPlayersCache = pl.players || [];
+
+    const cards = [];
+    cards.push(`<div><div style="font-size:22px;font-weight:800;color:#00c853">${pl.totalPlayers ?? 0}</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Players Tracked</div></div>`);
+    cards.push(`<div><div style="font-size:22px;font-weight:800;color:#e8edf4">${pl.totalHistoryRecords ?? 0}</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">History Records</div></div>`);
+    if (handicapRates?.overall) cards.push(`<div><div style="font-size:22px;font-weight:800;color:#ffb300">${handicapRates.overall.winRate ?? '—'}%</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Handicap Win Rate (${handicapRates.overall.plays || 0} plays)</div></div>`);
+    if (leaderboards?._meta?.bestMarket) cards.push(`<div><div style="font-size:16px;font-weight:800;color:#a371f7">${dashEsc(leaderboards._meta.bestMarket.replace(/_/g,' '))}</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Best Market (ROI)</div></div>`);
+    if (leaderboards?._meta?.worstMarket) cards.push(`<div><div style="font-size:16px;font-weight:800;color:#e53935">${dashEsc(leaderboards._meta.worstMarket.replace(/_/g,' '))}</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Worst Market (ROI)</div></div>`);
+    if (lossData?.analysis) cards.push(`<div><div style="font-size:22px;font-weight:800;color:#e8edf4">${lossData.analysis.hitRatePct ?? '—'}%</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">All-Time Hit Rate (${lossData.analysis.totalPlays} plays)</div></div>`);
+    if (lossData?.calibration) cards.push(`<div><div style="font-size:22px;font-weight:800;color:#a371f7">${lossData.calibration.totalPredictionsLogged ?? 0}</div><div style="font-size:10px;color:#8a9e8a;text-transform:uppercase">Predictions Logged (self-learning)</div></div>`);
+    sumEl.innerHTML = cards.join('');
+
+    // Every tracked market, not just handicap + the single best one - genuinely "all history".
+    if (marketsEl) {
+      const rows = [];
+      for (const [name, l] of Object.entries(leaderboards || {})) {
+        if (name === '_meta' || !l || l.plays == null) continue;
+        rows.push(`<div class="tt-rates-row"><span>${dashEsc(name.replace(/_/g,' '))}</span><span>${l.winRate}% <span style="color:#4a6a4a">(${l.plays} plays, ROI ${l.roiPct > 0 ? '+' : ''}${l.roiPct}%)</span></span></div>`);
+      }
+      if (handicapRates?.overall) rows.push(`<div class="tt-rates-row"><span>Handicap (all cushions)</span><span>${handicapRates.overall.winRate}% <span style="color:#4a6a4a">(${handicapRates.overall.plays} plays)</span></span></div>`);
+      for (const [bucket, r] of Object.entries(handicapRates?.byBucket || {})) { if (r) rows.push(`<div class="tt-rates-row"><span>&nbsp;&nbsp;└ cushion ${bucket}</span><span>${r.winRate}% <span style="color:#4a6a4a">(${r.plays} plays)</span></span></div>`); }
+      for (const u of handicapRates?.underperformingLeagues || []) rows.push(`<div class="tt-rates-row"><span>⚠ ${dashEsc(u.league)} handicap</span><span style="color:#e53935">${u.winRate}% vs ${u.othersWinRate}% elsewhere</span></div>`);
+      for (const u of handicapRates?.underperformingBuckets || []) rows.push(`<div class="tt-rates-row"><span>⚠ Cushion ${u.bucket}</span><span style="color:#e53935">${u.winRate}% vs ${u.othersWinRate}% at other cushions</span></div>`);
+      marketsEl.innerHTML = rows.join('') || `<p style="color:#8a9e8a;font-size:12px">No market history yet.</p>`;
+    }
+
+    ttRenderPlayers();
+  } catch (e) {
+    sumEl.innerHTML = `<p style="color:#e53935;font-size:12px">Failed to load history: ${dashEsc(e.message)}</p>`;
+  }
+}
+
+function ttRenderPlayers() {
+  const el = document.getElementById('ttPlayersTable');
+  if (!el) return;
+  const q = (document.getElementById('ttPlayerSearch')?.value || '').trim().toLowerCase();
+  let list = ttPlayersCache;
+  if (q) list = list.filter(p => p.name.toLowerCase().includes(q));
+  if (!list.length) { el.innerHTML = '<p style="color:#8a9e8a;font-size:12px">No players match, or none ingested yet — use Bulk Ingest to build this up.</p>'; return; }
+  el.innerHTML = `<table class="live-table"><thead><tr><th>Player</th><th>Matches (n)</th><th>G1 Mean</th><th>FM Mean</th><th>Straight %</th><th>4-Game %</th><th>Decider %</th><th>Strength</th></tr></thead><tbody>
+    ${list.map(p => `<tr><td><strong>${dashEsc(p.name)}</strong></td><td>${p.n}</td><td>${p.g1mean ?? '—'}</td><td>${p.fmmean ?? '—'}</td><td>${p.straightPct ?? '—'}%</td><td>${p.fourGamePct ?? '—'}%</td><td>${p.deciderPct ?? '—'}%</td><td>${p.strength ?? '—'}</td></tr>`).join('')}
+  </tbody></table><p style="font-size:11px;color:#8a9e8a;margin-top:8px">Showing all ${list.length}${q ? ' matching' : ''} players.</p>`;
+}
+
+// Bulk-ingest a large batch of historical (already-decided) codes straight into
+// the permanent player database — this is the "we have a lot of data, let's
+// input them" flow, separate from the (slower) live-scan-and-score path.
+let ttBulkPollTimer = null;
+async function ttBulkIngest() {
+  const codes = ttParseCodes(document.getElementById('ttBulkCodes').value);
+  const errEl = document.getElementById('ttBulkError');
+  errEl.style.display = 'none'; errEl.textContent = '';
+  if (!codes.length) { errEl.textContent = 'Paste at least one code.'; errEl.style.display = 'block'; return; }
+  if (ttBulkPollTimer) { clearInterval(ttBulkPollTimer); ttBulkPollTimer = null; }
+
+  const btn = document.getElementById('ttBulkBtn');
+  btn.disabled = true; btn.textContent = 'Ingesting…';
+  const progressEl = document.getElementById('ttBulkProgress');
+  const resultEl = document.getElementById('ttBulkResult');
+  resultEl.innerHTML = '';
+  progressEl.style.display = 'block';
+  progressEl.textContent = `Fetching ${codes.length} code(s)…`;
+
+  function reset() { btn.disabled = false; btn.textContent = '📥 Ingest All'; progressEl.style.display = 'none'; }
+
+  let jobId;
+  try {
+    const r = await fetch('/api/tt/ingest-bulk', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw }, body: JSON.stringify({ codes }) });
+    const j = await r.json();
+    if (j.error) { errEl.textContent = j.error; errEl.style.display = 'block'; reset(); return; }
+    jobId = j.jobId;
+  } catch (e) { errEl.textContent = 'Network error: ' + e.message; errEl.style.display = 'block'; reset(); return; }
+
+  ttBulkPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch('/api/tt/ingest-bulk/' + jobId, { headers: { 'x-admin-password': adminPw } });
+      const job = await r.json();
+      if (job.error) { clearInterval(ttBulkPollTimer); ttBulkPollTimer = null; errEl.textContent = job.error; errEl.style.display = 'block'; reset(); return; }
+      if (job.status === 'running') {
+        progressEl.textContent = `Ingesting: ${job.progress.done}/${job.progress.total} codes processed…`;
+        return;
+      }
+      clearInterval(ttBulkPollTimer); ttBulkPollTimer = null;
+      if (job.status === 'error') { errEl.textContent = job.error || 'Ingest failed'; errEl.style.display = 'block'; reset(); return; }
+      const res = job.result;
+      resultEl.innerHTML = `<div class="tt-output-note tt-note-ok">
+        ✓ Ingested ${res.ingestedNewLegs} new resolved leg(s) from ${res.codes.length} code(s).
+        Database now has <strong>${res.totalHistoryRecords}</strong> history records across <strong>${res.totalPlayers}</strong> players.
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:#8a9e8a">${res.codes.map(c => c.error ? `${dashEsc(c.code)}: ${dashEsc(c.error)}` : `${dashEsc(c.code)}: +${c.newlyIngested} new / ${c.resolved} resolved`).join('<br>')}</div>`;
+      reset();
+    } catch (e) {
+      clearInterval(ttBulkPollTimer); ttBulkPollTimer = null;
+      errEl.textContent = 'Lost connection while ingesting: ' + e.message; errEl.style.display = 'block';
+      reset();
+    }
+  }, 1200);
+}
+</script>
+<script src="/generator.js?v=20260728"></script>
+<script src="/strategy-ui.js?v=20260726"></script>
 </body>
 </html>

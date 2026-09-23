@@ -26,4 +26,11 @@ slippilot-deploy.zip
 slippilot-full-deploy.zip
 slippilot-localhost.zip
 tt-*.js
+!tt-engine.js
 x-reply-assistant/
+
+# sporty-autobet — local-only, never commit
+sporty-autobet.config.json
+.sporty-session/
+.sporty-session-chromium/
+autobet-screenshots/

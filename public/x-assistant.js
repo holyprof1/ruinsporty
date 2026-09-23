@@ -255,25 +255,45 @@ function xaReopen(id) {
 
 // ── Daily Post ────────────────────────────────────────────────────────────────
 
+// v25 — this used to fetch /api/admin/regen-merged and post the result as
+// one "MERGED" slip on top of the individual codes — dropped per feedback:
+// only each punter's own real code is ever shown, never a synthetic
+// combined one. loadDailyPost/generateDailyPost/generateDailyPostImage all
+// share one fetch of today's codes + their frozen odds (see the v24 odds
+// freeze on /api/admin/punter-codes) so the list, the post text, and the
+// image card can never disagree with each other.
+async function fetchTodaysPunterCodes() {
+  const r = await fetch('/api/admin/punter-codes', { headers: { 'x-admin-password': adminPw } });
+  const j = await r.json();
+  const oddsFrozen = j._oddsFrozen || {};
+  const codes = { ...j }; delete codes._oddsFrozen;
+  const entries = Object.entries(codes).filter(([, v]) => v).map(([name, code]) => ({
+    name, code, odds: oddsFrozen[code.toUpperCase()] || null,
+  }));
+  return entries;
+}
+
 async function loadDailyPost() {
   const el = document.getElementById('dp-punters');
   try {
-    const r = await fetch('/api/admin/punter-codes', { headers: { 'x-admin-password': adminPw } });
-    const codes = await r.json();
-    const entries = Object.entries(codes).filter(([, v]) => v);
+    const entries = await fetchTodaysPunterCodes();
     if (!entries.length) {
-      el.innerHTML = '<p style="color:#8a9e8a;font-size:12px;margin:0">No punter codes saved yet for today.</p>';
+      el.innerHTML = '<p style="color:#64748B;font-size:12px;margin:0">No punter codes saved yet for today.</p>';
     } else {
-      el.innerHTML = entries.map(([name, code]) =>
-        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #1e2e1e">
-          <span style="font-size:12px;font-weight:600">${esc(name)}</span>
-          <span style="font-family:monospace;font-size:13px;font-weight:800;color:#69f0ae;letter-spacing:1px">${esc(code)}</span>
+      el.innerHTML = entries.map(({ name, code, odds }) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(37,99,235,0.1)">
+          <span style="font-size:12px;font-weight:600;color:#F1F5F9">${esc(name)}</span>
+          <span>
+            <span style="font-family:monospace;font-size:13px;font-weight:800;color:#06B6D4;letter-spacing:1px">${esc(code)}</span>
+            ${odds ? `<span style="font-size:11px;color:#00c853;margin-left:8px">${odds.odds.toLocaleString()}x · ${odds.legs} legs 🔒</span>` : ''}
+          </span>
         </div>`
       ).join('');
     }
   } catch (e) {
     el.innerHTML = `<p style="color:#e53935;font-size:12px;margin:0">${e.message}</p>`;
   }
+  checkThemedRepostStatus(); // v38 — "come back and meet it": resumes/shows the last Themed Repost job on every tab open
 }
 
 async function generateDailyPost() {
@@ -287,41 +307,57 @@ async function generateDailyPost() {
   out.style.display = 'none';
 
   try {
-    // 1. Get today's punter codes
-    const codesRes = await fetch('/api/admin/punter-codes', { headers: { 'x-admin-password': adminPw } });
-    const codes = await codesRes.json();
-    const entries = Object.entries(codes).filter(([, v]) => v);
-
+    const entries = await fetchTodaysPunterCodes();
     if (!entries.length) {
       msg.textContent = 'No punter codes saved for today yet.';
       btn.disabled = false; btn.textContent = 'Generate Post';
       return;
     }
 
-    // 2. Auto-merge all today's codes into one slip
-    let merged = '';
+    // v25 — REAL BUG: this call (and the "🔗 MERGED" line below) was
+    // removed on a misreading of feedback. The user actually wants the
+    // merged slip KEPT — what needed to go was `_oddsFrozen` leaking in as
+    // a fake "punter" row, which was a stale-cache issue (the script tag's
+    // ?v= query wasn't bumped after the odds-freeze change shipped, so
+    // browsers kept serving the old, pre-fix file). Restored.
+    // v32 — ONE real code covering every game, however many. Confirmed live
+    // (2026-08-03): SportyBet's share API stores/echoes any number of
+    // selections without truncating — the "50 selections" wall only exists
+    // in their own site's betslip JS when someone tries to load/place it
+    // there. SlipPilot's own Optimizer reads a code via that same raw API,
+    // not through SportyBet's front-end, so it shows every game with no cap
+    // of its own — exactly the "go to SlipPilot to edit" flow that's wanted.
+    // v44 — REAL BUG: this bare `catch {}` swallowed EVERY failure mode
+    // (network drop, server mid-restart, SportyBet API hiccup, or the
+    // server returning success:true with code:null) identically — the
+    // "🔗 MERGED" line just silently disappeared with zero indication of
+    // why, so a transient blip looked exactly like "the feature is broken".
+    // Now every failure path is captured and surfaced in dp-msg so a bad
+    // merge is visibly distinct from a normal, complete post.
+    let mergedCode = null, mergedGames = 0, mergeError = null;
     try {
       const mergeRes = await fetch('/api/admin/regen-merged', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw } });
       const mj = await mergeRes.json();
-      if (mj.success && mj.codes && mj.codes.length) {
-        merged = mj.codes[0].code;
-      }
-    } catch {}
+      if (mj.success && mj.code) { mergedCode = mj.code; mergedGames = mj.totalGames; }
+      else mergeError = mj.error || mj.message || 'server returned no code';
+    } catch (e) { mergeError = `network error (${e.message}) — server may be restarting, try again`; }
 
-    // 3. Build the post
+    // v27 — "odds shouldn't be in the post, just the picture": the text
+    // post is plain again (name + code only) — odds/legs live ONLY in the
+    // image card now.
     const today = new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' });
     const lines = [
       `🌅 Good morning! ${today} picks are LIVE 🔥`,
       '',
       "Today's punters 📋",
-      ...entries.map(([name, code]) => `• ${name} — ${code}`),
+      ...entries.map(({ name, code }) => `• ${name} — ${code}`),
     ];
 
-    if (merged) {
+    if (mergedCode) {
       lines.push('');
-      lines.push(`🔗 MERGED — ${merged}`);
+      lines.push(`🔗 MERGED — ${mergedCode} (${mergedGames} games)`);
       lines.push('');
-      lines.push('✏️ Edit merged slip: slippilot.com.ng/#convert');
+      lines.push(`✏️ Edit/split at slippilot.com.ng/#optimizer?code=${mergedCode}`);
     }
 
     lines.push('');
@@ -329,6 +365,12 @@ async function generateDailyPost() {
 
     document.getElementById('dp-text').value = lines.join('\n');
     out.style.display = 'block';
+    if (mergeError) {
+      msg.textContent = `⚠️ Post text is ready, but the MERGED code failed (${mergeError}) — click Generate Post again to retry it.`;
+      msg.style.color = '#ffb300';
+    } else {
+      msg.style.color = '';
+    }
   } catch (e) {
     msg.textContent = 'Error: ' + e.message;
   }
@@ -337,10 +379,299 @@ async function generateDailyPost() {
   btn.textContent = 'Generate Post';
 }
 
+// v25 — "an image can be there that will show the code, folds and slips...
+// so i can attach": a shareable PNG card, drawn client-side (canvas, no
+// server round-trip/new dependency needed) listing every punter's real
+// code with its frozen odds/leg count, ready to download and attach to a post.
+// v27 — "folds, odds and everything should be on a line like the result.
+// clean": rebuilt as a real column layout (Punter | Folds | Odds | Code),
+// one row = one line, same idea as the Report table's own row format —
+// no more odds/legs stacked on a second line under the code.
+async function generateDailyPostImage() {
+  const msg = document.getElementById('dp-msg');
+  const btn = document.getElementById('dp-img-btn');
+  const wrap = document.getElementById('dp-img-output');
+  btn.disabled = true; btn.textContent = 'Building image…'; msg.textContent = '';
+  try {
+    const entries = await fetchTodaysPunterCodes();
+    if (!entries.length) {
+      msg.textContent = 'No punter codes saved for today yet.';
+      btn.disabled = false; btn.textContent = '🖼 Generate Image'; return;
+    }
+    const rowH = 36, headH = 108, footH = 38, width = 760;
+    const height = headH + entries.length * rowH + footH;
+    const canvas = document.getElementById('dp-canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const COL = { name: 24, folds: 320, odds: 420, code: width - 24 };
+
+    // Background
+    const bg = ctx.createLinearGradient(0, 0, 0, height);
+    bg.addColorStop(0, '#0B1628'); bg.addColorStop(1, '#050a12');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
+
+    // Header
+    ctx.fillStyle = '#F1F5F9'; ctx.font = '700 26px sans-serif';
+    ctx.fillText('⚡ SlipPilot — Today\'s Codes', 24, 42);
+    const today = new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    ctx.fillStyle = '#64748B'; ctx.font = '13px sans-serif';
+    ctx.fillText(today, 24, 64);
+
+    // Column header row — same idea as the Report table's own header
+    ctx.font = '700 10px sans-serif'; ctx.fillStyle = '#64748B';
+    ctx.fillText('PUNTER', COL.name, 84);
+    ctx.fillText('FOLDS', COL.folds, 84);
+    ctx.fillText('ODDS', COL.odds, 84);
+    ctx.textAlign = 'right'; ctx.fillText('CODE', COL.code, 84); ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(37,99,235,0.25)'; ctx.beginPath(); ctx.moveTo(24, 92); ctx.lineTo(width - 24, 92); ctx.stroke();
+
+    // Rows — everything on ONE line per punter
+    entries.forEach(({ name, code, odds }, i) => {
+      const y = headH + i * rowH;
+      if (i % 2 === 1) { ctx.fillStyle = 'rgba(37,99,235,0.05)'; ctx.fillRect(0, y, width, rowH); }
+      const midY = y + rowH / 2 + 5;
+      ctx.font = '600 14px sans-serif'; ctx.fillStyle = '#F1F5F9';
+      ctx.fillText(name, COL.name, midY);
+      ctx.font = '13px sans-serif'; ctx.fillStyle = '#94A3B8';
+      ctx.fillText(odds ? `${odds.legs}L` : '—', COL.folds, midY);
+      ctx.fillStyle = '#00c853';
+      ctx.fillText(odds ? `${odds.odds.toLocaleString()}x` : '—', COL.odds, midY);
+      ctx.font = '700 14px monospace'; ctx.fillStyle = '#06B6D4';
+      ctx.textAlign = 'right';
+      ctx.fillText(code, COL.code, midY);
+      ctx.textAlign = 'left';
+    });
+
+    // Footer
+    ctx.strokeStyle = 'rgba(37,99,235,0.25)'; ctx.beginPath();
+    ctx.moveTo(24, height - footH + 10); ctx.lineTo(width - 24, height - footH + 10); ctx.stroke();
+    ctx.fillStyle = '#64748B'; ctx.font = '12px sans-serif';
+    ctx.fillText('🎯 Track all punters live at slippilot.com.ng', 24, height - 14);
+
+    const url = canvas.toDataURL('image/png');
+    document.getElementById('dp-img-download').href = url;
+    wrap.style.display = 'block';
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '🖼 Generate Image';
+}
+
 function copyDailyPost() {
   const ta = document.getElementById('dp-text');
   navigator.clipboard.writeText(ta.value).then(() => {
     const msg = document.getElementById('dp-msg');
+    msg.textContent = 'Copied!';
+    setTimeout(() => msg.textContent = '', 2000);
+  });
+}
+
+// v38 — REAL FEEDBACK: "should save code when running so i can come back
+// and meet it. should show history." The whole build (scan → safe-convert →
+// quality-rank via master pool → H2H-refine → generate) used to run entirely
+// in THIS browser tab's JS — closing the tab mid-build (a real 75s-300s
+// process) killed it with nothing to show for it. Moved server-side (see
+// runThemedRepostJob in server.js) as a real background job persisted to
+// disk: closing the tab, refreshing, or coming back later all land on
+// whatever the job actually did. This file now only starts the job and
+// polls its status — none of the scan/safe/score/H2H logic lives here
+// anymore (see server.js for all of that).
+const THEMED_REPOST_LABELS = { overunder: '⚽ Over/Under', fullgameover: '⚽ Full Game Over', handicap: '📐 Handicap', dcdnb: '🔀 Double Chance/DNB', all: '🎯' };
+let themedRepostPollTimer = null;
+
+// v44 — "no need of link or stuff": the post text is now just the theme
+// header + code lines, ready to copy and post as-is — the
+// "Edit/split at slippilot.com.ng/#optimizer?code=..." line is gone.
+function themedVariantLines(variants, singleLabel) {
+  if (variants.length === 1) return [`🔗 ${singleLabel} — ${variants[0].code} (${variants[0].legs}g)`];
+  return variants.map((v, i) => `🔗 ${singleLabel} CODE ${i + 1} — ${v.code} (${v.legs}g)`);
+}
+
+function renderThemedRepostJob(current) {
+  const msg = document.getElementById('dp-theme-msg');
+  const btn = document.getElementById('dp-theme-btn');
+  const masterBtn = document.getElementById('dp-theme-master-btn');
+  const out = document.getElementById('dp-theme-output');
+  if (!current) { out.style.display = 'none'; msg.textContent = ''; return; }
+
+  if (current.status === 'running') {
+    btn.disabled = true; if (masterBtn) masterBtn.disabled = true;
+    (current.params?.master ? masterBtn || btn : btn).textContent = current.stage || 'Working…';
+    msg.textContent = `Started ${new Date(current.startedAt).toLocaleTimeString()} — safe to close this tab, it keeps running.`;
+    out.style.display = 'none';
+    return;
+  }
+
+  btn.disabled = false; btn.textContent = 'Build Themed Repost';
+  if (masterBtn) { masterBtn.disabled = false; masterBtn.textContent = '🎯 Master (All Themes)'; }
+  if (current.status === 'error') {
+    msg.textContent = current.error || 'Build failed.';
+    out.style.display = 'none';
+    return;
+  }
+  if (current.status !== 'done' || !current.result) return;
+  const { params, result } = current;
+
+  // v44 — "master where we can be like today over, today handicap..":
+  // one job, every real theme, delivered together — no per-theme clicking.
+  if (result.master) {
+    const ok = (result.categories || []).filter(c => !c.error);
+    const totalCodes = ok.reduce((s, c) => s + (c.variants || []).length, 0);
+    const lines = [
+      `🎯 Master Themed Picks — ${ok.length} theme${ok.length === 1 ? '' : 's'}, ${totalCodes} code${totalCodes === 1 ? '' : 's'}${params.safeMode ? ' (Safe)' : ''} 🔥`,
+      '',
+      ...ok.flatMap(c => [
+        THEMED_REPOST_LABELS[c.category] || c.category,
+        ...themedVariantLines(c.variants, THEMED_REPOST_LABELS[c.category] || c.category),
+        '',
+      ]),
+      '🎯 Track all punters live at slippilot.com.ng',
+    ];
+    document.getElementById('dp-theme-text').value = lines.join('\n');
+    out.style.display = 'block';
+    const failed = (result.categories || []).filter(c => c.error);
+    msg.textContent = `${ok.length}/${(result.categories || []).length} themes built, ${totalCodes} code(s) total.` +
+      (failed.length ? ` Skipped: ${failed.map(f => `${THEMED_REPOST_LABELS[f.category] || f.category} (${f.error})`).join('; ')}.` : '') +
+      ` Built ${new Date(current.finishedAt).toLocaleTimeString()}.`;
+    return;
+  }
+
+  const variants = result.variants || (result.code ? [{ code: result.code, legs: result.legs }] : []); // back-compat with any pre-v40 single-code history entry
+  const label = THEMED_REPOST_LABELS[params.category] || '🎯';
+  const lines = [
+    `${label} Themed picks — ${result.legs} games across ${variants.length} code${variants.length === 1 ? '' : 's'}${params.safeMode ? ' (Safe)' : ''} 🔥`,
+    '',
+    ...themedVariantLines(variants, 'MERGED'),
+    '',
+    '🎯 Track all punters live at slippilot.com.ng',
+  ];
+  document.getElementById('dp-theme-text').value = lines.join('\n');
+  out.style.display = 'block';
+  msg.textContent = `Ranked ${result.candidatePool} pooled games by quality (league/market/H2H) → kept the best ${result.legs} across ${variants.length} code(s). ${result.matchedPool}/${result.legs} matched today's intelligence pool directly. Built ${new Date(current.finishedAt).toLocaleTimeString()}.`;
+}
+
+function renderThemedRepostHistory(history) {
+  const el = document.getElementById('dp-theme-history');
+  if (!el) return;
+  const past = (history || []).filter(h => h.status === 'done' && h.result);
+  if (!past.length) { el.innerHTML = '<p style="font-size:11px;color:#64748B;margin:4px 0 0">No past builds yet.</p>'; return; }
+  el.innerHTML = past.map(h => {
+    const when = new Date(h.finishedAt).toLocaleString('en-NG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    if (h.result.master) {
+      const ok = (h.result.categories || []).filter(c => !c.error);
+      const totalCodes = ok.reduce((s, c) => s + (c.variants || []).length, 0);
+      const codesStr = ok.flatMap(c => (c.variants || []).map(v => v.code)).join(', ');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,99,235,0.08);font-size:11px">
+        <span style="color:#94A3B8">🎯 Master · ${ok.length} themes · ${totalCodes} codes${h.params?.safeMode ? ' · Safe' : ''} — ${when}</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:monospace;font-weight:700;color:#06B6D4;letter-spacing:1px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(codesStr)}">${esc(codesStr)}</span>
+          <button class="btn-sm" style="padding:2px 8px;font-size:10px" onclick="reuseThemedRepostHistory('${h.jobId}')">Load</button>
+        </span>
+      </div>`;
+    }
+    const label = THEMED_REPOST_LABELS[h.params?.category] || '🎯';
+    const variants = h.result.variants || (h.result.code ? [{ code: h.result.code, legs: h.result.legs }] : []);
+    const codesStr = variants.map(v => v.code).join(', ');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,99,235,0.08);font-size:11px">
+      <span style="color:#94A3B8">${label} ${h.result.legs}g · ${variants.length} code${variants.length === 1 ? '' : 's'}${h.params?.safeMode ? ' · Safe' : ''} — ${when}</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:monospace;font-weight:700;color:#06B6D4;letter-spacing:1px">${esc(codesStr)}</span>
+        <button class="btn-sm" style="padding:2px 8px;font-size:10px" onclick="reuseThemedRepostHistory('${h.jobId}')">Load</button>
+      </span>
+    </div>`;
+  }).join('');
+}
+
+// Pulls a past build back into the main output box (e.g. to re-copy or
+// re-share an earlier code) without re-running anything.
+function reuseThemedRepostHistory(jobId) {
+  fetch('/api/admin/themed-repost/state', { headers: { 'x-admin-password': adminPw } })
+    .then(r => r.json())
+    .then(j => {
+      const entry = (j.history || []).find(h => h.jobId === jobId);
+      if (entry) renderThemedRepostJob(entry);
+    });
+}
+
+async function pollThemedRepostOnce() {
+  try {
+    const r = await fetch('/api/admin/themed-repost/state', { headers: { 'x-admin-password': adminPw } });
+    const j = await r.json();
+    renderThemedRepostJob(j.current);
+    renderThemedRepostHistory(j.history);
+    if (j.current?.status === 'running') {
+      themedRepostPollTimer = setTimeout(pollThemedRepostOnce, 2000);
+    } else {
+      clearTimeout(themedRepostPollTimer);
+    }
+  } catch {}
+}
+
+// Called whenever the Daily Post tab is opened (see loadDailyPost) — "come
+// back and meet it": shows whatever the last job did, or keeps polling if
+// one is still running, with zero clicks needed.
+function checkThemedRepostStatus() {
+  clearTimeout(themedRepostPollTimer);
+  pollThemedRepostOnce();
+}
+
+async function generateThemedRepost() {
+  const category = document.getElementById('dp-theme-category').value;
+  const minOdds = parseFloat(document.getElementById('dp-theme-minodds').value) || 0;
+  const maxOdds = parseFloat(document.getElementById('dp-theme-maxodds').value) || 0;
+  const safeMode = document.getElementById('dp-theme-safe').checked;
+  const variants = parseInt(document.getElementById('dp-theme-variants').value, 10) || 1;
+  const msg = document.getElementById('dp-theme-msg');
+  const btn = document.getElementById('dp-theme-btn');
+
+  btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
+  try {
+    const r = await fetch('/api/admin/themed-repost/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw },
+      body: JSON.stringify({ category, minOdds, maxOdds, safeMode, variants }),
+    });
+    const j = await r.json();
+    if (!j.success) { msg.textContent = j.error || 'Failed to start.'; btn.disabled = false; btn.textContent = 'Build Themed Repost'; return; }
+    clearTimeout(themedRepostPollTimer);
+    pollThemedRepostOnce();
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Build Themed Repost';
+  }
+}
+
+// v44 — "master where we can be like today over, today handicap.. all the
+// mode then run h2h and delivered then i can post it": one click builds
+// every real theme (Over/Under, Full Game Over, Handicap, DC/DNB) in a
+// single background job, same odds/safe/codes settings applied to each.
+async function generateThemedRepostMaster() {
+  const minOdds = parseFloat(document.getElementById('dp-theme-minodds').value) || 0;
+  const maxOdds = parseFloat(document.getElementById('dp-theme-maxodds').value) || 0;
+  const safeMode = document.getElementById('dp-theme-safe').checked;
+  const variants = parseInt(document.getElementById('dp-theme-variants').value, 10) || 1;
+  const msg = document.getElementById('dp-theme-msg');
+  const btn = document.getElementById('dp-theme-master-btn');
+
+  btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
+  try {
+    const r = await fetch('/api/admin/themed-repost/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPw },
+      body: JSON.stringify({ master: true, minOdds, maxOdds, safeMode, variants }),
+    });
+    const j = await r.json();
+    if (!j.success) { msg.textContent = j.error || 'Failed to start.'; btn.disabled = false; btn.textContent = '🎯 Master (All Themes)'; return; }
+    clearTimeout(themedRepostPollTimer);
+    pollThemedRepostOnce();
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+    btn.disabled = false; btn.textContent = '🎯 Master (All Themes)';
+  }
+}
+
+function copyThemedRepost() {
+  const ta = document.getElementById('dp-theme-text');
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const msg = document.getElementById('dp-theme-msg');
     msg.textContent = 'Copied!';
     setTimeout(() => msg.textContent = '', 2000);
   });

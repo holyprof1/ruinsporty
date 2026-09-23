@@ -2,7 +2,9 @@
  * Production ZIP builder — run with: npm run deploy:zip
  * Creates deployment.zip with only production-safe files.
  * Does NOT include data/ — the server creates it on first run.
- * Does NOT include admin.html, studio.js, x-assistant.js, or engine files.
+ * Does NOT include admin.html, studio.js, x-assistant.js, or the dev-only engine files.
+ * Exception: tt-engine.js DOES ship — it backs the public Table Tennis workspace tab,
+ * which (unlike the other engines) is meant to run in production too.
  */
 
 const fs = require("fs");
@@ -52,6 +54,9 @@ async function build() {
   archive.file(path.join(ROOT, "app.js"), { name: "app.js" });
   archive.file(path.join(ROOT, "package.json"), { name: "package.json" });
   archive.file(path.join(ROOT, ".env.example"), { name: ".env.example" });
+  // tt-engine.js backs the public-facing Table Tennis workspace (loads in production,
+  // unlike the other dev-only engine files) - must ship or /api/tt/* silently 503s.
+  archive.file(path.join(ROOT, "tt-engine.js"), { name: "tt-engine.js" });
 
   // Public — named files
   const publicDir = path.join(ROOT, "public");

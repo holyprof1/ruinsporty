@@ -21,17 +21,18 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // Keep-alive: ping /api/health every 90s (cPanel Passenger idle timeout can be as low as 2 min)
-setInterval(() => {
+const _keepAliveTimer = setInterval(() => {
   try {
     const http = require("http");
-    http.get("http://localhost:" + (process.env.PORT || 3000) + "/api/health", r => {
+    const ping = http.get("http://localhost:" + (process.env.PORT || 3000) + "/api/health", { timeout: 5000 }, r => {
       let d = ""; r.on("data", c => d += c); r.on("end", () => {});
     }).on("error", () => {});
+    ping.on("timeout", () => ping.destroy());
   } catch {}
 }, 90 * 1000);
 
 // Memory management + cache/rate-limiter housekeeping
-setInterval(() => {
+const _housekeepingTimer = setInterval(() => {
   const mem = process.memoryUsage();
   const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
   const rssMB  = Math.round(mem.rss / 1024 / 1024);
@@ -73,22 +74,48 @@ setInterval(() => {
   }
   if (heapMB > 380) { console.error(`[OOM] ${heapMB}MB — restarting`); process.exit(1); }
 }, 60000);
-require("dotenv").config();
+// Hosting-panel environment variables are authoritative. In particular, a stale
+// NODE_ENV in .env must not re-enable admin engines and startup subprocesses live.
+require("dotenv").config({ override: false });
 const express = require("express");
 const session = require("express-session");
+const crypto = require("crypto");
+const { monitorEventLoopDelay } = require("perf_hooks");
+const BoundedFileSessionStore = require("./lib/bounded-file-session-store");
+const { Semaphore, semaphoreMiddleware, startNonOverlappingJob } = require("./lib/runtime-guards");
 const https = require("https");
 const path = require("path");
 const fs = require("fs");
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-let xAssistant = null, intel = null;
+let xAssistant = null, intel = null, portfolioBuilder = null, strategyEngine = null, advancedGen = null, autobet = null;
 if (!IS_PRODUCTION) {
+  // autobet-engine drives a real browser against a real SportyBet account and
+  // places real bets. It must never load in production — the guard is here as
+  // well as inside the engine itself.
+  try { autobet = require("./autobet-engine"); } catch (e) { console.error('[STARTUP] autobet-engine load failed:', e.message); }
   try { xAssistant = require("./x-assistant-engine"); } catch {}
   try { intel = require("./intelligence-engine"); } catch {}
+  // portfolio-builder.js is no longer used by the (now-replaced) Advanced
+  // Generator UI, but x-assistant-engine.js's CONTENT/BUILD flow still calls
+  // POST /api/admin/portfolio-generate as its primary code-builder — keep it
+  // wired so that feature isn't silently degraded to its legacy fallback.
+  try { portfolioBuilder = require("./portfolio-builder"); } catch {}
+  try { strategyEngine = require("./strategy-engine"); } catch {}
+  try { advancedGen = require("./advanced-generator-engine"); } catch (e) { console.error('[STARTUP] advanced-generator-engine load failed:', e.message); }
 }
+
+// Table Tennis workspace is a public-facing feature (not admin/debug-only), so it loads
+// in production too, unlike the engines above.
+let ttEngine = null;
+try { ttEngine = require("./tt-engine"); } catch (e) { console.error('[STARTUP] tt-engine load failed:', e.message); }
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
+const MAX_UPSTREAM_BYTES = parseInt(process.env.MAX_UPSTREAM_BYTES || "2097152", 10);
+const shutdownTasks = [];
+const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+eventLoopDelay.enable();
 
 // Production email transport — optional, falls back to file-save if nodemailer not installed
 let _mailer = null;
@@ -101,6 +128,10 @@ if (IS_PRODUCTION) {
       secure: process.env.SMTP_SECURE === 'true',
       auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
       tls: { rejectUnauthorized: false },
+      pool: false,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
     });
   } catch { console.warn('[SUPPORT] nodemailer not installed — support tickets will save to file'); }
 }
@@ -150,10 +181,22 @@ function trackVisitor(req) {
 // This means every server restart automatically busts the browser cache — no manual edits.
 const _htmlCache = {};
 function getVersionedHTML(name) {
+  // In development this file is being actively edited on disk, and the
+  // Cache-Control headers on the response only stop the BROWSER from
+  // caching — they say nothing about the server's own copy. Caching here
+  // too meant every edit needed a manual server restart to ever be served,
+  // which cost real time and looked exactly like a browser-caching bug when
+  // it wasn't one. Production keeps the cache (the file never changes under
+  // a running deploy, so re-reading it on every request is pure waste).
+  if (!IS_PRODUCTION) {
+    let raw = fs.readFileSync(path.join(__dirname, "public", name), "utf8");
+    raw = raw.replace(/\?v=[a-zA-Z0-9._-]+/g, `?v=${BUILD_VERSION}`);
+    return raw;
+  }
   if (!_htmlCache[name]) {
     let raw = fs.readFileSync(path.join(__dirname, "public", name), "utf8");
     raw = raw.replace(/\?v=[a-zA-Z0-9._-]+/g, `?v=${BUILD_VERSION}`);
-    if (IS_PRODUCTION) raw = raw.replace('<head>', '<head><script>window.IS_PRODUCTION=true;</script>');
+    raw = raw.replace('<head>', '<head><script>window.IS_PRODUCTION=true;</script>');
     _htmlCache[name] = raw;
   }
   return _htmlCache[name];
@@ -236,6 +279,26 @@ app.use(express.static(path.join(__dirname, "public"), {
   },
 }));
 app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "64kb", parameterLimit: 100 }));
+
+// Cap simultaneous CPU/upstream-heavy work. Cheap static and health routes bypass this.
+const expensiveSemaphore = new Semaphore(parseInt(process.env.EXPENSIVE_CONCURRENCY || "3", 10), 12);
+const expensivePaths = ["/api/generate", "/api/scan", "/api/merge", "/api/h2h", "/api/tt/", "/api/admin/"];
+const expensiveRateMap = new Map();
+app.use((req, res, next) => expensivePaths.some(p => req.path.startsWith(p))
+  ? semaphoreMiddleware(expensiveSemaphore)(req, res, next) : next());
+app.use((req, res, next) => {
+  if (!expensivePaths.some(p => req.path.startsWith(p)) || req.method === "GET") return next();
+  const now = Date.now();
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const entry = expensiveRateMap.get(ip) || { count: 0, reset: now + 60000 };
+  if (now >= entry.reset) { entry.count = 0; entry.reset = now + 60000; }
+  entry.count++;
+  expensiveRateMap.delete(ip); expensiveRateMap.set(ip, entry);
+  while (expensiveRateMap.size > 1000) expensiveRateMap.delete(expensiveRateMap.keys().next().value);
+  if (entry.count > 15) return res.status(429).set("Retry-After", "60").json({ error: "Too many expensive requests" });
+  next();
+});
 
 // Health check for the wrapper, cPanel, and simple uptime probes
 app.get("/api/health", (req, res) => {
@@ -246,6 +309,32 @@ app.get("/api/health", (req, res) => {
     build: BUILD_VERSION,
     memMB: Math.round(mem.heapUsed / 1024 / 1024),
     time: new Date().toISOString(),
+  });
+});
+
+function safeSecretEqual(candidate, expected) {
+  if (!candidate || !expected) return false;
+  const a = Buffer.from(String(candidate));
+  const b = Buffer.from(String(expected));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Intentionally separate from public health: operational details require a secret.
+app.get("/api/diagnostics", (req, res) => {
+  const expected = process.env.DIAGNOSTICS_TOKEN || process.env.ADMIN_PASSWORD;
+  if (!safeSecretEqual(req.headers["x-diagnostics-token"], expected)) return res.status(404).json({ error: "Not found" });
+  const mem = process.memoryUsage();
+  res.set("Cache-Control", "no-store").json({
+    rss: mem.rss, heapUsed: mem.heapUsed, heapTotal: mem.heapTotal,
+    activeHandles: process._getActiveHandles().length,
+    activeRequests: process._getActiveRequests().length,
+    uptime: process.uptime(),
+    eventLoopDelayMs: {
+      mean: Number.isFinite(eventLoopDelay.mean) ? +(eventLoopDelay.mean / 1e6).toFixed(2) : 0,
+      p95: +(eventLoopDelay.percentile(95) / 1e6).toFixed(2),
+      max: +(eventLoopDelay.max / 1e6).toFixed(2),
+    },
+    expensive: { active: expensiveSemaphore.active, queued: expensiveSemaphore.queue.length },
   });
 });
 
@@ -266,18 +355,35 @@ app.use((req, res, next) => {
 });
 
 app.set("trust proxy", 1);
-if (!IS_PRODUCTION) {
-  app.use(session({ secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret", resave: false, saveUninitialized: false, cookie: { secure: false, httpOnly: true, maxAge: 3600000 } }));
-}
+const sessionStore = new BoundedFileSessionStore({ dir: SESSIONS_DIR, maxSessions: 500, ttlMs: 3600000 });
+app.use(session({
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || "sp-secret-change-me",
+  name: "slippilot.sid", resave: false, saveUninitialized: false,
+  cookie: { secure: IS_PRODUCTION, httpOnly: true, sameSite: "lax", maxAge: 3600000 },
+}));
+shutdownTasks.push(() => sessionStore.close());
 
 // ── Helpers ──
 
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     const req = https
-      .get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 }, (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
+      // SportyBet's CloudFront WAF started rejecting the bare "Mozilla/5.0"
+      // User-Agent with a 403 (confirmed live 2026-09-09 — this exact string
+      // vs a fuller one, same endpoint, back to back: 403 vs 200). This was
+      // silently breaking every one of this function's 28 callers across the
+      // app (booking-code lookups, scans, regen-merged, etc.) since every
+      // caller wraps the call in try/catch and treats the rejection as "no
+      // data" rather than surfacing an error. Matches the fuller UA string
+      // postJSON/fetchJSONWithStatus already use successfully.
+      .get(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }, timeout: 15000 }, (res) => {
+        let data = "", bytes = 0;
+        res.on("data", (chunk) => {
+          bytes += chunk.length;
+          if (bytes > MAX_UPSTREAM_BYTES) return req.destroy(new Error("Upstream response too large"));
+          data += chunk;
+        });
         res.on("end", () => {
           try { resolve(JSON.parse(data)); }
           catch { reject(new Error("Invalid JSON from " + url.slice(0, 60))); }
@@ -306,8 +412,12 @@ function postJSON(url, body) {
         },
       },
       (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
+        let data = "", bytes = 0;
+        res.on("data", (c) => {
+          bytes += c.length;
+          if (bytes > MAX_UPSTREAM_BYTES) return req.destroy(new Error("Upstream response too large"));
+          data += c;
+        });
         res.on("end", () => {
           try { resolve(JSON.parse(data)); }
           catch { reject(new Error("Invalid JSON from POST")); }
@@ -389,6 +499,8 @@ function loadApiUsage() {
 }
 
 function saveApiUsage(data) {
+  const usageKeys = Object.keys(data.usage || {});
+  if (usageKeys.length > 5000) for (const key of usageKeys.slice(0, usageKeys.length - 5000)) delete data.usage[key];
   _apiUsageCache = data;
   _apiUsageDirty = true;
   clearTimeout(_apiUsageTimer);
@@ -437,15 +549,51 @@ function savePunters(data) {
 
 // ── Selection mapper (shared by booking, scan, merge) ──
 
+// v41 — REAL BUG (confirmed on live data, real user ticket): this used to
+// iterate `outcomes` (SportyBet's per-event summary/result array) and only
+// use `ticketSelections` (json.data.ticket.selections — the ORIGINAL,
+// AUTHORITATIVE list of every leg actually on the code) to enrich a match it
+// had already found by eventId. But `outcomes` can genuinely be missing an
+// entry for a leg — confirmed live on a real 33-leg ticket where an unusual
+// "Over/Under - Early Goals" (minute-restricted) market leg was present in
+// `ticket.selections` but simply absent from `outcomes` on SportyBet's own
+// server (verified via a direct curl of the raw API — 33 vs 32 entries).
+// That leg silently vanished from EVERY feature built on this function
+// (booking, scan, merge, scoreboard, leaderboard rescans) — no error, no
+// count mismatch shown, nothing — this is the root cause behind "rescan
+// isn't giving full data" and a real "5 lost legs, only 4 shown" mismatch.
+// Fixed by flipping the iteration: `ticketSelections` is now the source of
+// truth for WHICH legs exist (it's the original booking-code data, always
+// complete); `outcomes` only enriches with team names/market text/result
+// when a match is found. A leg with no `outcomes` match is still INCLUDED
+// (never silently dropped) — `unmatched: true`, best-effort ID-based labels
+// since no human-readable names exist without the outcomes lookup, and
+// evaluateVerdict below reports it as a distinct "UNVERIFIED" status rather
+// than falsely implying PENDING (upcoming) or guessing WON/LOST — SportyBet
+// genuinely doesn't expose this leg's settlement any other way.
 function mapOutcomes(outcomes, ticketSelections) {
-  const ticketMap = new Map();
-  (ticketSelections || []).forEach((ts) => ticketMap.set(ts.eventId, ts));
+  const outcomeMap = new Map();
+  (outcomes || []).forEach((o) => outcomeMap.set(o.eventId, o));
 
-  return outcomes.map((o) => {
+  return (ticketSelections || []).map((ts) => {
+    const o = outcomeMap.get(ts.eventId);
+    if (!o) {
+      return {
+        eventId: ts.eventId || "",
+        homeTeam: "", awayTeam: "", sport: "", sportId: ts.sportId || "",
+        league: "", category: "",
+        market: `Mkt${ts.marketId}`, marketId: ts.marketId || "",
+        specifier: ts.specifier || "",
+        outcome: `Outcome${ts.outcomeId}`, outcomeId: ts.outcomeId || "",
+        productId: ts.productId || 3,
+        odds: 0, // genuinely unknown — not in ticket.selections, and no outcomes entry to source it from
+        kickoff: "", matchStatus: "", score: null, halfScores: [],
+        isWinning: undefined, refundFactor: undefined,
+        unmatched: true,
+      };
+    }
     const mkt = o.markets && o.markets[0] ? o.markets[0] : {};
     const oc = mkt.outcomes && mkt.outcomes[0] ? mkt.outcomes[0] : {};
-    const ts = ticketMap.get(o.eventId) || {};
-
     return {
       eventId: o.eventId || "",
       homeTeam: o.homeTeamName || "",
@@ -469,11 +617,18 @@ function mapOutcomes(outcomes, ticketSelections) {
       halfScores: o.gameScore || [],
       isWinning: oc.isWinning,
       refundFactor: oc.refundFactor,
+      unmatched: false,
     };
   });
 }
 
 function evaluateVerdict(sel) {
+  // v41 — a leg mapOutcomes couldn't match to SportyBet's outcomes array is
+  // genuinely unverifiable, not "pending" (which implies upcoming/not yet
+  // played — false for e.g. yesterday's already-finished games) and not
+  // safe to guess WON/LOST for. Distinct status so it's never silently
+  // miscounted either way.
+  if (sel.unmatched) return "UNVERIFIED";
   const st = (sel.matchStatus || "").toLowerCase();
   if (["postponed", "cancelled", "abandoned"].includes(st)) return "VOID";
   if (sel.refundFactor === 1) return "VOID";
@@ -491,6 +646,7 @@ function saveOddsForCode(code, selections) {
     const key = code + "|" + s.eventId;
     if (!oddsStore.has(key)) oddsStore.set(key, s.odds);
   }
+  while (oddsStore.size > 2000) oddsStore.delete(oddsStore.keys().next().value);
 }
 
 function getOriginalOdds(code, eventId, fallback) {
@@ -559,6 +715,7 @@ app.get("/api/booking/:code", checkBookingRate, async (req, res) => {
     };
 
     bookingCache.set(code, { data: result, time: Date.now() });
+    while (bookingCache.size > 200) bookingCache.delete(bookingCache.keys().next().value);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message || "Failed to fetch booking" });
@@ -628,51 +785,55 @@ app.post("/api/generate", checkGenerateRate, async (req, res) => {
 
 // ── Market Explorer ──
 
+// Factored out of the route below (same pattern as getH2HStats) so the
+// Themed Repost background job can look up a match's live market board
+// directly, without an internal HTTP self-call.
+async function getEventMarkets(eventId) {
+  const url = `https://www.sportybet.com/api/ng/factsCenter/event?eventId=${encodeURIComponent(eventId)}`;
+  const json = await fetchJSON(url);
+  if (!json || json.bizCode !== 10000 || !json.data) {
+    return { error: json?.message || "Event not found" };
+  }
+  const d = json.data;
+  const safeId = eventId.replace(/[^a-zA-Z0-9_\-]/g, "_");
+  if (!IS_PRODUCTION) {
+    const debugPath = path.join(DEBUG_DIR, `${safeId}.json`);
+    fs.writeFileSync(debugPath, JSON.stringify(d, null, 2));
+  }
+  const allMarkets = (d.markets || []).flatMap((m) =>
+    (m.outcomes || [])
+      .filter((o) => o.isActive === 1)
+      .map((o) => ({
+        marketId: m.id,
+        marketName: m.desc || "",
+        specifier: m.specifier || "",
+        group: m.group || "",
+        outcomeId: o.id,
+        outcomeName: o.desc || "",
+        odds: parseFloat(o.odds) || 0,
+      }))
+  );
+  return {
+    eventId: d.eventId,
+    homeTeam: d.homeTeamName || "",
+    awayTeam: d.awayTeamName || "",
+    sport: d.sport?.name || "",
+    sportId: d.sport?.id || "",
+    league: d.sport?.category?.tournament?.name || "",
+    marketCount: (d.markets || []).length,
+    outcomeCount: allMarkets.length,
+    markets: allMarkets,
+    ...(IS_PRODUCTION ? {} : { debugFile: `debug/markets/${safeId}.json` }),
+  };
+}
+
 app.get("/api/markets/:eventId", async (req, res) => {
   const eventId = req.params.eventId;
   if (!eventId) return res.status(400).json({ error: "eventId required" });
-
   try {
-    const url = `https://www.sportybet.com/api/ng/factsCenter/event?eventId=${encodeURIComponent(eventId)}`;
-    const json = await fetchJSON(url);
-
-    if (!json || json.bizCode !== 10000 || !json.data) {
-      return res.status(404).json({ error: json?.message || "Event not found" });
-    }
-
-    const d = json.data;
-    const safeId = eventId.replace(/[^a-zA-Z0-9_\-]/g, "_");
-    if (!IS_PRODUCTION) {
-      const debugPath = path.join(DEBUG_DIR, `${safeId}.json`);
-      fs.writeFileSync(debugPath, JSON.stringify(d, null, 2));
-    }
-
-    const allMarkets = (d.markets || []).flatMap((m) =>
-      (m.outcomes || [])
-        .filter((o) => o.isActive === 1)
-        .map((o) => ({
-          marketId: m.id,
-          marketName: m.desc || "",
-          specifier: m.specifier || "",
-          group: m.group || "",
-          outcomeId: o.id,
-          outcomeName: o.desc || "",
-          odds: parseFloat(o.odds) || 0,
-        }))
-    );
-
-    res.json({
-      eventId: d.eventId,
-      homeTeam: d.homeTeamName || "",
-      awayTeam: d.awayTeamName || "",
-      sport: d.sport?.name || "",
-      sportId: d.sport?.id || "",
-      league: d.sport?.category?.tournament?.name || "",
-      marketCount: (d.markets || []).length,
-      outcomeCount: allMarkets.length,
-      markets: allMarkets,
-      ...(IS_PRODUCTION ? {} : { debugFile: `debug/markets/${safeId}.json` }),
-    });
+    const result = await getEventMarkets(eventId);
+    if (result.error) return res.status(404).json({ error: result.error });
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -729,6 +890,10 @@ app.get("/api/scan/:code", async (req, res) => {
     const lost = results.filter((r) => r.verdict === "LOST").length;
     const voided = results.filter((r) => r.verdict === "VOID").length;
     const pending = results.filter((r) => r.verdict === "PENDING").length;
+    // v41 — legs SportyBet's outcomes array doesn't cover (see mapOutcomes)
+    // land here, not silently miscounted into won/lost/pending/void — surfaced
+    // explicitly so `total` always equals the sum of every bucket.
+    const unverified = results.filter((r) => r.verdict === "UNVERIFIED").length;
     const settled = won + lost;
     const hitRate = settled > 0 ? Math.round((won / settled) * 100) : 0;
 
@@ -737,7 +902,7 @@ app.get("/api/scan/:code", async (req, res) => {
     res.json({
       shareCode: json.data.shareCode || code,
       total: results.length,
-      won, lost, void: voided, pending, hitRate,
+      won, lost, void: voided, pending, unverified, hitRate,
       results,
     });
   } catch (err) {
@@ -1135,28 +1300,40 @@ async function apiFootballH2H(home, away, pick) {
   };
 
   h2hCache.set(cacheKey, { ts: Date.now(), data: result });
+  while (h2hCache.size > 250) h2hCache.delete(h2hCache.keys().next().value);
   return result;
+}
+
+// Shared H2H waterfall (API-Football → SportyBet's own stats endpoints →
+// TheSportsDB) — factored out of the /api/h2h route so intelligence-engine.js's
+// CORE scoring pipeline (masterScore, used by every ticket type) can pull the
+// same real head-to-head signal, not just the Convert tool's Deep Scan and the
+// admin Themed Repost feature. Note: API_FOOTBALL_KEY is currently a known-
+// suspended key (see apiFootballFetch above) — this waterfall already
+// degrades gracefully to the keyless SportyBet/TheSportsDB sources today, and
+// will automatically start using real API-Football data with zero further
+// code changes the moment a working key is set in .env.
+async function getH2HStats(eventId, home, away, pick) {
+  try {
+    const apif = await apiFootballH2H(home, away, pick);
+    if (apif?.found) return apif;
+  } catch {}
+  try {
+    const sporty = await sportyStats(eventId, home, away);
+    if (sporty?.found) return sporty;
+  } catch {}
+  try {
+    const fallback = await fallbackStats(home, away);
+    return { ...fallback, noApiKey: !process.env.API_FOOTBALL_KEY };
+  } catch (err) {
+    return { h2h: [], homeForm: [], awayForm: [], keyStats: {}, found: false, error: err.message, noApiKey: !process.env.API_FOOTBALL_KEY };
+  }
 }
 
 app.get("/api/h2h", checkApiLimit, async (req, res) => {
   const { eventId, home, away, pick } = req.query;
   if (!home) return res.status(400).json({ error: "home team required" });
-
-  try {
-    // Try API-Football first
-    const apif = await apiFootballH2H(home, away, pick);
-    if (apif?.found) return res.json(apif);
-
-    // Fallback to SportyBet endpoints
-    const sporty = await sportyStats(eventId, home, away);
-    if (sporty?.found) return res.json(sporty);
-
-    // Fallback to TheSportsDB
-    const fallback = await fallbackStats(home, away);
-    res.json({ ...fallback, sportyDebugFile: sporty?.debugFile || null, noApiKey: !process.env.API_FOOTBALL_KEY });
-  } catch (err) {
-    res.json({ h2h: [], homeForm: [], awayForm: [], keyStats: {}, found: false, error: err.message, noApiKey: !process.env.API_FOOTBALL_KEY });
-  }
+  res.json(await getH2HStats(eventId, home, away, pick));
 });
 
 // Legacy H2H fallback
@@ -1313,7 +1490,10 @@ app.get("/optimize-sportybet-slip", (req, res) => res.sendFile(path.join(__dirna
 app.get("/sportybet-booking-code-converter", (req, res) => res.sendFile(path.join(__dirname, "public", "sportybet-booking-code-converter.html")));
 app.get("/check-sportybet-slip-result", (req, res) => res.sendFile(path.join(__dirname, "public", "check-sportybet-slip-result.html")));
 
-// ── Admin Panel ──
+// ── Admin Panel — blocked entirely in production ──
+if (IS_PRODUCTION) {
+  app.all(/^\/(admin|api\/admin)(\/.*)?$/, (req, res) => res.status(404).json({ error: "Not found" }));
+}
 
 app.post("/admin/login", (req, res) => {
   if (req.body.password === process.env.ADMIN_PASSWORD) {
@@ -1327,6 +1507,7 @@ app.post("/admin/login", (req, res) => {
 app.get("/admin/logout", (req, res) => { req.session.destroy(); res.redirect("/"); });
 
 function requireAdmin(req, res, next) {
+  if (!IS_PRODUCTION) return next(); // no password required in local dev
   if (req.session?.admin) return next();
   if (req.headers["x-admin-password"] === process.env.ADMIN_PASSWORD) return next();
   // API routes must always return JSON — never redirect
@@ -1640,39 +1821,110 @@ app.get("/api/debug/h2h-test", requireAdmin, async (req, res) => {
 // Regenerate merged codes (all punters, live games removed)
 function getTodayCodes() { return loadPunterCodes(); }
 
+// v43 — REAL BUG: postJSON'ing the WHOLE merged selection list in one shot
+// meant a single stale/invalid selection (SportyBet: "invalid event data, no
+// market there" — e.g. a market that got suspended or changed between scan
+// and post) poisoned the ENTIRE batch — confirmed live: a real 230-selection
+// merge failed outright with `code: null`, even though 229 of those 230
+// selections were perfectly valid. There was no fallback; the whole "Daily
+// Post MERGED" feature broke for everyone over one bad leg. Fixed with a
+// divide-and-conquer retry: if the full batch fails, bisect it, retry each
+// half, and recursively drop whichever half(s) still fail down to the
+// individual leg(s) actually causing it — same "find and exclude the poison
+// pill" pattern, not a blind cap or a full feature outage.
+async function postMergedSelections(sels, logger) {
+  if (!sels.length) return null;
+  const payload = sels.map(s => ({ eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId, specifier: s.specifier || "", productId: s.productId || 3, sportId: s.sportId || "" }));
+  try {
+    const r = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+    if (r.bizCode === 10000 && r.data?.shareCode) return r.data.shareCode;
+  } catch {}
+  return null;
+}
+
+async function findValidMergedSelections(sels, logger, depth = 0) {
+  if (!sels.length) return [];
+  const whole = await postMergedSelections(sels);
+  if (whole !== null) return sels; // the whole (sub)batch is valid as-is
+  if (sels.length === 1) {
+    logger && logger(`  Dropped 1 invalid selection: ${sels[0].eventId} (SportyBet rejected it — likely a market that changed/suspended since scanning)`);
+    return [];
+  }
+  if (depth > 12) return []; // safety cap — should never realistically be hit for normal leg counts
+  const mid = Math.floor(sels.length / 2);
+  const left = await findValidMergedSelections(sels.slice(0, mid), logger, depth + 1);
+  const right = await findValidMergedSelections(sels.slice(mid), logger, depth + 1);
+  return [...left, ...right];
+}
+
 app.post("/api/admin/regen-merged", requireAdmin, async (req, res) => {
+  // v45 — REAL BUG: this route fetches every punter's code from SportyBet
+  // SEQUENTIALLY (line ~1799) plus the merge POST itself plus any bisection
+  // retries, same shape as the other multi-punter/multi-code routes that
+  // already got bumped past the global 30s timeout (see line ~216) — this
+  // one never was. With single-digit punters it usually finished under 30s
+  // by luck; past that (more punters, slower SportyBet response) the global
+  // timeout fired mid-request, the socket got dropped with no real response,
+  // and the client saw a bare "Failed to fetch" — indistinguishable from a
+  // server crash. Same fix already applied everywhere else in this file.
+  req.setTimeout(120000);
   try {
     const allSels = [];
     const seen = new Set();
     const now = Date.now();
 
-    for (const [name, code] of Object.entries(getTodayCodes())) {
-      if (!code) continue;
-      try {
-        const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
-        const json = await fetchJSON(url);
-        if (json?.bizCode === 10000 && json.data?.outcomes) {
-          const ticketSels = json.data.ticket?.selections || [];
-          const selections = mapOutcomes(json.data.outcomes, ticketSels);
-          for (const s of selections) {
-            if (s.kickoff && new Date(s.kickoff).getTime() <= now) continue;
-            if (!seen.has(s.eventId)) { seen.add(s.eventId); allSels.push(s); }
+    for (const [name, rawCode] of Object.entries(getTodayCodes())) {
+      if (!rawCode) continue;
+      // v43 — REAL BUG: a multi-code punter's raw "CODE1, CODE2" string was
+      // passed straight to the share-code lookup as ONE combined string,
+      // which SportyBet correctly rejects as invalid — that punter's games
+      // were silently skipped entirely, every single day. Split first, same
+      // pattern already used correctly elsewhere (regen-merged's own
+      // sibling routes, rescan-all's Step 1).
+      const codeList = String(rawCode).split(",").map(c => c.trim().toUpperCase()).filter(Boolean);
+      for (const code of codeList) {
+        try {
+          const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+          const json = await fetchJSON(url);
+          if (json?.bizCode === 10000 && json.data?.outcomes) {
+            const ticketSels = json.data.ticket?.selections || [];
+            const selections = mapOutcomes(json.data.outcomes, ticketSels);
+            for (const s of selections) {
+              // v39 — same fix as the Themed Repost job: kickoff alone can be
+              // missing/falsy, which let some live/played legs through with no
+              // real-time check at all. matchStatus is authoritative.
+              const ms = (s.matchStatus || "").toLowerCase();
+              if (["ended", "h1", "h2", "ht", "p1", "p2", "inprogress"].includes(ms)) continue;
+              if (s.kickoff && new Date(s.kickoff).getTime() <= now) continue;
+              if (!seen.has(s.eventId)) { seen.add(s.eventId); allSels.push(s); }
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
     }
 
-    const codes = [];
-    for (let i = 0; i < allSels.length; i += 50) {
-      const batch = allSels.slice(i, i + 50);
-      const payload = batch.map(s => ({ eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId, specifier: s.specifier || "", productId: s.productId || 3, sportId: s.sportId || "" }));
-      try {
-        const r = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
-        if (r.bizCode === 10000 && r.data?.shareCode) codes.push({ code: r.data.shareCode, games: batch.length });
-      } catch {}
+    // One real SportyBet code covering EVERY game, however many. Confirmed live
+    // (2026-08-03) that SportyBet's share API stores and echoes back any number
+    // of selections without truncating (145 posted, 145 confirmed on readback) —
+    // the "50 selections" wall is enforced only by their own site's betslip JS
+    // when someone tries to load/place it there. SlipPilot's own tools (Optimizer,
+    // Merger) read a code via this same raw share API, not through SportyBet's
+    // front-end, so they display every game on it with no cap of their own.
+    let code = null;
+    let droppedCount = 0;
+    let finalCount = allSels.length;
+    if (allSels.length) {
+      code = await postMergedSelections(allSels);
+      if (code === null) {
+        // Full batch failed — bisect to find and exclude whichever selection(s)
+        // are actually invalid, then generate from the clean remainder.
+        const valid = await findValidMergedSelections(allSels, (msg) => { droppedCount++; console.log("[regen-merged]", msg); });
+        if (valid.length) code = await postMergedSelections(valid);
+        if (code) finalCount = valid.length; // report the real, final count actually on the code
+      }
     }
 
-    res.json({ success: true, codes, totalGames: allSels.length, message: `${codes.length} codes from ${allSels.length} future games` });
+    res.json({ success: true, code, totalGames: finalCount, droppedInvalid: droppedCount, message: code ? `1 code from ${finalCount} future games${droppedCount ? ` (${droppedCount} invalid dropped)` : ""}` : "Code generation failed" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1748,6 +2000,328 @@ app.post("/api/admin/daily-merged", requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Themed Repost — background job ───────────────────────────────────────────
+// v38 — REAL FEEDBACK: this used to run entirely in the browser (a single
+// button click kicking off a long chain of fetches — scan, safe-convert,
+// master-pool score, H2H-refine, generate). Closing the tab mid-build (a
+// 75s-300s process) killed the whole thing with nothing to show for it. Now
+// runs server-side as a real background job, persisted to disk — closing the
+// tab, refreshing, or coming back an hour later all land on the same
+// in-progress-or-finished job. Also keeps a history of past builds.
+const THEMED_REPOST_FILE = path.join(DATA_DIR, "themed-repost.json");
+function loadThemedRepostState() {
+  try { return JSON.parse(fs.readFileSync(THEMED_REPOST_FILE, "utf-8")); }
+  catch { return { current: null, history: [] }; }
+}
+function saveThemedRepostState(state) {
+  fs.writeFileSync(THEMED_REPOST_FILE, JSON.stringify(state, null, 2));
+}
+function updateThemedRepostCurrent(patch) {
+  const state = loadThemedRepostState();
+  state.current = { ...(state.current || {}), ...patch };
+  saveThemedRepostState(state);
+  return state.current;
+}
+
+function legCategoryServer(l) {
+  const m = l.market || "";
+  if (/over\/under/i.test(m)) return "overunder";
+  if (/handicap/i.test(m)) return "handicap";
+  if (/double chance|draw no bet/i.test(m)) return "dcdnb";
+  return "mixed";
+}
+
+// v40 — "just over.. full game over.. infact it should be part of that
+// option": a dedicated, stricter category — the generic "overunder" bucket
+// above matches ANY market with "Over/Under" in the name, including 2nd
+// Half/Early Goals/team-scoped variants (e.g. "2nd Half - Over/Under",
+// "Rezeknes Fa/Bjss Over/Under"). The real full-match market's name is
+// exactly "Over/Under" with nothing else appended — team-scoped markets
+// always carry the team name as a literal prefix instead (same fact
+// advanced-generator-engine.js's isTeamScopedMarket relies on) — so an exact
+// match after trimming cleanly excludes every derivative variant. Also
+// requires the OUTCOME be "Over ..." specifically, not "Under ...".
+function isFullGameOverLeg(l) {
+  const m = (l.market || "").trim().toLowerCase();
+  const out = (l.outcome || "").trim().toLowerCase();
+  return m === "over/under" && out.startsWith("over");
+}
+
+// Same shift direction as the public Convert tool's tryConvertOver/
+// tryConvertUnder — Over X → Over (X-1), Under X → Under (X+1) — now via
+// getEventMarkets() directly instead of an internal HTTP self-call.
+async function applySafeOUServer(leg) {
+  const out = (leg.outcome || "").trim();
+  const overM = out.match(/^Over (\d+\.?\d*)$/i);
+  const underM = out.match(/^Under (\d+\.?\d*)$/i);
+  if (!overM && !underM) return leg;
+  const newVal = overM ? parseFloat(overM[1]) - 1 : parseFloat(underM[1]) + 1;
+  if (overM && newVal < 0.5) return leg;
+  try {
+    const j = await getEventMarkets(leg.eventId);
+    const wantName = overM ? `Over ${newVal}` : `Under ${newVal}`;
+    const t = (j.markets || []).find(m => m.outcomeName === wantName && m.marketName.toLowerCase().includes("over/under"));
+    if (t) return { ...leg, market: t.marketName, outcome: t.outcomeName, odds: t.odds, marketId: t.marketId, outcomeId: t.outcomeId, specifier: t.specifier || "" };
+  } catch {}
+  return leg;
+}
+
+async function ensureMasterPoolThemedRepost(logger) {
+  const cached = intel && intel.getMasterPool();
+  if (cached?.masterPool?.length) return cached.masterPool;
+  if (!intel) return [];
+  logger("Analyzing punters for quality ranking…");
+  const codesRaw = loadPunterCodes();
+  const punterMap = {};
+  for (const [k, v] of Object.entries(codesRaw)) {
+    if (k.startsWith("_") || !v || typeof v !== "string" || v === "__SKIP__") continue;
+    punterMap[k] = v;
+  }
+  if (!Object.keys(punterMap).length) return [];
+  const result = await intel.runAnalysis(punterMap, logger, getH2HStats);
+  return result.success ? result.masterPool : [];
+}
+
+function scoreThemedCandidates(candidates, masterPool) {
+  const byEvent = new Map();
+  for (const m of masterPool) {
+    const existing = byEvent.get(m.eventId);
+    if (!existing || m.confidence > existing.confidence) byEvent.set(m.eventId, m);
+  }
+  return candidates.map(l => {
+    const m = byEvent.get(l.eventId);
+    let score = m ? m.confidence : 45;
+    if (m?.converted) score += 8;
+    return { ...l, _qScore: score };
+  });
+}
+
+async function refineThemedWithH2H(shortlist, onProgress) {
+  const out = [];
+  for (let i = 0; i < shortlist.length; i++) {
+    const l = shortlist[i];
+    if (onProgress) onProgress(i + 1, shortlist.length);
+    try {
+      const h2h = await getH2HStats(l.eventId, l.homeTeam || "", l.awayTeam || "", l.outcome || "");
+      if (h2h?.found && typeof h2h.safetyScore === "number") out.push({ ...l, _qScore: l._qScore * 0.6 + h2h.safetyScore * 0.4 });
+      else out.push(l);
+    } catch { out.push(l); }
+  }
+  return out;
+}
+
+// v45 — REAL BUG (user report, with real numbers to prove it): a straight
+// top-50-by-quality-score slice let the SAFEST legs (often odds ~1.03-1.10 —
+// near-certainties that barely move a compounding product) crowd out
+// everything else whenever the candidate pool skewed that way. Confirmed
+// live: the Full Game Over theme's "best 50" compounded to only 149.93x
+// total — 50 real legs for barely more than a coin flip's worth of payout,
+// while a same-day Over/Under theme's best 50 hit 1,104,194x. "Sure" and
+// "worth playing" are different bars — a 50-leg accumulator that can't clear
+// triple digits isn't a stronger pick than a shorter one, it's just diluted.
+// Fixed: within each 50-leg chunk, legs with odds below MEANINGFUL_ODDS_MIN
+// are deprioritized (not banned — still used to fill remaining slots if the
+// quality-ranked pool genuinely doesn't have 50 legs above that bar) rather
+// than allowed to dominate purely because they scored safest. Quality order
+// is preserved within both groups — this changes WHICH legs get skipped,
+// never how they're ranked against each other.
+const MEANINGFUL_ODDS_MIN = 1.10;
+
+// v40 — "give me 2 codes": splits the quality-ranked pool into up to
+// `variantCount` non-overlapping ≤50-leg chunks (best legs first, same
+// pattern as Max Builder's multi-variant split — see [[maxbuilder-multi-variant]])
+// instead of always producing exactly one code. Each chunk independently
+// trims from its worst-ranked end if maxOdds is set.
+function capThemedToVariants(rankedByQuality, maxOdds, variantCount) {
+  const variants = [];
+  let pool = [...rankedByQuality];
+  for (let i = 0; i < variantCount && pool.length; i++) {
+    const meaningful = pool.filter(l => (l.odds || 1) >= MEANINGFUL_ODDS_MIN);
+    const tooSafe = pool.filter(l => (l.odds || 1) < MEANINGFUL_ODDS_MIN);
+    let chunk = meaningful.slice(0, 50);
+    if (chunk.length < 50) chunk = chunk.concat(tooSafe.slice(0, 50 - chunk.length));
+    const used = new Set(chunk.map(l => `${l.eventId}|${l.marketId}|${l.outcomeId}`));
+    pool = pool.filter(l => !used.has(`${l.eventId}|${l.marketId}|${l.outcomeId}`));
+    if (maxOdds) {
+      while (chunk.length > 1) {
+        const total = chunk.reduce((a, l) => a * (l.odds || 1), 1);
+        if (total <= maxOdds) break;
+        chunk.pop();
+      }
+    }
+    if (chunk.length) variants.push(chunk);
+  }
+  return variants;
+}
+
+// v44 — "master where we can be like today over, today handicap... all the
+// mode then run h2h and delivered": runs every real theme category in ONE
+// job instead of one at a time. Punter codes are scanned ONCE (the expensive
+// part — ~30 real SportyBet lookups) and fanned out into per-category pools,
+// not re-scanned per category. "all" is deliberately excluded — it's the
+// generic umbrella, not one of the distinct themes "master" means to cover.
+const THEMED_MASTER_CATEGORIES = ["overunder", "fullgameover", "handicap", "dcdnb"];
+
+// Safe-convert → quality-rank via master pool → H2H-refine → split into
+// variants → generate real code(s), for ONE category's already-pooled
+// candidates. Factored out of runThemedRepostJob so "master" mode can run it
+// once per category against a single shared scan, instead of duplicating
+// this whole pipeline inline per category.
+async function buildThemedCategoryResult(category, candidatesIn, params, masterPool, log) {
+  let candidates = candidatesIn;
+  if (!candidates.length) return { category, error: `No games matched (${category === "all" ? "any market" : category}) across today's punters.` };
+
+  if (params.safeMode) {
+    const converted = [];
+    for (let i = 0; i < candidates.length; i++) {
+      log(`[${category}] Converting to safe… (${i + 1}/${candidates.length})`);
+      converted.push(await applySafeOUServer(candidates[i]));
+    }
+    candidates = converted;
+    // A safe-converted leg can land on a DIFFERENT over/under market than the
+    // exact full-game one (applySafeOUServer only checks the market name
+    // contains "over/under", not that it's exactly the full-match market) —
+    // re-validate rather than silently include a mismatch.
+    if (category === "fullgameover") candidates = candidates.filter(isFullGameOverLeg);
+    if (!candidates.length) return { category, error: "No picks survived the safe conversion — try a lower min odds or turn Safe off." };
+  }
+
+  const variantCount = Math.max(1, Math.min(5, params.variants || 1));
+  let scored = scoreThemedCandidates(candidates, masterPool);
+  scored.sort((a, b) => b._qScore - a._qScore);
+  const H2H_SHORTLIST = Math.min(scored.length, 60 * variantCount);
+  const refined = await refineThemedWithH2H(scored.slice(0, H2H_SHORTLIST), (i, n) => log(`[${category}] Checking H2H… (${i}/${n})`));
+  refined.sort((a, b) => b._qScore - a._qScore);
+  const ranked = [...refined, ...scored.slice(H2H_SHORTLIST)];
+
+  let variantChunks = capThemedToVariants(ranked, params.maxOdds, variantCount);
+  if (params.minOdds) {
+    const before = variantChunks.length;
+    variantChunks = variantChunks.filter(chunk => chunk.reduce((a, l) => a * (l.odds || 1), 1) >= params.minOdds);
+    if (!variantChunks.length) return { category, error: `None of the ${before} variant(s) reached your ${params.minOdds}x floor.` };
+  }
+  if (!variantChunks.length) return { category, error: "Not enough games to build even one code." };
+
+  const variantResults = [];
+  for (let i = 0; i < variantChunks.length; i++) {
+    log(`[${category}] Generating code ${i + 1}/${variantChunks.length}…`);
+    const payload = variantChunks[i].map(l => ({ eventId: l.eventId, marketId: l.marketId, outcomeId: l.outcomeId, specifier: l.specifier || "", productId: l.productId || 3, sportId: l.sportId || "" }));
+    const genRes = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+    if (genRes.bizCode === 10000 && genRes.data?.shareCode) variantResults.push({ code: genRes.data.shareCode, legs: variantChunks[i].length });
+    await new Promise(r => setTimeout(r, 300));
+  }
+  if (!variantResults.length) return { category, error: "Code generation failed for every variant." };
+
+  const masterEventIds = new Set(masterPool.map(mp => mp.eventId));
+  const keptUnion = variantChunks.flat();
+  const matchedCount = keptUnion.filter(l => masterEventIds.has(l.eventId)).length;
+  return { category, variants: variantResults, legs: keptUnion.length, candidatePool: candidates.length, matchedPool: matchedCount };
+}
+
+async function runThemedRepostJob(jobId, params) {
+  const log = msg => updateThemedRepostCurrent({ stage: msg });
+  try {
+    const codesRaw = loadPunterCodes();
+    const entries = Object.entries(codesRaw).filter(([k, v]) => !k.startsWith("_") && v && typeof v === "string");
+    if (!entries.length) throw new Error("No punter codes saved for today yet.");
+
+    const categories = params.master ? THEMED_MASTER_CATEGORIES : [params.category];
+    const poolsByCategory = {};
+    for (const c of categories) poolsByCategory[c] = new Map();
+
+    for (let i = 0; i < entries.length; i++) {
+      const [, code] = entries[i];
+      log(`Scanning… (${i + 1}/${entries.length})`);
+      try {
+        const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+        const json = await fetchJSON(url);
+        if (!json || json.bizCode !== 10000 || !json.data) continue;
+        const outcomes = json.data.outcomes || [];
+        const ticketSels = json.data.ticket?.selections || [];
+        const results = mapOutcomes(outcomes, ticketSels);
+        const now = Date.now();
+        for (const l of results) {
+          // v39 — "live games and played games should be removed": kickoff
+          // alone isn't reliable enough — it's falsy/missing for some legs,
+          // which used to let them through with no live/played check at all.
+          // matchStatus is the authoritative real-time indicator (same set
+          // intelligence-engine.js's runAnalysis already excludes on).
+          const ms = (l.matchStatus || "").toLowerCase();
+          if (["ended", "h1", "h2", "ht", "p1", "p2", "inprogress"].includes(ms)) continue;
+          if (l.kickoff && new Date(l.kickoff).getTime() <= now) continue;
+          for (const cat of categories) {
+            const matches = cat === "fullgameover" ? isFullGameOverLeg(l) : (cat === "all" || legCategoryServer(l) === cat);
+            if (!matches) continue;
+            const pool = poolsByCategory[cat];
+            const existing = pool.get(l.eventId);
+            if (!existing || (l.odds || 0) > (existing.odds || 0)) pool.set(l.eventId, l);
+          }
+        }
+      } catch {}
+    }
+
+    const masterPool = await ensureMasterPoolThemedRepost(log);
+    const categoryResults = [];
+    for (const cat of categories) {
+      const candidates = [...poolsByCategory[cat].values()];
+      categoryResults.push(await buildThemedCategoryResult(cat, candidates, params, masterPool, log));
+    }
+
+    const state = loadThemedRepostState();
+    if (state.current && state.current.jobId === jobId) {
+      if (params.master) {
+        const anySuccess = categoryResults.some(r => !r.error);
+        if (!anySuccess) throw new Error("No theme produced any picks today: " + categoryResults.map(r => `${r.category} (${r.error})`).join("; "));
+        state.current.status = "done";
+        state.current.finishedAt = new Date().toISOString();
+        state.current.result = { master: true, categories: categoryResults };
+      } else {
+        const r = categoryResults[0];
+        if (r.error) throw new Error(r.error);
+        state.current.status = "done";
+        state.current.finishedAt = new Date().toISOString();
+        state.current.result = { variants: r.variants, legs: r.legs, candidatePool: r.candidatePool, matchedPool: r.matchedPool };
+      }
+      state.history = [state.current, ...(state.history || [])].slice(0, 30);
+    }
+    saveThemedRepostState(state);
+  } catch (e) {
+    const state = loadThemedRepostState();
+    if (state.current && state.current.jobId === jobId) {
+      state.current.status = "error";
+      state.current.finishedAt = new Date().toISOString();
+      state.current.error = e.message;
+      state.history = [state.current, ...(state.history || [])].slice(0, 30);
+    }
+    saveThemedRepostState(state);
+  }
+}
+
+app.post("/api/admin/themed-repost/start", requireAdmin, (req, res) => {
+  const existing = loadThemedRepostState();
+  if (existing.current?.status === "running") {
+    return res.json({ success: true, jobId: existing.current.jobId, alreadyRunning: true });
+  }
+  const jobId = "tr-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const params = {
+    master: !!req.body?.master, // v44 — runs every real theme (Over/Under, Full Game Over, Handicap, DC/DNB) in one job
+    category: ["all", "overunder", "fullgameover", "handicap", "dcdnb"].includes(req.body?.category) ? req.body.category : "all",
+    minOdds: Number(req.body?.minOdds) || 0,
+    maxOdds: Number(req.body?.maxOdds) || 0,
+    safeMode: !!req.body?.safeMode,
+    variants: Math.max(1, Math.min(5, Number(req.body?.variants) || 1)), // v40 — "give me 2 codes"
+  };
+  const state = loadThemedRepostState();
+  state.current = { jobId, status: "running", params, stage: "Starting…", startedAt: new Date().toISOString() };
+  saveThemedRepostState(state);
+  runThemedRepostJob(jobId, params); // fire-and-forget — survives the request/tab closing
+  res.json({ success: true, jobId });
+});
+
+app.get("/api/admin/themed-repost/state", requireAdmin, (req, res) => {
+  res.json({ success: true, ...loadThemedRepostState() });
+});
+
 // Serve header code injection for index.html
 app.get("/api/header-inject", (req, res) => {
   try { res.type("text/plain").send(fs.readFileSync(HEADER_CODE_FILE, "utf-8")); }
@@ -1768,6 +2342,45 @@ app.get("/api/debug/outbound", async (req, res) => {
 // ── Admin Punter Codes (editable daily) ──
 
 const PUNTER_CODES_FILE = path.join(DATA_DIR, "punter-codes.json");
+// v24 — "put the odds there, once shown it must not change forever, till
+// everything clear again" — a code's odds, once scanned, are frozen for the
+// rest of the day regardless of live market movement. Keyed by the CODE
+// STRING itself (not punter name), so re-saving the SAME code never
+// re-scans it, but typing in a genuinely NEW code always gets a fresh scan.
+// Same _date-keyed reset semantics as PUNTER_CODES_FILE — a new calendar
+// day clears every frozen odds entry, ready to be captured fresh.
+const PUNTER_CODE_ODDS_FILE = path.join(DATA_DIR, "punter-code-odds.json");
+
+function loadPunterCodeOdds() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(PUNTER_CODE_ODDS_FILE, "utf-8").replace(/^﻿/, ""));
+    if (!raw._date || raw._date !== localToday()) return {};
+    const clean = { ...raw };
+    delete clean._date;
+    return clean;
+  } catch { return {}; }
+}
+
+function savePunterCodeOdds(map) {
+  fs.writeFileSync(PUNTER_CODE_ODDS_FILE, JSON.stringify({ ...map, _date: localToday() }, null, 2));
+}
+
+// Scans one code and returns its combined odds/leg count, or null if the
+// code is invalid/unreadable — never throws, so one bad code can't abort
+// freezing odds for the rest of a punter's codes.
+async function scanCodeForFrozenOdds(code) {
+  try {
+    const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+    const json = await fetchJSON(url);
+    if (!json || json.bizCode !== 10000 || !json.data) return null;
+    const outcomes = json.data.outcomes || [];
+    const ticketSels = json.data.ticket?.selections || [];
+    const selections = mapOutcomes(outcomes, ticketSels);
+    if (!selections.length) return null;
+    const odds = Math.round(selections.reduce((acc, s) => acc * (s.odds || 1), 1) * 100) / 100;
+    return { odds, legs: selections.length, scannedAt: new Date().toISOString() };
+  } catch { return null; }
+}
 
 function loadPunterCodes() {
   try {
@@ -1790,7 +2403,7 @@ app.get("/api/admin/punter-codes", requireAdmin, (req, res) => {
   const codes = loadPunterCodes();
   const clean = { ...codes };
   delete clean._date;
-  res.json(clean);
+  res.json({ ...clean, _oddsFrozen: loadPunterCodeOdds() });
 });
 
 // Aliases that must never appear as standalone keys — always merged into canonical
@@ -1800,10 +2413,12 @@ const PUNTER_ALIASES = {
   "SuperMario": "Super Mario",
 };
 
-app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
+app.post("/api/admin/punter-codes", requireAdmin, async (req, res) => {
   const current = loadPunterCodes();
   const today = localToday();
-  const merged = { ...current, ...req.body, _date: today };
+  const body = { ...req.body };
+  delete body._oddsFrozen; // the client may echo this back; never let it get written as a punter name
+  const merged = { ...current, ...body, _date: today };
   // Collapse aliases into canonical names, delete alias keys
   for (const [alias, canonical] of Object.entries(PUNTER_ALIASES)) {
     if (alias in merged) {
@@ -1812,8 +2427,35 @@ app.post("/api/admin/punter-codes", requireAdmin, (req, res) => {
     }
   }
   fs.writeFileSync(PUNTER_CODES_FILE, JSON.stringify(merged, null, 2));
+
+  // v42 — capture today's codes into the PERMANENT leaderboard history right
+  // now, at save time — see captureTodaysCodesIntoLeaderboard's own comment
+  // for the full "7 days only showing 2 dates" bug this closes.
+  captureTodaysCodesIntoLeaderboard(merged, today);
+
+  // v24 — "once an odd is shown, it must not change forever, till everything
+  // clears again": freeze combined odds per CODE STRING (not per punter),
+  // the first time each code is seen today. A code already frozen (saved
+  // unchanged, or re-typed identically) is never re-scanned — only a
+  // genuinely new code string gets a fresh scan. This is real network work
+  // (one request per new code), so it happens here, once, on save — not on
+  // every page load/render.
+  const oddsMap = loadPunterCodeOdds();
+  const allCodes = new Set();
+  for (const [name, val] of Object.entries(merged)) {
+    if (name === "_date" || !val) continue;
+    for (const c of String(val).split(",").map(s => s.trim().toUpperCase()).filter(Boolean)) allCodes.add(c);
+  }
+  for (const code of allCodes) {
+    if (oddsMap[code]) continue; // already frozen today
+    const scanned = await scanCodeForFrozenOdds(code);
+    if (scanned) oddsMap[code] = scanned;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  savePunterCodeOdds(oddsMap);
+
   const clean = { ...merged }; delete clean._date;
-  res.json({ success: true, codes: clean });
+  res.json({ success: true, codes: clean, oddsFrozen: oddsMap });
 });
 
 // ── Community Codes ──
@@ -2032,6 +2674,61 @@ function loadLeaderboard() {
   });
   return final;
 }
+// v42 — REAL BUG (user report: "7 days only showing 2 dates... posted for
+// at least 6 days.. where are others??"): leaderboard.json's PERMANENT code
+// history only ever grew when an admin manually clicked "Rescan All"
+// (POST /api/admin/rescan-all, Step 1, below) — loadLeaderboard() itself
+// computes today's code in memory on every call but NEVER WRITES IT BACK to
+// disk (confirmed: no fs.writeFileSync anywhere in that function). Any day
+// nobody happened to trigger a full rescan, that day's code was captured
+// nowhere — and since punter-codes.json is a single mutable file (overwritten
+// daily, not date-versioned), the moment the NEXT day's codes were saved,
+// that day's code was gone forever, with no error or warning anywhere.
+// Confirmed on real data: 39 Billion's leaderboard.json history had gaps of
+// 4-5 consecutive missing days despite them posting every day. Fixed at the
+// SOURCE: every successful punter-codes save now immediately captures each
+// punter's current code into leaderboard.json's permanent history itself —
+// no dependency on anyone remembering to click Rescan All, and no
+// scheduling/timing race against the daily punter-codes.json rollover.
+function captureTodaysCodesIntoLeaderboard(codesByPunter, today) {
+  try {
+    // v42.1 — REAL BUG in the FIRST version of this fix (caught immediately
+    // via live testing): used loadLeaderboard() as the starting point, but
+    // that function does its OWN ephemeral, in-memory-only merge of today's
+    // code (see its "Attach today's active code" block) — so by the time the
+    // dedup check below ran, the code already LOOKED present (from that
+    // transient merge) and `changed` never flipped true, so the write was
+    // skipped — the exact same silent-no-op failure mode this whole fix was
+    // meant to close. Also, writing loadLeaderboard()'s merged view back to
+    // disk would have permanently baked in every OTHER ephemeral/computed
+    // field it adds (profile-merged trustScore/won/lost, code-history merges)
+    // on every single save, polluting the file with derived data that should
+    // stay computed-on-read. Reads the RAW on-disk file directly instead —
+    // the same first step loadLeaderboard() itself uses — and writes back
+    // only that raw structure, untouched by any transient merge.
+    let lb = [];
+    try { lb = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8").replace(/^﻿/, "")); } catch {}
+    const lbMap = new Map(lb.map(p => [p.punter, p]));
+    let changed = false;
+    for (const [name, code] of Object.entries(codesByPunter)) {
+      if (!code || name === "_date" || name.startsWith("_")) continue;
+      let entry = lbMap.get(name);
+      if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0, won: 0, lost: 0, hitRate: 0, trustScore: 0 }; lb.push(entry); lbMap.set(name, entry); }
+      if (!entry.codes) entry.codes = [];
+      const codeList = String(code).split(",").map(c => c.trim().toUpperCase()).filter(Boolean);
+      for (const codeStr of codeList) {
+        if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
+          entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0, status: "active" });
+          changed = true;
+        }
+      }
+    }
+    if (changed) fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
+  } catch (e) {
+    console.error("[captureTodaysCodesIntoLeaderboard]", e.message);
+  }
+}
+
 function loadCodeHistory() { try { return JSON.parse(fs.readFileSync(CODE_HISTORY_FILE, "utf-8")); } catch { return []; } }
 function loadWeakMatches() { try { return JSON.parse(fs.readFileSync(WEAK_MATCHES_FILE, "utf-8")); } catch { return {}; } }
 
@@ -2167,11 +2864,25 @@ app.post("/api/admin/scan-code", requireAdmin, async (req, res) => {
     try {
       const lb = loadLeaderboard();
       const codeUpper = code.trim().toUpperCase();
+      const today = localToday();
+      let found = false;
+
       for (const entry of lb) {
         if (!entry.codes) continue;
-        const ce = entry.codes.find(c => c.code === codeUpper);
+        // Exact match first; also check if code is stored as part of a comma-combined entry
+        let ce = entry.codes.find(c => c.code === codeUpper);
+        if (!ce) {
+          const combo = entry.codes.find(c => c.code && c.code.split(',').map(x => x.trim()).includes(codeUpper));
+          if (combo) {
+            ce = { code: codeUpper, date: combo.date, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0 };
+            entry.codes.unshift(ce);
+          }
+        }
         if (ce) {
-          ce.games = results.length; ce.won = won; ce.lost = lost; ce.void = voided; ce.pending = pending; ce.hitRate = hitRate;
+          found = true;
+          ce.games = results.length; ce.won = won; ce.lost = lost; ce.void = voided;
+          ce.pending = pending; ce.hitRate = hitRate;
+          ce.lastScanned = new Date().toISOString(); ce.scanAttempts = 0;
           const sc = entry.codes.filter(c => (c.won + c.lost) > 0);
           entry.won = sc.reduce((a, c) => a + c.won, 0);
           entry.lost = sc.reduce((a, c) => a + c.lost, 0);
@@ -2180,7 +2891,33 @@ app.post("/api/admin/scan-code", requireAdmin, async (req, res) => {
           entry.hitRate = ts > 0 ? Math.round(entry.won / ts * 100) : 0;
         }
       }
-      // Write merged data back so scan results persist across restarts
+
+      // Code not in any leaderboard entry — look up punter from punter-codes.json and add it
+      if (!found) {
+        const todayCodes = loadPunterCodes();
+        const lbMap = new Map(lb.map(p => [p.punter, p]));
+        for (const [name, pCode] of Object.entries(todayCodes)) {
+          if (!pCode || name.startsWith('_')) continue;
+          const codeList = pCode.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+          if (codeList.includes(codeUpper)) {
+            let entry = lbMap.get(name);
+            if (!entry) {
+              entry = { punter: name, codes: [], daysActive: 0, totalGames: 0, won: 0, lost: 0, hitRate: 0, trustScore: 0 };
+              lb.push(entry); lbMap.set(name, entry);
+            }
+            if (!entry.codes) entry.codes = [];
+            entry.codes.unshift({ code: codeUpper, date: today, games: results.length, won, lost, void: voided, pending, hitRate, lastScanned: new Date().toISOString(), scanAttempts: 0 });
+            const sc = entry.codes.filter(c => (c.won + c.lost) > 0);
+            entry.won = sc.reduce((a, c) => a + c.won, 0);
+            entry.lost = sc.reduce((a, c) => a + c.lost, 0);
+            entry.totalGames = sc.reduce((a, c) => a + c.games, 0);
+            const ts = entry.won + entry.lost;
+            entry.hitRate = ts > 0 ? Math.round(entry.won / ts * 100) : 0;
+            break;
+          }
+        }
+      }
+
       fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(lb, null, 2));
     } catch {}
 
@@ -2637,10 +3374,24 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
   rescanProgress = { scanned: 0, updated: 0, errors: 0, total: 0, phase: 'Preparing…' };
   res.json({ success: true, message: "Rescan started" });
 
+  // Build date-range from the filter the UI sent
+  const dateFilter = req.body?.dateFilter || 'all';
+  const today = localToday();
+  let minDate = null;
+  if (dateFilter === 'today') {
+    minDate = today;
+  } else if (dateFilter === '24h') {
+    const d = new Date(); d.setTime(d.getTime() - 86400000);
+    minDate = d.toISOString().slice(0, 10);
+  } else if (dateFilter === 'week') {
+    const d = new Date(); d.setTime(d.getTime() - 7 * 86400000);
+    minDate = d.toISOString().slice(0, 10);
+  }
+  const inRange = (c) => !minDate || !c.date || c.date >= minDate;
+
   try {
     const lb = loadLeaderboard(); // Uses merged data (profiles + code-history + punter-codes)
     const todayCodes = loadPunterCodes();
-    const today = localToday();
     const lbMap = new Map(lb.map(p => [p.punter, p]));
 
     // Step 1: Add today's active codes to leaderboard if not present
@@ -2649,9 +3400,13 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
       let entry = lbMap.get(name);
       if (!entry) { entry = { punter: name, codes: [], daysActive: 0, totalGames: 0, won: 0, lost: 0, hitRate: 0, trustScore: 0 }; lb.push(entry); lbMap.set(name, entry); }
       if (!entry.codes) entry.codes = [];
-      const codeStr = typeof code === "string" ? code : (Array.isArray(code) ? code[0] : "");
-      if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
-        entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0 });
+      const codeList = typeof code === "string"
+        ? code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean)
+        : (Array.isArray(code) ? code.map(String) : []);
+      for (const codeStr of codeList) {
+        if (codeStr && !entry.codes.some(c => c.code === codeStr)) {
+          entry.codes.unshift({ code: codeStr, date: today, games: 0, won: 0, lost: 0, void: 0, pending: 0, hitRate: 0 });
+        }
       }
     }
 
@@ -2660,10 +3415,27 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
     const nowMs = Date.now();
     const staleMs = 20 * 60 * 1000;
     const needsScanFn = (c) => {
-      const neverScanned = c.games === 0 && c.code && (c.scanAttempts || 0) < 3;
+      if (!c.code) return false;
+      if (!inRange(c)) return false;  // respect date filter
+      const neverScanned = c.games === 0 && (c.scanAttempts || 0) < 3;
       const stale = !c.lastScanned || (nowMs - new Date(c.lastScanned).getTime()) > staleMs;
+      // Skip codes where all settled games are zero (pure future) and the code is older than 14 days
+      const allFuture = c.games > 0 && c.won === 0 && c.lost === 0;
+      const codeAge = c.date ? nowMs - new Date(c.date).getTime() : 0;
+      if (allFuture && codeAge > 14 * 24 * 60 * 60 * 1000) return false;
       return neverScanned || (c.pending > 0 && stale);
     };
+    // Prioritise today's codes — sort entries and their code lists newest-first
+    lb.sort((a, b) => {
+      const aHasToday = (a.codes || []).some(c => c.date === today);
+      const bHasToday = (b.codes || []).some(c => c.date === today);
+      if (aHasToday && !bHasToday) return -1;
+      if (!aHasToday && bHasToday) return 1;
+      return 0;
+    });
+    for (const entry of lb) {
+      if (entry.codes) entry.codes.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }
     const totalToScan = lb.reduce((sum, e) => {
       if (!e.codes || e.punter === "Generated") return sum;
       return sum + e.codes.filter(needsScanFn).length;
@@ -2727,7 +3499,7 @@ app.post("/api/admin/rescan-all", requireAdmin, async (req, res) => {
         } catch { errors++; codeEntry.scanAttempts = (codeEntry.scanAttempts || 0) + 1; }
         rescanProgress.scanned = scanned; rescanProgress.updated = updated;
         rescanProgress.errors = errors; rescanProgress.stillPending = stillPending;
-        await new Promise(r => setTimeout(r, 150));
+        await new Promise(r => setTimeout(r, 100));
       }
 
       // Recalculate punter totals
@@ -2915,7 +3687,7 @@ if (!IS_PRODUCTION) {
     const overrides = req.body?.punters || {};
     const punterMap = {};
     for (const [name, code] of Object.entries({ ...stored, ...overrides })) {
-      if (code) punterMap[name] = code;
+      if (code && code !== '__SKIP__') punterMap[name] = code;
     }
     // Support comma-separated multi-codes
     for (const [name, val] of Object.entries(punterMap)) {
@@ -3060,15 +3832,45 @@ app.post("/api/score-selections", requireAdmin, (req, res) => {
 // ── X Assistant (SlipPilot AI on X — no paid X API required) ─────────────────
 
 app.post("/api/admin/x-assistant/analyze", requireAdmin, async (req, res) => {
+  if (!xAssistant) return res.status(503).json({ error: "X Assistant not available in production" });
   try {
-    const { tweetUrl, tweetText } = req.body || {};
+    const { tweetUrl, tweetText, sessionId } = req.body || {};
     if (!tweetUrl && !tweetText) {
       return res.status(400).json({ error: "Provide a tweetUrl or tweetText" });
     }
-    const result = await xAssistant.analyze({ tweetUrl, tweetText });
+    const result = await xAssistant.analyze({ tweetUrl, tweetText, sessionId: sessionId || req.sessionID });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message || "X Assistant analysis failed" });
+  }
+});
+
+// Conversational chat endpoint — send any natural language message
+app.post("/api/admin/x-assistant/chat", requireAdmin, async (req, res) => {
+  if (!xAssistant) return res.status(503).json({ error: "X Assistant not available in production" });
+  try {
+    const { text, tweetUrl } = req.body || {};
+    if (!text && !tweetUrl) return res.status(400).json({ error: "Provide text or tweetUrl" });
+    const result = await xAssistant.analyzeText({
+      text: text || '',
+      tweetUrl: tweetUrl || null,
+      sessionId: req.sessionID,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Chat failed" });
+  }
+});
+
+app.post("/api/admin/x-assistant/parse-opts", requireAdmin, (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text) return res.status(400).json({ error: "Provide text" });
+    const { parseGeneratorOptions } = require("./intent-engine");
+    const opts = parseGeneratorOptions(text);
+    res.json({ opts });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Parse failed" });
   }
 });
 
@@ -3117,7 +3919,7 @@ app.post("/api/smart-slips", requireAdmin, async (req, res) => {
   const logger = msg => { logs.push(msg); console.log('[smart-slips]', msg); };
 
   logger(`Starting unified intelligence analysis for ${Object.keys(punterMap).length} punters…`);
-  const analysis = await intel.runAnalysis(punterMap, logger);
+  const analysis = await intel.runAnalysis(punterMap, logger, getH2HStats);
 
   if (!analysis.success || !analysis.masterPool || analysis.masterPool.length < 3) {
     return res.json({
@@ -3257,6 +4059,7 @@ app.post("/api/admin/rebuild-report/:date", requireAdmin, async (req, res) => {
 
 // Run full master analysis from all punter codes. Caches to data/master-pool.json.
 app.post("/api/admin/run-analysis", requireAdmin, async (req, res) => {
+  if (!intel) return res.status(503).json({ success: false, error: "Intelligence engine not available in production" });
   req.setTimeout(600000); // 10 min — analysis fetches all punters from SportyBet
   try {
     const codesRaw = (() => {
@@ -3265,7 +4068,7 @@ app.post("/api/admin/run-analysis", requireAdmin, async (req, res) => {
     })();
     const punterMap = {};
     for (const [k, v] of Object.entries(codesRaw)) {
-      if (k.startsWith('_') || !v || typeof v !== 'string') continue;
+      if (k.startsWith('_') || !v || typeof v !== 'string' || v === '__SKIP__') continue;
       punterMap[k] = v;
     }
     if (!Object.keys(punterMap).length) return res.status(400).json({ success: false, error: "No punter codes configured" });
@@ -3273,7 +4076,7 @@ app.post("/api/admin/run-analysis", requireAdmin, async (req, res) => {
     const logs = [];
     const logger = msg => { logs.push(msg); console.log('[intel-engine]', msg); };
 
-    const result = await intel.runAnalysis(punterMap, logger);
+    const result = await intel.runAnalysis(punterMap, logger, getH2HStats);
     res.json({ ...result, logs });
   } catch (e) {
     console.error('[run-analysis]', e);
@@ -3283,6 +4086,7 @@ app.post("/api/admin/run-analysis", requireAdmin, async (req, res) => {
 
 // Return today's cached master pool (null if stale / not yet run)
 app.get("/api/admin/master-pool", requireAdmin, (req, res) => {
+  if (!intel) return res.json({ success: false, stale: true, message: "Intelligence engine not available in production" });
   try {
     const pool = intel.getMasterPool();
     if (!pool) return res.json({ success: false, stale: true, message: "No analysis for today. Run /api/admin/run-analysis first." });
@@ -3292,6 +4096,7 @@ app.get("/api/admin/master-pool", requireAdmin, (req, res) => {
 
 // Generate themed booking codes from today's master pool
 app.post("/api/admin/booking-codes", requireAdmin, async (req, res) => {
+  if (!intel) return res.status(503).json({ success: false, error: "Intelligence engine not available in production" });
   req.setTimeout(600000); // 10 min — posts 11 themed codes to SportyBet
   try {
     const cached = intel.getMasterPool();
@@ -3310,10 +4115,579 @@ app.post("/api/admin/booking-codes", requireAdmin, async (req, res) => {
 
 // X Assistant intelligence context — used by X Assistant tab to auto-fill with real data
 app.get("/api/admin/x-intel", requireAdmin, (req, res) => {
+  if (!intel) return res.json({ success: false, message: "Intelligence engine not available" });
   try {
     const ctx = intel.getXContext();
     res.json({ success: true, ...ctx });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── Portfolio Generator (backend only) ───────────────────────────────────────
+// The admin "Generator" tab UI no longer calls this (see Advanced Generator
+// below) — kept live purely as x-assistant-engine.js's code-building
+// dependency (buildViaPortfolio in the CONTENT/BUILD conversation flow).
+
+app.get("/api/admin/portfolio-generate/progress", requireAdmin, (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  res.write("data: connected\n\n");
+  req.on("close", () => res.end());
+});
+
+app.post("/api/admin/portfolio-generate", requireAdmin, async (req, res) => {
+  if (!portfolioBuilder) return res.status(503).json({ success: false, error: "Portfolio builder not available in production" });
+  req.setTimeout(300000); // 5 min
+
+  const opts = {
+    count:           Math.min(20, Math.max(1, parseInt(req.body.count)     || 1)),
+    minGames:        Math.min(50, Math.max(1, parseInt(req.body.minGames)  || 12)),
+    maxGames:        Math.min(50, Math.max(1, parseInt(req.body.maxGames)  || 20)),
+    todayOnly:       !!req.body.todayOnly,
+    kickoffStart:    req.body.kickoffStart  || null,
+    kickoffEnd:      req.body.kickoffEnd    || null,
+    sortBy:          ['confidence','kickoff','odds'].includes(req.body.sortBy) ? req.body.sortBy : 'confidence',
+    maxOddsPerPick:  parseFloat(req.body.maxOddsPerPick) || 2.0,
+    minConfidence:   req.body.minConfidence != null ? parseInt(req.body.minConfidence) : 55,
+    convertRisky:    !!req.body.convertRisky,
+    footballOnly:    req.body.footballOnly !== false,
+    removeFriendlies:req.body.removeFriendlies !== false,
+    removeBanned:    req.body.removeBanned !== false,
+    preferConsensus: !!req.body.preferConsensus,
+    topPuntersOnly:  !!req.body.topPuntersOnly,
+    maxRepeat:       req.body.maxRepeat != null ? Math.min(10, Math.max(1, parseInt(req.body.maxRepeat))) : 1,
+    strategy:        ['balanced','safe','high_odds','consensus'].includes(req.body.strategy) ? req.body.strategy : 'balanced',
+  };
+  if (opts.minGames > opts.maxGames) opts.minGames = opts.maxGames;
+
+  const logs = [];
+  const log = msg => { logs.push(msg); console.log('[portfolio]', msg); };
+
+  try {
+    let masterPool = null;
+    if (intel) {
+      const cached = intel.getMasterPool();
+      if (cached?.masterPool?.length) { masterPool = cached.masterPool; log('Using cached master pool: ' + masterPool.length + ' picks'); }
+    }
+    if (!masterPool || !masterPool.length) {
+      try {
+        const mpFile = require("path").join(DATA_DIR, "master-pool.json");
+        const raw = JSON.parse(require("fs").readFileSync(mpFile, "utf-8"));
+        if (raw.masterPool?.length) { masterPool = raw.masterPool; log('Loaded master pool from disk: ' + masterPool.length + ' picks'); }
+      } catch {}
+    }
+    if (!masterPool || !masterPool.length) {
+      return res.status(400).json({ success: false, error: "No master pool available. Run 'Run Master Analysis' first." });
+    }
+
+    const generateCodeFn = async (selections) => {
+      const payload = selections.map(s => ({
+        eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
+        productId: s.productId || 3, sportId: s.sportId || "sr:sport:1",
+        specifier: s.specifier || "", parentBetBuilderMarketId: "",
+      }));
+      const r = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+      if (r.bizCode === 10000 && r.data?.shareCode) return { code: r.data.shareCode, url: r.data.shareURL || "" };
+      throw new Error("SportyBet rejected: " + (r.msg || r.bizCode || "unknown"));
+    };
+
+    const result = await portfolioBuilder.buildPortfolio(masterPool, opts, generateCodeFn, log);
+    res.json({ ...result, logs });
+  } catch (e) {
+    console.error('[portfolio-generate]', e);
+    res.status(500).json({ success: false, error: e.message, logs });
+  }
+});
+
+// ── Advanced Generator — 9-phase punter/community intelligence pipeline ─────
+// Replaces the old simple Portfolio Generator UI entirely. See
+// advanced-generator-engine.js for the full phase-by-phase implementation.
+
+// Start a run — returns immediately with a runId; the run itself proceeds
+// asynchronously and streams progress via the SSE endpoint below. This is
+// what makes the run restartable/resumable: the run lives server-side keyed
+// by runId, independent of any one browser connection.
+app.post("/api/admin/advanced-generator/start", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  try {
+    const runId = advancedGen.startRun({
+      internalBaseUrl: `http://127.0.0.1:${PORT}`,
+      config: req.body?.config || {},
+      mode: ['full', 'punters', 'mixtures'].includes(req.body?.mode) ? req.body.mode : 'full',
+    });
+    res.json({ success: true, runId });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// SSE stream — replays the full event log on connect (so a page refresh or
+// reconnect catches up instantly) then streams new events live.
+app.get("/api/admin/advanced-generator/stream/:runId", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).end();
+  const { runId } = req.params;
+  const run = advancedGen.getRun(runId);
+  if (!run) return res.status(404).end();
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const fromSeq = parseInt(req.query.fromSeq, 10) || 0;
+  for (const ev of run.events) {
+    if (ev.seq < fromSeq) continue;
+    res.write(`event: ${ev.type}\ndata: ${JSON.stringify({ ...ev.data, seq: ev.seq })}\n\n`);
+  }
+  if (run.state.status === 'done' || run.state.status === 'error' || run.state.status === 'stopped') {
+    // Named 'run-error', never bare 'error' — the browser's native EventSource
+    // fires its OWN unrelated 'error' event on every connection drop (including
+    // a plain server restart), and a client listening on 'error' for both would
+    // misreport an in-progress run as failed. See generator.js genAttachStream.
+    const evName = run.state.status === 'error' ? 'run-error' : run.state.status === 'stopped' ? 'stopped' : 'done';
+    res.write(`event: ${evName}\ndata: ${JSON.stringify(run.state)}\n\n`);
+    return res.end();
+  }
+  advancedGen.subscribe(runId, res);
+  req.on("close", () => {});
+});
+
+// Polling fallback / resume-on-refresh — full current state, no SSE required.
+app.get("/api/admin/advanced-generator/state/:runId", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  const run = advancedGen.getRun(req.params.runId);
+  if (!run) return res.status(404).json({ success: false, error: "Run not found" });
+  res.json({ success: true, state: run.state, events: run.events });
+});
+
+app.get("/api/admin/advanced-generator/latest", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  const runId = advancedGen.getLatestRunId();
+  if (!runId) return res.json({ success: true, runId: null });
+  const run = advancedGen.getRun(runId);
+  res.json({ success: true, runId, state: run?.state || null });
+});
+
+app.get("/api/admin/advanced-generator/pool/:runId", requireAdmin, (req, res) => {
+  try {
+    const file = path.join(DATA_DIR, "advanced-generator", `pool-${req.params.runId}.json`);
+    const raw = JSON.parse(fs.readFileSync(file, "utf-8"));
+    res.json({ success: true, ...raw });
+  } catch (e) {
+    res.status(404).json({ success: false, error: "Pool not found for this run" });
+  }
+});
+
+// ── Auto-Bet (LOCAL DEV ONLY) ────────────────────────────────────────────────
+// Places real money on a real account. Every route 503s in production because
+// `autobet` is only required when !IS_PRODUCTION. The stake is fixed at
+// autobet.MAX_STAKE inside the engine and is deliberately NOT accepted from
+// the request body — there is no wire format for raising it.
+
+const autobetUnavailable = (res) =>
+  res.status(503).json({ success: false, error: "Auto-bet is local-dev only" });
+
+app.get("/api/admin/autobet/status", requireAdmin, async (req, res) => {
+  if (!autobet) return autobetUnavailable(res);
+  try {
+    const s = await autobet.checkSession();
+    res.json({ success: true, ...s, stake: autobet.MAX_STAKE, minLegs: autobet.MIN_LEGS,
+      flexTrigger: autobet.FLEX_TRIGGER_ODDS, flexMinOdds: autobet.FLEX_MIN_ODDS });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Opens a headed browser for a human to log in. Long-running by design.
+app.post("/api/admin/autobet/signin", requireAdmin, async (req, res) => {
+  if (!autobet) return autobetUnavailable(res);
+  req.setTimeout(330000);
+  try {
+    const r = await autobet.signIn();
+    res.json({ success: !!r.success, error: r.error || null });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Dry-run check only — validates codes without opening a browser at all.
+app.post("/api/admin/autobet/check", requireAdmin, async (req, res) => {
+  if (!autobet) return autobetUnavailable(res);
+  try {
+    const codes = autobet.parseCodes(req.body.codes);
+    if (!codes.length) return res.status(400).json({ success: false, error: "No valid booking codes in that input" });
+    // rebuild:true so Check Only shows the code as it would ACTUALLY be played
+    // — kicked-off legs dropped and reposted — not the raw original. This is
+    // the safe, non-money-moving path: it never opens a browser or clicks
+    // anything, it only builds the ready booking code via SportyBet's normal
+    // share API (the same call Book Bet uses).
+    const checks = await Promise.all(codes.map(async (code) => {
+      try { return { code, ...(await autobet.validateCode(code, { rebuild: true })) }; }
+      catch (e) { return { code, ok: false, reason: e.message }; }
+    }));
+    res.json({ success: true, stake: autobet.MAX_STAKE, checks });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post("/api/admin/autobet/start", requireAdmin, async (req, res) => {
+  if (!autobet) return autobetUnavailable(res);
+  try {
+    const state = await autobet.startRun(req.body.codes, { dryRun: !!req.body.dryRun });
+    res.json({ success: true, ...state });
+  } catch (e) { res.status(400).json({ success: false, error: e.message }); }
+});
+
+app.get("/api/admin/autobet/stream/:runId", requireAdmin, (req, res) => {
+  if (!autobet) return res.status(503).end();
+  const run = autobet.getRun(req.params.runId);
+  if (!run) return res.status(404).end();
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const fromSeq = parseInt(req.query.fromSeq, 10) || 0;
+  for (const ev of run.events) {
+    if (ev.seq < fromSeq) continue;
+    res.write(`event: ${ev.type}\ndata: ${JSON.stringify({ ...ev.data, seq: ev.seq })}\n\n`);
+  }
+  // 'run-error', never bare 'error' — EventSource fires its own 'error' on any
+  // dropped connection, and a client listening for both would misreport a live
+  // run as failed (same reasoning as the advanced-generator stream above).
+  if (run.state.status === 'done' || run.state.status === 'error') {
+    res.write(`event: ${run.state.status === 'error' ? 'run-error' : 'done'}\ndata: ${JSON.stringify(run.state)}\n\n`);
+    return res.end();
+  }
+  autobet.subscribe(req.params.runId, res);
+});
+
+app.get("/api/admin/autobet/state/:runId", requireAdmin, (req, res) => {
+  if (!autobet) return autobetUnavailable(res);
+  const run = autobet.getRun(req.params.runId);
+  if (!run) return res.status(404).json({ success: false, error: "Run not found" });
+  res.json({ success: true, state: run.state });
+});
+
+app.post("/api/admin/autobet/stop/:runId", requireAdmin, (req, res) => {
+  if (!autobet) return autobetUnavailable(res);
+  res.json({ success: autobet.stopRun(req.params.runId) });
+});
+
+app.get("/api/admin/advanced-generator/results", requireAdmin, (req, res) => {
+  try {
+    const file = path.join(DATA_DIR, "advanced-generator-results.json");
+    const raw = JSON.parse(fs.readFileSync(file, "utf-8"));
+    res.json({ success: true, history: raw.slice(-20) });
+  } catch (e) {
+    res.json({ success: true, history: [] });
+  }
+});
+
+app.delete("/api/admin/advanced-generator/results", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  advancedGen.deleteResults();
+  res.json({ success: true });
+});
+
+app.get("/api/admin/advanced-generator/blacklist", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  res.json({ success: true, blacklist: advancedGen.loadBlacklist() });
+});
+
+app.post("/api/admin/advanced-generator/blacklist", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  const hard = Array.isArray(req.body?.hard) ? req.body.hard.filter(Boolean) : null;
+  const soft = Array.isArray(req.body?.soft) ? req.body.soft.filter(Boolean) : null;
+  if (!hard || !soft) return res.status(400).json({ success: false, error: "hard[] and soft[] arrays required" });
+  const current = advancedGen.loadBlacklist();
+  advancedGen.saveBlacklist({ hard, soft, note: req.body.note || current.note || '', updatedAt: new Date().toISOString() });
+  res.json({ success: true });
+});
+
+// v3.1 §4 — one-time-per-day-of-history backfill: replays every settled leg
+// found in data/reports/*.json into the shared league/team-intelligence
+// files. Additive + idempotent (tracks already-ingested files) — safe to
+// click repeatedly, only new settled days get picked up each time.
+app.post("/api/admin/advanced-generator/backfill-intelligence", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  try {
+    const result = advancedGen.backfillIntelligenceFromHistory(msg => console.log('[backfill]', msg));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// v8 §4 — so opening the tab shows "Yesterday's lessons applied" even
+// before starting a run today, not only right after a live run finishes.
+app.get("/api/admin/advanced-generator/last-lessons", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  res.json({ success: true, lessons: advancedGen.getLastLessons() });
+});
+
+// v18 — Report page: read-only lessons lookup for an arbitrary date (no
+// side effects, unlike POST daily-review which mutates downweights).
+app.get("/api/admin/advanced-generator/lessons/:date", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  res.json({ success: true, lessons: advancedGen.getLessonsForDate(req.params.date) });
+});
+
+// v10 §2 — real fail-rate + sample + day-variance, shown with the rate, not just a raw count.
+app.get("/api/admin/advanced-generator/blacklist-candidates", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  res.json({ success: true, candidates: advancedGen.getBlacklistCandidates() });
+});
+
+app.get("/api/admin/advanced-generator/floor-state", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  res.json({ success: true, floorState: advancedGen.loadFloorState() });
+});
+
+// v6 — graceful Stop Run: sets a flag the running process checks between
+// loop iterations; in-flight API calls finish, no new work starts, then the
+// run persists whatever it collected/scored with status 'stopped'.
+app.post("/api/admin/advanced-generator/stop/:runId", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  const ok = advancedGen.requestStop(req.params.runId);
+  if (!ok) return res.status(404).json({ success: false, error: "Run not found or not currently running" });
+  res.json({ success: true });
+});
+
+// v6 — Generator Settings modal: live-editable config, persisted, applied to
+// the next run. GET returns effective values (DEFAULT_CONFIG + saved
+// overrides) so the UI never shows a blank/fake field.
+app.get("/api/admin/advanced-generator/config", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  const effective = { ...advancedGen.DEFAULT_CONFIG, ...advancedGen.loadSettings() };
+  res.json({ success: true, config: effective, defaults: advancedGen.DEFAULT_CONFIG });
+});
+
+app.post("/api/admin/advanced-generator/config", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  const allowedNumericKeys = [
+    'confidenceFloor', 'toxicMinKillCount', 'toxicFailRateThreshold', 'lateLegDropDefaultN', 'conversionConcurrency',
+    'softLeaguePenalty', 'softLeagueTicketCapPct', 'teamExposureCap', 'leagueExposureCapBig', 'leagueExposureCapSmall',
+    'riskBandLeave', 'conversionMinImprovement', 'legOddsPreferredMin', 'legOddsPreferredMax', 'legOddsHardFloor', 'tierOverlapCapPct',
+    'variantOverlapCapPct', 'moonshotVariantOverlapCapMax', 'maxVariantsTier1', 'maxVariantsTier2', 'maxVariantsTier3', 'maxVariantsTier4',
+    'maxVariantsMoonshot', 'maxVariantsConsensus', 'maxVariantsSureTier', 'maxVariantsMix', 'autoRunHour', 'autoRunMinute',
+    'minPunterSlipOdds', // v11 §4 — was code-only; now a real, UI-editable setting like everything else
+    'legBracketRollingDays', 'legBracketMinSample', 'legBracketCapThreshold', // v14 — Portfolio Survival tunables
+    'sectionASurvivalLabelMinLegs', // v21 — Section A leg-count survival label threshold
+    'maxBuilderMinPoolSize', 'maxBuilderPerSourceCap', 'maxVariantsMaxBuilder', // v21/v23/v35 — Max Builder tunables; the leg cap is now the universal 50-leg guard in generateTicketCode
+  ];
+  const boolKeys = ['forcedUnderShift', 'autoRunEnabled', 'allowBeyondProvenLegCount'];
+  // Merge onto existing saved settings (not the code defaults) so a modal
+  // save never wipes out a previously-saved field the current request
+  // doesn't include — settings.json is the persisted source of truth.
+  const settings = { ...advancedGen.loadSettings() };
+  for (const k of allowedNumericKeys) if (req.body[k] != null && !isNaN(req.body[k])) settings[k] = Number(req.body[k]);
+  for (const k of boolKeys) if (req.body[k] != null) settings[k] = (req.body[k] === true || req.body[k] === 'true' || req.body[k] === 1 || req.body[k] === '1');
+  advancedGen.saveSettings(settings);
+  res.json({ success: true, config: { ...advancedGen.DEFAULT_CONFIG, ...settings } });
+});
+
+// v14 — Portfolio Survival: rolling observed-vs-theoretical ticket win rate
+// by leg-count bracket, and whether/what it currently caps. Read-only —
+// the cap itself is only ever set by cfg.allowBeyondProvenLegCount via the
+// /config route above, computed fresh here from real settled history.
+app.get("/api/admin/advanced-generator/leg-bracket-survival", requireAdmin, (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  const cfg = { ...advancedGen.DEFAULT_CONFIG, ...advancedGen.loadSettings() };
+  const survival = advancedGen.computeLegBracketSurvival(cfg);
+  res.json({ success: true, ...survival });
+});
+
+// Manual "Run Daily Review" trigger (§5) — also runs automatically via the
+// scheduled job registered near the daily-cleanup cron below.
+app.post("/api/admin/advanced-generator/daily-review", requireAdmin, async (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  // v9 §6 — same root cause the scoreboard route had: runDailyReview scans
+  // every ticket of the day sequentially against live SportyBet via
+  // buildScoreboard, which easily exceeds the global 30s request timeout on
+  // a real day's worth of tickets. That's why the button "did nothing" —
+  // the request was silently killed before the client ever got a response.
+  req.setTimeout(300000);
+  const dateStr = req.body?.date || new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+  try {
+    const result = await advancedGen.runDailyReview(dateStr, `http://127.0.0.1:${PORT}`, msg => console.log('[daily-review]', msg));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// v7 §6 — Performance tab: yesterday's (or any given date's) real scoreboard.
+// Scans each ticket's code once via /api/scan, caches settled results —
+// re-opening the tab or re-running daily-review never re-scans a fully
+// settled ticket.
+
+// v8 §4 — manual trigger to verify the morning path (review -> run,
+// sequential) without waiting for the actual clock. Same sequence
+// checkAutoRunSchedule uses; returns as soon as it's kicked off (run itself
+// streams via SSE as normal — this endpoint doesn't block on it).
+app.post("/api/admin/advanced-generator/simulate-auto-run", requireAdmin, async (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  req.setTimeout(300000);
+  try {
+    const dateStr = req.body?.reviewDate || new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+    const reviewResult = await advancedGen.runDailyReview(dateStr, `http://127.0.0.1:${PORT}`, msg => console.log('[simulate-auto-run/daily-review]', msg));
+    const runId = advancedGen.startRun({ mode: 'full', internalBaseUrl: `http://127.0.0.1:${PORT}`, config: {} });
+    res.json({ success: true, reviewResult, runId });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.get("/api/admin/advanced-generator/scoreboard/:date", requireAdmin, async (req, res) => {
+  if (!advancedGen) return res.status(503).json({ success: false, error: "Advanced generator not available in production" });
+  req.setTimeout(300000); // 5 min — the global 30s timeout killed this on a real run: scanning 16+ tickets sequentially against live SportyBet easily exceeds it
+  try {
+    const result = await advancedGen.buildScoreboard(req.params.date, `http://127.0.0.1:${PORT}`, msg => console.log('[scoreboard]', msg), req.query.rescan === '1');
+    if (!result.tickets) return res.status(404).json(result);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── Strategy Engine — Phase 4 ────────────────────────────────────────────────
+// 15 independent named strategies built from the same master pool, each with
+// its own construction rules, full audit metadata, and a safest→riskiest rank.
+
+app.get("/api/admin/strategy-list", requireAdmin, (req, res) => {
+  if (!strategyEngine) return res.status(503).json({ success: false, error: "Strategy engine not available in production" });
+  res.json({ success: true, strategies: strategyEngine.listStrategies() });
+});
+
+app.post("/api/admin/h2h-refine", requireAdmin, async (req, res) => {
+  if (!strategyEngine) return res.status(503).json({ success: false, error: "Strategy engine not available in production" });
+  req.setTimeout(300000); // several codes x up to ~50 legs, sequential live market checks + stagger
+
+  // Accept one or several comma/whitespace-separated booking codes so a
+  // punter's own hand-built codes can be merged into a single refined ticket.
+  const codes = [...new Set(
+    (req.body?.code || "").split(/[,\s]+/).map((c) => c.trim().toUpperCase()).filter(Boolean)
+  )];
+  if (!codes.length) return res.status(400).json({ success: false, error: "At least one booking code required" });
+
+  try {
+    // Fetch each code SERIALLY — SportyBet's share endpoint silently returns
+    // empty selections under concurrent load (see settled-odds-contamination
+    // notes), so codes are pulled one at a time, not in parallel.
+    const perCodeSelections = [];
+    for (const code of codes) {
+      const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+      const json = await fetchJSON(url);
+      if (!json || json.bizCode !== 10000 || !json.data) {
+        return res.status(404).json({ success: false, error: `${code}: ${json?.message || json?.innerMsg || "booking code not found"}` });
+      }
+      const outcomes = json.data.outcomes || [];
+      const ticketSels = json.data.ticket?.selections || [];
+      perCodeSelections.push(...mapOutcomes(outcomes, ticketSels).map((s) => ({ ...s, sourceCode: code })));
+    }
+
+    // Same-match guard across ALL pasted codes combined — first code pasted
+    // wins the fixture if it appears more than once.
+    const byEvent = new Map();
+    for (const s of perCodeSelections) if (!byEvent.has(s.eventId)) byEvent.set(s.eventId, s);
+    const selections = [...byEvent.values()];
+
+    const fetchEventMarkets = async (eventId) => {
+      const eurl = `https://www.sportybet.com/api/ng/factsCenter/event?eventId=${encodeURIComponent(eventId)}`;
+      const ejson = await fetchJSON(eurl);
+      if (!ejson || ejson.bizCode !== 10000 || !ejson.data) throw new Error(ejson?.message || "Event not found");
+      const d = ejson.data;
+      return (d.markets || []).flatMap((m) =>
+        (m.outcomes || []).filter((o) => o.isActive === 1).map((o) => ({
+          marketId: m.id, marketName: m.desc || "", specifier: m.specifier || "",
+          outcomeId: o.id, outcomeName: o.desc || "", odds: parseFloat(o.odds) || 0,
+        }))
+      );
+    };
+
+    const { legs, summary } = await strategyEngine.refineTicketForH2HFavorites(selections, fetchEventMarkets);
+
+    // Build the final leg list — KEEP as-is, EDIT swapped to its suggestion,
+    // DROP excluded — then generate a real SportyBet code from the result.
+    const UNIVERSAL_MAX_LEGS = 50;
+    let finalPicks = legs
+      .filter((l) => l.verdict === "KEEP" || (l.verdict === "EDIT" && l.suggestion))
+      .map((l) => l.verdict === "KEEP"
+        ? { eventId: l.eventId, marketId: l.marketId, outcomeId: l.outcomeId, specifier: l.specifier || "", productId: l.productId || 3, sportId: l.sportId || "sr:sport:1" }
+        : { eventId: l.eventId, marketId: l.suggestion.marketId, outcomeId: l.suggestion.outcomeId, specifier: l.suggestion.specifier || "", productId: l.productId || 3, sportId: l.sportId || "sr:sport:1" });
+    if (finalPicks.length > UNIVERSAL_MAX_LEGS) finalPicks = finalPicks.slice(0, UNIVERSAL_MAX_LEGS);
+
+    let generated = { skipped: true, reason: `Only ${finalPicks.length} usable leg(s) after refine — need at least 3.` };
+    if (finalPicks.length >= 3) {
+      const payload = finalPicks.map((s) => ({
+        eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
+        productId: s.productId, sportId: s.sportId, parentBetBuilderMarketId: "",
+        ...(s.specifier ? { specifier: s.specifier } : {}),
+      }));
+      const genJson = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+      if (genJson.bizCode === 10000 && genJson.data?.shareCode) {
+        incrementStat("codesGenerated");
+        generated = { skipped: false, shareCode: genJson.data.shareCode, shareURL: genJson.data.shareURL || "", legCount: finalPicks.length };
+      } else {
+        generated = { skipped: true, reason: genJson.message || genJson.innerMsg || "SportyBet rejected the refined selections" };
+      }
+    }
+
+    res.json({ success: true, codesUsed: codes, legCount: selections.length, summary, legs, generated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to refine code" });
+  }
+});
+
+app.post("/api/admin/strategy-generate", requireAdmin, async (req, res) => {
+  if (!strategyEngine) return res.status(503).json({ success: false, error: "Strategy engine not available in production" });
+  req.setTimeout(600000); // up to 10 min — "all" mode posts up to 16 real codes to SportyBet
+
+  const strategyKey = (req.body?.strategy || 'all').trim();
+  const logs = [];
+  const log = msg => { logs.push(msg); console.log('[strategy-engine]', msg); };
+
+  try {
+    // Get master pool — prefer fresh analysis, fall back to cached/disk copy
+    let masterPool = null;
+    if (intel) {
+      const cached = intel.getMasterPool();
+      if (cached?.masterPool?.length) { masterPool = cached.masterPool; log('Using cached master pool: ' + masterPool.length + ' picks'); }
+    }
+    if (!masterPool || !masterPool.length) {
+      try {
+        const mpFile = path.join(DATA_DIR, "master-pool.json");
+        const raw = JSON.parse(fs.readFileSync(mpFile, "utf-8").replace(/^﻿/, ''));
+        if (raw.masterPool?.length) { masterPool = raw.masterPool; log('Loaded master pool from disk: ' + masterPool.length + ' picks'); }
+      } catch {}
+    }
+    if (!masterPool || !masterPool.length) {
+      return res.status(400).json({ success: false, error: "No master pool available. Run 'Run Master Analysis' first." });
+    }
+
+    const generateCodeFn = async (selections) => {
+      const payload = selections.map(s => ({
+        eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
+        productId: s.productId || 3, sportId: s.sportId || "sr:sport:1",
+        specifier: s.specifier || "", parentBetBuilderMarketId: "",
+      }));
+      const r = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+      if (r.bizCode === 10000 && r.data?.shareCode) return { code: r.data.shareCode, url: r.data.shareURL || "" };
+      throw new Error("SportyBet rejected: " + (r.msg || r.bizCode || "unknown"));
+    };
+
+    if (strategyKey === 'all') {
+      const result = await strategyEngine.runAllStrategies(masterPool, generateCodeFn, log);
+      return res.json({ success: true, ...result, logs });
+    }
+
+    const ticket = await strategyEngine.runStrategy(strategyKey, masterPool, generateCodeFn, log);
+    res.json({ success: true, strategies: [ticket], top3: [], logs });
+  } catch (e) {
+    console.error('[strategy-generate]', e);
+    res.status(500).json({ success: false, error: e.message, logs });
+  }
 });
 
 // Odds history inspection — shows all stored pre-match odds for debugging
@@ -3334,11 +4708,485 @@ app.get("/api/admin/odds-history", requireAdmin, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Table Tennis Workspace ──
+// Public-facing TT analysis workspace: paste booking codes -> decode -> ingest any
+// newly-resolved legs -> rebuild real empirical rates -> cross-market score every unplayed
+// match (G1 Under19.5, G1 Over17.5, FM Under, Handicap) -> return honest 5-leg vs
+// target-fit (10k-1M, floor 1000x) selections. Model logic lives in tt-engine.js.
+//
+// Scanning a real match pool (tonight's sessions routinely covered 80-150 matches) takes
+// several minutes end-to-end - far past the 30s request timeout set near the top of this
+// file - so this runs as a background job the frontend polls, not a single request/response.
+
+const ttScanJobs = new Map(); // scanId -> { status, progress, result, error, startedAt }
+const TT_SCAN_JOB_TTL = 30 * 60 * 1000; // drop finished in-memory jobs after 30 minutes
+function cleanupTTScanJobs() {
+  const now = Date.now();
+  for (const [id, job] of ttScanJobs) {
+    if (job.status !== "running" && now - job.startedAt > TT_SCAN_JOB_TTL) ttScanJobs.delete(id);
+  }
+}
+// A finished scan only lived in the in-memory Map above - a page refresh (new client, same
+// server) had no way to see it, and it vanished entirely after TT_SCAN_JOB_TTL or a server
+// restart. Persisting the most recent completed scan to disk means "the result scanned
+// doesn't save on refresh" is actually fixed: the UI can always ask for it back.
+const TT_LAST_SCAN_FILE = path.join(ttEngine ? ttEngine.DATA_DIR : path.join(__dirname, "data"), "tt-last-scan.json");
+function saveTTLastScan(scanId, codes, result) {
+  if (!ttEngine) return;
+  try { ttEngine.saveJSON(TT_LAST_SCAN_FILE, { scanId, codes, result, savedAt: new Date().toISOString() }); } catch {}
+}
+function loadTTLastScan() { return ttEngine ? ttEngine.loadJSON(TT_LAST_SCAN_FILE, null) : null; }
+// Look up a scan job by id: check the in-memory Map first (fast path, has live progress),
+// fall back to the disk-persisted last scan if the id matches (covers server restarts and
+// jobs that aged out of the in-memory TTL above).
+function findTTScanJob(scanId) {
+  const live = ttScanJobs.get(scanId);
+  if (live) return live;
+  const persisted = loadTTLastScan();
+  if (persisted && persisted.scanId === scanId) return { status: "done", result: persisted.result, progress: null, error: null };
+  return null;
+}
+
+async function runTTScan(scanId, cleanCodes) {
+  const job = ttScanJobs.get(scanId);
+  try {
+    const history = ttEngine.loadJSON(ttEngine.HISTORY_FILE, []);
+    const seen = new Set(history.map(h => ttEngine.recordKey(h)));
+    const unplayedByEvent = new Map();
+    let ingestedCount = 0;
+    const codeResults = [];
+
+    for (const code of cleanCodes) {
+      const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+      let json;
+      try { json = await fetchJSON(url); } catch { codeResults.push({ code, error: "Fetch failed" }); job.progress.decoded++; continue; }
+      if (!json || json.bizCode !== 10000 || !json.data) { codeResults.push({ code, error: "Code not found or invalid" }); job.progress.decoded++; continue; }
+      const selections = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
+      const notStart = selections.filter(s => s.matchStatus === "Not start");
+      const ended = selections.filter(s => s.matchStatus === "Ended");
+
+      for (const s of ended) {
+        const key = ttEngine.recordKey(s);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        history.push({
+          eventId: s.eventId, home: s.homeTeam, away: s.awayTeam, league: s.league, category: s.category,
+          kickoff: s.kickoff, marketId: s.marketId, specifier: s.specifier, market: s.market, outcome: s.outcome,
+          odds: s.odds, isWinning: s.isWinning, score: s.score, halfScores: s.halfScores,
+          sourceCode: code, ingestedAt: new Date().toISOString(),
+        });
+        ingestedCount++;
+      }
+      for (const s of notStart) if (!unplayedByEvent.has(s.eventId)) unplayedByEvent.set(s.eventId, s);
+      codeResults.push({ code, totalSelections: selections.length, unplayed: notStart.length, resolved: ended.length });
+      job.progress.decoded++;
+    }
+
+    // Persist newly-resolved legs and rebuild real empirical rates before scoring anything -
+    // this is the "rebuilt automatically as new codes get ingested" requirement.
+    if (ingestedCount > 0) ttEngine.saveJSON(ttEngine.HISTORY_FILE, history);
+    const { handicapRates } = ttEngine.rebuild();
+
+    const ctx = ttEngine.buildScoringContext();
+    const unplayed = [...unplayedByEvent.values()];
+    job.progress.totalUnplayed = unplayed.length;
+    const analyzed = [];
+    for (const s of unplayed) {
+      const url = `https://www.sportybet.com/api/ng/factsCenter/event?eventId=${encodeURIComponent(s.eventId)}`;
+      let marketJson;
+      try { marketJson = await fetchJSON(url); } catch { job.progress.scored++; continue; }
+      if (!marketJson || marketJson.bizCode !== 10000 || !marketJson.data) { job.progress.scored++; continue; }
+      const markets = (marketJson.data.markets || []).flatMap(m =>
+        (m.outcomes || []).filter(o => o.isActive === 1).map(o => ({
+          marketId: m.id, specifier: m.specifier || "", outcomeId: o.id, outcomeName: o.desc || "", odds: parseFloat(o.odds) || 0,
+        }))
+      );
+      const scored = ttEngine.scoreMatchAllMarkets(s.homeTeam, s.awayTeam, markets, ctx, s.league);
+      job.progress.scored++;
+      if (!scored.best) continue;
+      scored.eventId = s.eventId; scored.sportId = s.sportId; scored.league = s.league;
+      analyzed.push(scored);
+      // Log this prediction so the calibration loop (computeCalibration, run inside
+      // rebuild()) can compare it against the real result once this match settles.
+      ttEngine.logPrediction(s.eventId, scored.best.marketId, scored.best.specifier, scored.best.market, scored.best.confidence, s.homeTeam, s.awayTeam, scored.best.outcome);
+      // Small courtesy delay between upstream event fetches - not a hard rate limit, but
+      // avoids hammering SportyBet with dozens of rapid-fire requests from one IP.
+      await new Promise(r => setTimeout(r, 350));
+    }
+
+    const selectionResult = ttEngine.buildSelections(analyzed, { maxLegs: 50, tiers: [1000, 10000, 100000, 1000000] });
+    analyzed.sort((a, b) => (b.best?.confidence || 0) - (a.best?.confidence || 0));
+
+    const historyKickoffs = history.map(h => h.kickoff && h.kickoff.slice(0, 10)).filter(Boolean).sort();
+
+    // Explainability: top 5 strongest picks (already the head of the sorted list), and top 5
+    // REJECTED candidates - markets that had the best odds among rejects (the ones most
+    // tempting to a human eyeballing odds) but lost the market-score competition - with why.
+    const top5Strongest = analyzed.slice(0, 5).map(m => ({
+      match: m.home + " vs " + m.away, market: m.best.type, odds: m.best.odds, confidencePct: +(m.best.confidence * 100).toFixed(1),
+      reason: [m.knownPlayers ? "known players" : null, m.h2hMeetings ? m.h2hMeetings + " H2H meetings" : null, m.best.gapAdjustNote ? "opponent-adjusted" : null].filter(Boolean).join(", ") || "model + shrinkage confidence",
+    }));
+    const rejected = [];
+    for (const m of analyzed) {
+      for (const c of (m.candidates || [])) {
+        if (c === m.best) continue;
+        rejected.push({ match: m.home + " vs " + m.away, market: c.type, odds: c.odds, confidencePct: +(c.confidence * 100).toFixed(1), beatenBy: m.best.type + " (" + (m.best.confidence * 100).toFixed(1) + "%)" });
+      }
+    }
+    rejected.sort((a, b) => b.odds - a.odds);
+    const top5Rejected = rejected.slice(0, 5).map(r => ({ ...r, reason: `Odds looked tempting (${r.odds}×) but real confidence was only ${r.confidencePct}% - ${r.beatenBy} scored higher for this match.` }));
+
+    job.status = "done";
+    job.result = {
+      codes: codeResults,
+      ingestedNewLegs: ingestedCount,
+      totalUnplayedMatches: unplayed.length,
+      scoredMatches: analyzed.length,
+      handicapRates,
+      selections: selectionResult,
+      matches: analyzed.map(m => ({ home: m.home, away: m.away, eventId: m.eventId, sportId: m.sportId, league: m.league, knownPlayers: m.knownPlayers, strengthGap: m.strengthGap, h2hMeetings: m.h2hMeetings, best: m.best, allCandidates: m.candidates })),
+      dataWindow: { earliestRecord: historyKickoffs[0] || null, latestRecord: historyKickoffs[historyKickoffs.length - 1] || null, totalHistoryRecords: history.length },
+      top5Strongest, top5Rejected,
+    };
+    saveTTLastScan(scanId, cleanCodes, job.result);
+  } catch (err) {
+    job.status = "error";
+    job.error = err.message;
+  }
+}
+
+app.post("/api/tt/scan", requireAdmin, (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const { codes } = req.body;
+  if (!codes || !Array.isArray(codes) || !codes.length) return res.status(400).json({ error: "codes array required" });
+  const cleanCodes = [...new Set(codes.map(c => String(c).trim().toUpperCase()).filter(Boolean))].slice(0, 10);
+  if (!cleanCodes.length) return res.status(400).json({ error: "No valid codes provided" });
+
+  if ([...ttScanJobs.values()].filter(job => job.status === "running").length >= 2)
+    return res.status(503).set("Retry-After", "30").json({ error: "Two scans are already running" });
+
+  cleanupTTScanJobs();
+  const scanId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  ttScanJobs.set(scanId, {
+    status: "running",
+    progress: { decoded: 0, totalCodes: cleanCodes.length, scored: 0, totalUnplayed: 0 },
+    result: null, error: null, startedAt: Date.now(),
+  });
+  while (ttScanJobs.size > 20) {
+    const oldest = ttScanJobs.keys().next().value;
+    if (ttScanJobs.get(oldest)?.status === "running") break;
+    ttScanJobs.delete(oldest);
+  }
+  runTTScan(scanId, cleanCodes);
+  res.json({ scanId, status: "running" });
+});
+
+// "Result scanned doesn't save on refresh" - the client calls this on tab open/page load to
+// restore the most recently completed scan without needing to re-run it (rescanning ~90-100
+// live matches takes several minutes). Not tied to any one browser/session - it's whatever
+// this server last scanned. MUST be registered before the /:scanId route below, otherwise
+// Express matches "last" as a :scanId value and this route is never reached.
+app.get("/api/tt/scan/last", requireAdmin, (req, res) => {
+  const persisted = loadTTLastScan();
+  if (!persisted) return res.status(404).json({ error: "No scan has completed yet on this server." });
+  res.json(persisted);
+});
+
+app.get("/api/tt/scan/:scanId", requireAdmin, (req, res) => {
+  const job = findTTScanJob(req.params.scanId);
+  if (!job) return res.status(404).json({ error: "Unknown or expired scanId" });
+  res.json(job);
+});
+
+app.get("/api/tt/leaderboards", requireAdmin, (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const leaderboards = ttEngine.loadJSON(ttEngine.LEADERBOARDS_FILE, {});
+  const handicapRates = ttEngine.loadJSON(path.join(ttEngine.DATA_DIR, "tt-handicap-rates.json"), null) || ttEngine.computeHandicapRates();
+  res.json({ leaderboards, handicapRates });
+});
+
+// Full player/history browse — separate from leaderboards (market-level) so the UI can
+// show "all information we ever had" without requiring a fresh scan first.
+app.get("/api/tt/players", requireAdmin, (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const players = ttEngine.loadJSON(ttEngine.PLAYERS_FILE, {});
+  const history = ttEngine.loadJSON(ttEngine.HISTORY_FILE, []);
+  const list = Object.entries(players).map(([name, p]) => ({ name, ...p }));
+  list.sort((a, b) => b.n - a.n);
+  res.json({ players: list, totalPlayers: list.length, totalHistoryRecords: history.length });
+});
+
+// Bulk-ingest historical (already-decided) codes straight into permanent history, without
+// running the (expensive, per-match live-market) scoring pass runTTScan does for upcoming
+// fixtures. Meant for "we have a lot of old codes, let's build the player database from them."
+const ttIngestJobs = new Map();
+async function runTTBulkIngest(jobId, cleanCodes) {
+  const job = ttIngestJobs.get(jobId);
+  try {
+    const history = ttEngine.loadJSON(ttEngine.HISTORY_FILE, []);
+    const seen = new Set(history.map(h => ttEngine.recordKey(h)));
+    let ingestedCount = 0;
+    const codeResults = [];
+    for (const code of cleanCodes) {
+      const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(code)}`;
+      let json;
+      try { json = await fetchJSON(url); } catch { codeResults.push({ code, error: "Fetch failed" }); job.progress.done++; continue; }
+      if (!json || json.bizCode !== 10000 || !json.data) { codeResults.push({ code, error: "Code not found or invalid" }); job.progress.done++; continue; }
+      const selections = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
+      const ended = selections.filter(s => s.matchStatus === "Ended");
+      let added = 0;
+      for (const s of ended) {
+        const key = ttEngine.recordKey(s);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        history.push({
+          eventId: s.eventId, home: s.homeTeam, away: s.awayTeam, league: s.league, category: s.category,
+          kickoff: s.kickoff, marketId: s.marketId, specifier: s.specifier, market: s.market, outcome: s.outcome,
+          odds: s.odds, isWinning: s.isWinning, score: s.score, halfScores: s.halfScores,
+          sourceCode: code, ingestedAt: new Date().toISOString(),
+        });
+        added++;
+      }
+      ingestedCount += added;
+      codeResults.push({ code, totalSelections: selections.length, resolved: ended.length, newlyIngested: added });
+      job.progress.done++;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    if (ingestedCount > 0) ttEngine.saveJSON(ttEngine.HISTORY_FILE, history);
+    const rebuilt = ttEngine.rebuild();
+    job.status = "done";
+    job.result = {
+      codes: codeResults, ingestedNewLegs: ingestedCount,
+      totalHistoryRecords: history.length,
+      totalPlayers: Object.keys(rebuilt.players).length,
+      leaderboards: rebuilt.leaderboards,
+    };
+  } catch (err) {
+    job.status = "error";
+    job.error = err.message;
+  }
+}
+app.post("/api/tt/ingest-bulk", requireAdmin, (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const { codes } = req.body;
+  if (!codes || !Array.isArray(codes) || !codes.length) return res.status(400).json({ error: "codes array required" });
+  const cleanCodes = [...new Set(codes.map(c => String(c).trim().toUpperCase()).filter(Boolean))].slice(0, 200);
+  if (!cleanCodes.length) return res.status(400).json({ error: "No valid codes provided" });
+  if ([...ttIngestJobs.values()].some(job => job.status === "running"))
+    return res.status(503).set("Retry-After", "30").json({ error: "A bulk ingest is already running" });
+  const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  ttIngestJobs.set(jobId, { status: "running", progress: { done: 0, total: cleanCodes.length }, result: null, error: null });
+  while (ttIngestJobs.size > 10) ttIngestJobs.delete(ttIngestJobs.keys().next().value);
+  runTTBulkIngest(jobId, cleanCodes);
+  res.json({ jobId, status: "running" });
+});
+app.get("/api/tt/ingest-bulk/:jobId", requireAdmin, (req, res) => {
+  const job = ttIngestJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Unknown or expired jobId" });
+  res.json(job);
+});
+
+// Market-specific generate: "gen X, under 78.5" / "gen X, highest handicap" - re-selects from
+// an already-completed scan's per-match candidate lists (every market was already scored, not
+// just the winner) by a SPECIFIC market instead of whichever scored best per match, then
+// generates + logs the code immediately in one call, same as the tier/batch generators.
+app.post("/api/tt/market-select/:scanId", requireAdmin, checkGenerateRate, async (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const job = findTTScanJob(req.params.scanId);
+  if (!job || job.status !== "done" || !job.result) return res.status(404).json({ error: "Unknown, expired, or not-yet-finished scanId" });
+  const { market, maxLegs } = req.body || {};
+  if (!market || !ttEngine.MARKET_SELECT_KEYS.includes(market)) return res.status(400).json({ error: "Unknown market. Valid: " + ttEngine.MARKET_SELECT_KEYS.join(", ") });
+  const view = ttEngine.buildMarketSelection(job.result.matches || [], market, { maxLegs: Number(maxLegs) || 50 });
+  if (!view.legs) return res.json({ success: false, error: view.note });
+
+  const payload = view.selections.map(s => ({
+    eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
+    productId: s.productId || 3, sportId: s.sportId, parentBetBuilderMarketId: "",
+    ...(s.specifier ? { specifier: s.specifier } : {}),
+  }));
+  try {
+    const json = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+    if (json.bizCode === 10000 && json.data?.shareCode) {
+      incrementStat("codesGenerated");
+      const log = loadTTLog();
+      log.unshift({
+        shareCode: json.data.shareCode, tier: "market:" + market, sourceCodes: job.result.codes?.map(c => c.code) || [],
+        legs: payload.length, combinedOdds: view.combinedOdds, straightWinPct: view.straightWinPct,
+        marketMix: { [market]: payload.length }, generatedAt: new Date().toISOString(),
+      });
+      saveTTLog(log.slice(0, 500));
+      return res.json({ success: true, shareCode: json.data.shareCode, shareURL: json.data.shareURL || "", ...view });
+    }
+    return res.status(400).json({ success: false, error: json.message || json.innerMsg || "Unknown error" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Batch: build 5-10 genuinely DIFFERENT, correlation-aware codes from an already-completed
+// scan's scored matches, instead of one code per odds tier. Reuses the finished scan job
+// (no re-fetching live markets) so this is fast - just re-slices the same real confidence data.
+app.post("/api/tt/batch/:scanId", requireAdmin, (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const job = findTTScanJob(req.params.scanId);
+  if (!job || job.status !== "done" || !job.result) return res.status(404).json({ error: "Unknown, expired, or not-yet-finished scanId" });
+  const { count, minLegs, maxLegs, floor } = req.body || {};
+  const analyzed = job.result.matches || [];
+  const batch = ttEngine.buildBatch(analyzed, {
+    count: Number(count) || 8,
+    minLegs: Number(minLegs) || 5,
+    maxLegs: Number(maxLegs) || 50,
+    floor: Number(floor) || 1000,
+  });
+  res.json(batch);
+});
+
+// Generate a booking code from a Table Tennis selection AND log it, so past
+// recommendations are retrievable later ("show logs when I ask") instead of vanishing
+// the moment the page is closed. This wraps the same SportyBet share-code call the shared
+// /api/generate route makes, but is TT-specific so only TT-originated codes land in this log.
+const TT_GENERATED_LOG_FILE = path.join(ttEngine ? ttEngine.DATA_DIR : path.join(__dirname, "data"), "tt-generated-log.json");
+function loadTTLog() { return ttEngine ? ttEngine.loadJSON(TT_GENERATED_LOG_FILE, []) : []; }
+function saveTTLog(log) { if (ttEngine) ttEngine.saveJSON(TT_GENERATED_LOG_FILE, log); }
+
+app.post("/api/tt/generate", requireAdmin, checkGenerateRate, async (req, res) => {
+  const { selections, tier, sourceCodes, combinedOdds, straightWinPct, marketMix } = req.body;
+  if (!selections || !Array.isArray(selections) || !selections.length) return res.status(400).json({ error: "No selections provided" });
+
+  const payload = selections.map(s => ({
+    eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
+    productId: s.productId || 3, sportId: s.sportId, parentBetBuilderMarketId: "",
+    ...(s.specifier ? { specifier: s.specifier } : {}),
+  }));
+
+  try {
+    const json = await postJSON("https://www.sportybet.com/api/ng/orders/share", { selections: payload });
+    if (json.bizCode === 10000 && json.data?.shareCode) {
+      incrementStat("codesGenerated");
+      const log = loadTTLog();
+      log.unshift({
+        shareCode: json.data.shareCode, tier: tier || "unknown", sourceCodes: sourceCodes || [],
+        legs: payload.length, combinedOdds: combinedOdds ?? null, straightWinPct: straightWinPct ?? null,
+        marketMix: marketMix || null, generatedAt: new Date().toISOString(),
+      });
+      saveTTLog(log.slice(0, 500)); // keep the most recent 500 entries
+      return res.json({ success: true, shareCode: json.data.shareCode, shareURL: json.data.shareURL || "" });
+    }
+    return res.status(400).json({ success: false, error: json.message || json.innerMsg || "Unknown error" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/tt/log", requireAdmin, (req, res) => {
+  res.json({ log: loadTTLog() });
+});
+
+// Track external codes (e.g. from another AI/tipster) alongside our own generated ones, so
+// "all games, save it, run analysis later" works for any code, not just ones this engine built.
+app.post("/api/tt/track", requireAdmin, (req, res) => {
+  const { codes, source, label } = req.body;
+  if (!codes || !Array.isArray(codes) || !codes.length) return res.status(400).json({ error: "codes array required" });
+  const clean = [...new Set(codes.map(c => String(c).trim().toUpperCase()).filter(Boolean))];
+  if (!clean.length) return res.status(400).json({ error: "No valid codes provided" });
+  const log = loadTTLog();
+  const existing = new Set(log.map(e => e.shareCode));
+  let added = 0;
+  for (const shareCode of clean) {
+    if (existing.has(shareCode)) continue;
+    log.unshift({
+      shareCode, tier: "external", sourceCodes: [], legs: null, combinedOdds: null, straightWinPct: null,
+      marketMix: null, generatedAt: new Date().toISOString(), source: source || "external", label: label || null,
+    });
+    added++;
+  }
+  saveTTLog(log.slice(0, 500));
+  res.json({ success: true, added, skippedDuplicates: clean.length - added });
+});
+
+// Live status for every saved/tracked code - decodes each via SportyBet and reports real
+// won/lost/pending counts. This is the "run analysis" half of the saved-codes tab.
+// "After each loss, document all the players in those games and rebuild/update the data" -
+// this endpoint checks real results already; the gap was that checking never fed those real
+// results back into tt-history.json, so the model never actually learned from a Saved Code's
+// outcome unless you separately re-pasted it into Scan & Analyze. Fixed: every ENDED leg found
+// while checking results here now gets ingested (same dedupe key as everywhere else) and, if
+// anything new came in, rebuild() runs once at the end - real player stats, handicap rates, and
+// calibration all update from every code you check, not just freshly-scanned ones.
+app.get("/api/tt/track/status", requireAdmin, async (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const log = loadTTLog();
+  if (!log.length) return res.json({ codes: [] });
+  const history = ttEngine.loadJSON(ttEngine.HISTORY_FILE, []);
+  const seen = new Set(history.map(h => h.eventId + "|" + h.marketId + "|" + h.specifier));
+  let ingestedCount = 0;
+  const results = [];
+  for (const entry of log.slice(0, 60)) { // cap per request so this can't run forever
+    try {
+      const cached = bookingCache.get(entry.shareCode);
+      let selections;
+      if (cached && Date.now() - cached.time < BOOKING_CACHE_TTL) {
+        selections = cached.data.selections;
+      } else {
+        const url = `https://www.sportybet.com/api/ng/orders/share/${encodeURIComponent(entry.shareCode)}`;
+        const json = await fetchJSON(url);
+        if (!json || json.bizCode !== 10000 || !json.data) { results.push({ ...entry, status: "not_found" }); continue; }
+        selections = mapOutcomes(json.data.outcomes || [], json.data.ticket?.selections || []);
+        bookingCache.set(entry.shareCode, { data: { selections }, time: Date.now() });
+        await new Promise(r => setTimeout(r, 200));
+      }
+      for (const s of selections) {
+        if (s.matchStatus !== "Ended") continue;
+        const key = ttEngine.recordKey(s);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        history.push({
+          eventId: s.eventId, home: s.homeTeam, away: s.awayTeam, league: s.league, category: s.category,
+          kickoff: s.kickoff, marketId: s.marketId, specifier: s.specifier, market: s.market, outcome: s.outcome,
+          odds: s.odds, isWinning: s.isWinning, score: s.score, halfScores: s.halfScores,
+          sourceCode: entry.shareCode, ingestedAt: new Date().toISOString(),
+        });
+        ingestedCount++;
+      }
+      const won = selections.filter(s => s.isWinning === 1).length;
+      const lost = selections.filter(s => s.isWinning === 0).length;
+      const pending = selections.filter(s => s.matchStatus === "Not start").length;
+      const settled = won + lost;
+      results.push({
+        ...entry, totalLegs: selections.length, won, lost, pending,
+        hitRatePct: settled ? +((won / settled) * 100).toFixed(1) : null,
+        status: pending > 0 ? "in_progress" : lost === 0 ? "won" : "lost",
+      });
+    } catch (err) {
+      results.push({ ...entry, status: "error", error: err.message });
+    }
+  }
+  let rebuilt = null;
+  if (ingestedCount > 0) {
+    ttEngine.saveJSON(ttEngine.HISTORY_FILE, history);
+    rebuilt = ttEngine.rebuild();
+  }
+  res.json({ codes: results, truncated: log.length > 60, ingestedNewLegs: ingestedCount, totalHistoryRecords: history.length, totalPlayers: rebuilt ? Object.keys(rebuilt.players).length : undefined });
+});
+
+// Post-match review: real loss-by-loss diagnosis (sweep-bust vs close-miss for handicap,
+// close-miss vs wide-miss for totals), plus the calibration state (predicted vs actual,
+// per market, with the bounded self-correction currently in effect). Optional ?codes=A,B,C
+// to scope to specific source codes; omit for all-time.
+app.get("/api/tt/loss-analysis", requireAdmin, (req, res) => {
+  if (!ttEngine) return res.status(503).json({ error: "Table Tennis engine unavailable" });
+  const sourceCodes = req.query.codes ? String(req.query.codes).split(",").map(c => c.trim().toUpperCase()).filter(Boolean) : null;
+  const analysis = ttEngine.analyzeLosses(sourceCodes);
+  const calibration = ttEngine.loadJSON(ttEngine.CALIBRATION_FILE, { byMarket: {}, totalPredictionsLogged: 0 });
+  res.json({ analysis, calibration });
+});
+
 // ── Global error handler (must be last middleware) ──
 
 app.use((err, req, res, next) => {
   console.error("[ERROR]", err);
-  res.status(500).json({ error: err.message || "Server error" });
+  const status = err.type === "entity.too.large" ? 413 : (err.status || 500);
+  res.status(status).json({ error: status === 413 ? "Request body too large" : (err.message || "Server error") });
 });
 
 // ── Daily Cleanup ──
@@ -3395,6 +5243,13 @@ function runDailyCleanup() {
 // ── Graceful shutdown ──
 
 function gracefulShutdown(signal) {
+  if (gracefulShutdown.started) return;
+  gracefulShutdown.started = true;
+  clearInterval(_keepAliveTimer);
+  clearInterval(_housekeepingTimer);
+  for (const stop of shutdownTasks.splice(0)) { try { stop(); } catch {} }
+  try { eventLoopDelay.disable(); } catch {}
+  try { _mailer?.close(); } catch {}
   console.log(`[SHUTDOWN] ${signal} received — flushing and closing`);
 
   // Flush all debounced in-memory writes synchronously before exit
@@ -3423,17 +5278,132 @@ function gracefulShutdown(signal) {
   setTimeout(() => { console.error("[SHUTDOWN] Force-exit after 8s"); process.exit(1); }, 8000);
 }
 
+// v8 §4 — Morning Readiness: optional auto-run. Off by default. When
+// enabled, at the configured local time the server runs Daily Review on
+// YESTERDAY's codes first (scoreboard + learning loop), waits for it to
+// fully finish, THEN starts a fresh generator run — sequential, never
+// concurrent, so there's no lock/stale-state race between the two. Checked
+// every minute; a per-day marker stops it firing more than once even though
+// the check runs every 60s and the target minute is a 60s-wide window.
+let _lastAutoRunDate = null;
+async function checkAutoRunSchedule() {
+  if (!advancedGen) return;
+  try {
+    const settings = advancedGen.loadSettings();
+    if (!settings.autoRunEnabled) return;
+    const cfg = { ...advancedGen.DEFAULT_CONFIG, ...settings };
+    const now = new Date();
+    const [h, m] = now.toLocaleString('en-US', { timeZone: 'Africa/Lagos', hour12: false, hour: '2-digit', minute: '2-digit' }).split(':').map(Number);
+    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+    if (h !== cfg.autoRunHour || m !== cfg.autoRunMinute || _lastAutoRunDate === todayStr) return;
+    _lastAutoRunDate = todayStr;
+    console.log('[auto-run] Morning readiness triggered for', todayStr);
+    const yesterday = new Date(now.getTime() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+    try {
+      await advancedGen.runDailyReview(yesterday, `http://127.0.0.1:${PORT}`, msg => console.log('[auto-run/daily-review]', msg));
+      console.log('[auto-run] Daily review complete — starting generator run…');
+    } catch (e) {
+      console.error('[auto-run] daily review failed, starting run anyway:', e.message);
+    }
+    advancedGen.startRun({ mode: 'full', internalBaseUrl: `http://127.0.0.1:${PORT}`, config: {} });
+  } catch (e) {
+    console.error('[auto-run] check failed:', e.message);
+  }
+}
+
+// v19 §1 — test-moonshot-floor.js existed since v11 but was only ever run
+// manually, once, by hand — nothing stopped it from silently going stale
+// again (it did, twice). This runs it for real on every server start, in a
+// child process so a crash/hang in the test can't take the server down with
+// it. On failure: never a silent log line — a impossible-to-miss banner,
+// repeated every 5 minutes for as long as the process runs, so it can't get
+// scrolled away and forgotten before anyone notices.
+let _selfCheckFailed = false;
+// v36 — test-conversion-safety.js added alongside test-moonshot-floor.js:
+// same "run for real on every server start" rationale, guarding the
+// REMOVE-risk-market conversion bypass found in the same forensic audit
+// that produced this patch. Both run the same way — child process, so a
+// crash/hang in either can't take the server down — and either failing
+// trips the same persistent banner.
+const SELF_CHECK_TESTS = [
+  { file: 'test-moonshot-floor.js', label: 'odds-floor guards verified for every category (Moonshot/Lite/Mini, Tier 1, Tier 4, universal floor)' },
+  { file: 'test-conversion-safety.js', label: 'REMOVE-risk market conversion/drop guards verified (no risky leg bypasses classification or slips into Max Builder unconverted)' },
+  // v38 — output-architecture redesign: PUNTER_POOL/GLOBAL_POOL separation,
+  // no-padding, and duplicate-ticket-discard guards verified on every start.
+  { file: 'test-global-pool-architecture.js', label: 'PUNTER_POOL/GLOBAL_POOL separation verified (no multi-code ticket duplication, no dropped/unconverted leg in GLOBAL output, no near-duplicate global tickets)' },
+];
+function runStartupSelfChecks() {
+  const { execFileSync } = require('child_process');
+  let anyFailed = false;
+  for (const { file, label } of SELF_CHECK_TESTS) {
+    const testPath = path.join(__dirname, file);
+    if (!fs.existsSync(testPath)) {
+      console.error(`[self-check] ${file} not found — skipping (this should never happen in a real deploy).`);
+      continue;
+    }
+    try {
+      execFileSync(process.execPath, [testPath], { encoding: 'utf8', timeout: 30000 });
+      console.log(`[self-check] ${file}: PASSED — ${label}.`);
+    } catch (e) {
+      anyFailed = true;
+      const banner = '\n' + '!'.repeat(78) + '\n' +
+        `!! SELF-CHECK FAILURE — ${file} FAILED on startup.\n` +
+        '!! A generator safety guard has regressed. DO NOT TRUST GENERATOR OUTPUT\n' +
+        `!! until this is fixed. Run \`node ${file}\` for full details.\n` +
+        '!'.repeat(78) + '\n';
+      console.error(banner);
+      console.error((e.stdout || '').toString());
+      console.error((e.stderr || e.message || '').toString());
+      console.error(banner);
+    }
+  }
+  _selfCheckFailed = anyFailed;
+}
+
 // ── Start ──
 
 const server = app.listen(PORT, () => {
   console.log(`SlipPilot v8 running at http://localhost:${PORT}  build=${BUILD_VERSION}`);
-  setTimeout(runDailyCleanup, 60000);
-  setInterval(runDailyCleanup, 24 * 60 * 60 * 1000);
+  // A Themed Repost job runs in-memory (fire-and-forget, no worker process of
+  // its own) — if the server restarts mid-job, the persisted "running" state
+  // is now a lie: nothing is actually working on it anymore, and it would
+  // otherwise sit there forever looking like it's still going. Mark it as an
+  // honest error on every startup instead of leaving a stale "running" ghost.
+  try {
+    const trState = loadThemedRepostState();
+    if (trState.current?.status === "running") {
+      trState.current.status = "error";
+      trState.current.error = "Interrupted by a server restart — please rebuild.";
+      trState.current.finishedAt = new Date().toISOString();
+      trState.history = [trState.current, ...(trState.history || [])].slice(0, 30);
+      saveThemedRepostState(trState);
+    }
+  } catch {}
+  if (!IS_PRODUCTION) runStartupSelfChecks();
+  // Persistent, not one-shot: if it failed, keep the banner surfacing every
+  // 5 minutes so it can never quietly scroll off and be forgotten — this is
+  // exactly the failure mode ("fixed and verified live... broke silently")
+  // this patch exists to close off.
+  if (!IS_PRODUCTION) {
+    const selfCheckJob = startNonOverlappingJob(async () => { if (_selfCheckFailed) runStartupSelfChecks(); }, 5 * 60 * 1000);
+    shutdownTasks.push(() => selfCheckJob.stop());
+  }
+  const cleanupJob = startNonOverlappingJob(runDailyCleanup, 24 * 60 * 60 * 1000);
+  const cleanupStart = setTimeout(() => cleanupJob.run(), 60000); cleanupStart.unref?.();
+  const autoRunJob = startNonOverlappingJob(checkAutoRunSchedule, 60000);
+  const metricsJob = startNonOverlappingJob(() => {
+    const mem = process.memoryUsage();
+    console.log(`[METRIC] rssMB=${(mem.rss / 1048576).toFixed(1)} heapMB=${(mem.heapUsed / 1048576).toFixed(1)} handles=${process._getActiveHandles().length} loopP95Ms=${(eventLoopDelay.percentile(95) / 1e6).toFixed(1)}`);
+    eventLoopDelay.reset();
+  }, 5 * 60 * 1000);
+  shutdownTasks.push(() => { clearTimeout(cleanupStart); cleanupJob.stop(); autoRunJob.stop(); metricsJob.stop(); });
 });
 
 // Prevent slow clients from holding connections open indefinitely
 server.keepAliveTimeout = 65000;   // must be > LiteSpeed/proxy's timeout
 server.headersTimeout   = 70000;
+server.requestTimeout   = 30000;
+server.maxRequestsPerSocket = 1000;
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT",  () => gracefulShutdown("SIGINT"));

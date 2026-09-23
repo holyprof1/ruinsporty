@@ -6,7 +6,10 @@
  * Manual Converter) reads the master pool produced here.
  *
  * Exported functions:
- *   runAnalysis(punterMap, logger)     → builds + caches master pool
+ *   runAnalysis(punterMap, logger, fetchH2H) → builds + caches master pool
+ *     fetchH2H(eventId, home, away, pick) is optional — when passed (see
+ *     getH2HStats in server.js), masterScore's scoring for every pick now
+ *     factors in real head-to-head data, not just league/market/consensus.
  *   getMasterPool()                    → returns today's cached pool or null
  *   buildThemedCodes(masterPool, logger) → generates themed booking codes
  *   scoreSelections(selections)        → score any list against master pool logic
@@ -57,13 +60,23 @@ function getLine(mn, sp, on) {
   return 0;
 }
 
-function marketSafety(marketName, specifier, outcomeName) {
+function marketSafety(marketName, specifier, outcomeName, homeTeam, awayTeam) {
   const mn = (marketName || '').toLowerCase();
   const on = (outcomeName || '').toLowerCase();
+  // Per-team total-goals markets ("Arsenal Over/Under total=0.5") are NOT the
+  // full-match version of that market — a single team scoring is a different,
+  // generally lower-probability event than the match as a whole. The safety
+  // table below is calibrated from full-match historical hit-rates, so a
+  // team-scoped market must never borrow that calibration. Hard-reject.
+  if (isTeamScopedMarket(marketName, homeTeam, awayTeam)) return -1;
   for (const p of HARD_REMOVE_PATTERNS) { if (mn.includes(p) || on.includes(p)) return -1; }
 
-  // Combo markets like "Double Chance & Over/Under 2.5" — 0% hit rate in 14-day data, hard remove
+  // Combo/synthetic markets — hard remove
   if (mn.includes('double chance') && (mn.includes('over') || mn.includes('under'))) return -1;
+  if (mn.includes(' or over') || mn.includes(' or under')) return -1;  // "Away or Over 2.5" type
+  if ((mn.includes(' and ') || mn.includes(' & ')) && (mn.includes('over') || mn.includes('under') || mn.includes('goal'))) return -1;
+  // BTTS mislabeled as Over/Under (feed glitch): outcome 'Yes' tagged inside an over/under market
+  if (on === 'yes' && mn.includes('over/under')) return -1;
   // Standard Double Chance — calibrated to 76% actual (was 85, inflated)
   if (mn.includes('double chance') && !mn.includes('goal')) return 79;
   // Draw No Bet — calibrated to 65 (file: 60%, 14-day: 66%; was 79, overscored by 13-19 pts)
@@ -115,7 +128,8 @@ function marketSafety(marketName, specifier, outcomeName) {
   }
   if (mn === 'match winner' || mn === '1x2') return 57;
   if (mn.includes('baseball') || mn === 'baseball o/u') return 71;
-  if (mn.includes('basketball') || mn.includes('basketball o/u')) return 68;
+  // Basketball O/U is a SportyBet artefact market on football matches — hard remove
+  if (mn.includes('basketball') || mn.includes('basketball o/u')) return -1;
   if (mn.includes('winner') || mn.includes('set handicap')) return 63;
   return 57;
 }
@@ -132,40 +146,74 @@ function classifyRisk(mn, sp, on) {
     if (o === 'away' || o === '2' || (o.startsWith('away') && !o.includes('or'))) return 'AWAY_WIN';
     if (o === 'draw' || o === 'x') return 'DRAW';
   }
+  // Either-half straight result (1st/2nd Half Home or Away, or "Team to Win Either Half") —
+  // no draw-safe equivalent per half, so fold into the full-match Over 1 goals market instead.
+  if ((m.includes('1st half') || m.includes('2nd half')) && !m.includes('over/under')) {
+    if (o === 'home' || o === '1' || (o.startsWith('home') && !o.includes('or'))) return 'HALF_WIN';
+    if (o === 'away' || o === '2' || (o.startsWith('away') && !o.includes('or'))) return 'HALF_WIN';
+  }
+  if (m.includes('either half')) return 'HALF_WIN';
   if (m.includes('gg/ng') && (o.includes('yes') || o.includes('gg'))) return 'GG_YES';
-  // Over lines — only full-match over/under; 1st half handled by safety score, not conversion
-  if (m.includes('over/under') && !m.includes('1st half') && o.includes('over')) {
+  // A half only has ~45 minutes to produce goals, so a half-based Over line is
+  // calibrated well below its full-match equivalent (see marketSafety) even
+  // though it "looks" like the same bet — always prefer the full-match version.
+  if ((m.includes('1st half') || m.includes('2nd half')) && m.includes('over/under') && o.includes('over')) {
+    return 'HALF_OVER';
+  }
+  // "Both Halves Under X" implies a low-scoring match overall — a full-match
+  // Under line (with a bit of cushion) captures nearly the same probability
+  // more reliably than the narrower both-halves condition.
+  if (m.includes('both halves') && (o.includes('under') || o.includes('no'))) {
+    return 'BOTH_HALVES_UNDER';
+  }
+  // Over lines — only full-match over/under; 1st half handled just above
+  if (m.includes('over/under') && !m.includes('1st half') && !m.includes('2nd half') && o.includes('over')) {
     const line = getLine(mn, sp, on);
     if (line >= 4.5) return 'OVER_4.5';
     if (line >= 3.5) return 'OVER_3.5';
     if (line >= 2.5) return 'OVER_2.5';
-    if (line >= 2.0) return 'OVER_2.0'; // User rule: "no Over 2" — convert to Over 1.5
-  }
-  // 2nd Half over — convert high lines
-  if (m.includes('2nd half') && o.includes('over')) {
-    const line = getLine(mn, sp, on);
-    if (line >= 2.5) return 'OVER_2.5';
-    if (line >= 2.0) return 'OVER_2.0';
+    // Over 2 is now an accepted safe target (see SAFE_CONVERSIONS) — no conversion needed below it.
   }
   return 'OK';
 }
 
 // Safe conversion chains: risky market → safer alternatives to try in order
+// User rules: Over3.5→Over2, Over2.5→Over1, GG→Over1.5, HomeWin/AwayWin→Double Chance,
+// either-half Home/Away→Over1 (full match).
 const SAFE_CONVERSIONS = {
   'HOME_WIN': ['DC_1X', 'DNB_HOME'],
   'AWAY_WIN': ['DC_X2', 'DNB_AWAY'],
   'DRAW':     ['DC_1X', 'DC_X2'],
   'GG_YES':   ['OVER_1.5', 'GOAL_BOUNDS_RANGE'],
-  'OVER_2.0': ['OVER_1.5'],            // User rule: no Over 2 — always convert
-  'OVER_2.5': ['OVER_1.5'],
-  'OVER_3.5': ['OVER_2.5', 'OVER_1.5'],
-  'OVER_4.5': ['OVER_2.5', 'OVER_1.5'],
+  'HALF_WIN': ['OVER_1'],
+  'HALF_OVER': ['OVER_1.5', 'OVER_2'],
+  'BOTH_HALVES_UNDER': ['UNDER_3.5', 'UNDER_2.5'],
+  'OVER_2.5': ['OVER_2', 'OVER_1.5', 'OVER_1'],
+  'OVER_3.5': ['OVER_2'],
+  'OVER_4.5': ['OVER_2', 'OVER_1'],
 };
 
+// A market whose name is prefixed with one of the two team names (SportyBet's
+// per-team total-goals markets, e.g. "Rezeknes Fa/Bjss Over/Under") is NOT
+// equivalent to the full-match version of that market — a single team scoring
+// 2+ is a different (generally lower-probability) event than the match as a
+// whole producing 2+ combined goals. The safety calibration table (marketSafety)
+// was built from full-match historical hit-rates, so it must never be applied
+// to a team-scoped market. Detected by name containment since SportyBet has no
+// separate market-type flag for this.
+function isTeamScopedMarket(marketName, homeTeam, awayTeam) {
+  const mn = (marketName || '').toLowerCase().trim();
+  const h = (homeTeam || '').toLowerCase().trim();
+  const a = (awayTeam || '').toLowerCase().trim();
+  return (h && mn.startsWith(h)) || (a && mn.startsWith(a));
+}
+
 // Find a safe alternative market from event's available markets
-function findSafeMarket(avail, type) {
+function findSafeMarket(avail, type, homeTeam, awayTeam) {
   for (const m of avail) {
-    if (!m.odds || m.odds <= 1.01 || m.odds > 9) continue;
+    // Hard odds cap: nothing over 2.0 is ever offered as a "safer" alternative
+    if (!m.odds || m.odds <= 1.01 || m.odds > 2.0) continue;
+    if (isTeamScopedMarket(m.marketName, homeTeam, awayTeam)) continue;
     const mn = (m.marketName || '').toLowerCase();
     const on = (m.outcomeName || '').toLowerCase();
     const sp = m.specifier || '';
@@ -184,17 +232,34 @@ function findSafeMarket(avail, type) {
       case 'DNB_HOME':
         if ((mn.includes('draw no bet') || mn.includes('home no draw')) && (on.includes('home') || on === '1')) return m;
         break;
+      // NOTE: Over_X targets must be FULL-MATCH (90 min) over/under only — a half only
+      // has ~45 min to produce goals, so "1st/2nd Half Over 1" is NOT a safe stand-in for
+      // a full-match line. Team-scoped totals are filtered out above (isTeamScopedMarket).
       case 'OVER_1.5': {
-        if (!(mn.includes('over/under') || mn.includes('2nd half'))) break;
+        if (!mn.includes('over/under') || mn.includes('half')) break;
         if (!on.includes('over')) break;
         const line = getLine(m.marketName, sp, m.outcomeName);
-        if (Math.abs(line - 1.5) < 0.1 && m.odds >= 1.1 && m.odds <= 3.5) return m;
+        if (Math.abs(line - 1.5) < 0.1 && m.odds >= 1.1 && m.odds <= 2.0) return m;
         break;
       }
       case 'OVER_2.5': {
-        if (!mn.includes('over/under') || !on.includes('over')) break;
+        if (!mn.includes('over/under') || mn.includes('half') || !on.includes('over')) break;
         const line = getLine(m.marketName, sp, m.outcomeName);
-        if (Math.abs(line - 2.5) < 0.1 && m.odds >= 1.3 && m.odds <= 6) return m;
+        if (Math.abs(line - 2.5) < 0.1 && m.odds >= 1.3 && m.odds <= 2.0) return m;
+        break;
+      }
+      case 'OVER_2': {
+        if (!mn.includes('over/under') || mn.includes('half')) break;
+        if (!on.includes('over')) break;
+        const line = getLine(m.marketName, sp, m.outcomeName);
+        if (Math.abs(line - 2.0) < 0.1 && m.odds >= 1.1 && m.odds <= 2.0) return m;
+        break;
+      }
+      case 'OVER_1': {
+        if (!mn.includes('over/under') || mn.includes('half')) break;
+        if (!on.includes('over')) break;
+        const line = getLine(m.marketName, sp, m.outcomeName);
+        if (Math.abs(line - 1.0) < 0.1 && m.odds >= 1.05 && m.odds <= 2.0) return m;
         break;
       }
       case 'GOAL_BOUNDS_RANGE': {
@@ -203,6 +268,21 @@ function findSafeMarket(avail, type) {
         if ((on.match(/\d+-\d+/) || on.includes('+')) && !(/^\d+$/.test(on.trim()))) {
           if (m.odds >= 1.5 && m.odds <= 8) return m;
         }
+        break;
+      }
+      // Under_X targets, same full-match-only rule as Over_X above.
+      case 'UNDER_3.5': {
+        if (!mn.includes('over/under') || mn.includes('half')) break;
+        if (!on.includes('under')) break;
+        const line = getLine(m.marketName, sp, m.outcomeName);
+        if (Math.abs(line - 3.5) < 0.1 && m.odds >= 1.1 && m.odds <= 2.0) return m;
+        break;
+      }
+      case 'UNDER_2.5': {
+        if (!mn.includes('over/under') || mn.includes('half')) break;
+        if (!on.includes('under')) break;
+        const line = getLine(m.marketName, sp, m.outcomeName);
+        if (Math.abs(line - 2.5) < 0.1 && m.odds >= 1.1 && m.odds <= 2.0) return m;
         break;
       }
     }
@@ -215,7 +295,12 @@ const PENALISED_LEAGUES = new Set([
   'Besta deild','Erovnuli Liga','TOPLYGA','Kolmonen','Besta deild karla',
   '1. deild','Kolmonen, Women',
 ]);
-const VOLATILE_RE = /\b(reserve|youth|u19|u20|u21|u23|u17|u16|friendly|pre-?season|club friendlies|virtual|carioca|mineiro|azadegan)\b/i;
+const VOLATILE_RE = /\b(reserves?|youth|u19|u20|u21|u23|u17|u16|friendl(?:y|ies)|pre-?season|virtual|carioca|mineiro|azadegan)\b/i;
+// Women's leagues are filtered at pool-build time (before they reach confidence scoring)
+const WOMEN_RE = /\b(women'?s?|female|ladies|girls|dames|frauen|femmes|femenin|femenino|feminino)\b/i;
+// A reserve/youth SQUAD can compete in an otherwise normal senior division —
+// VOLATILE_RE above only catches it when the whole LEAGUE is youth/reserve.
+const TEAM_YOUTH_RE = /\bu1[6-9]\b|\bu2[0-3]\b|\breserves?\b|\byouth\b|\b(ii|2)$/i;
 const ELITE_LEAGUES = new Set([
   'Allsvenskan','Tercera Division, Reserves','USL League Two',
   'II Lyga','USL W League','Premier Division','World Cup Qualification, Europe',
@@ -261,7 +346,8 @@ function getPunterData(lbMap, profMap, name) {
   else if (composite >= 60) tier = 'SITUATIONAL';
   else if (composite >= 48) tier = 'COLD';
   else tier = 'EXPERIMENTAL';
-  const tierMult = { ELITE: 1.12, RELIABLE: 1.05, SITUATIONAL: 1.0, COLD: 0.88, EXPERIMENTAL: 0.78 }[tier] || 1.0;
+  // Reduced tierMult: was 1.12 for ELITE, causing all elite picks to score 99-100 (ceiling kills discriminating power)
+  const tierMult = { ELITE: 1.04, RELIABLE: 1.00, SITUATIONAL: 0.96, COLD: 0.88, EXPERIMENTAL: 0.78 }[tier] || 1.0;
   return { trust, hrAll, hr7, hr3, hr14, formScore, ff, tier, tierMult, composite, effTrust: Math.round(trust * ff) };
 }
 
@@ -297,13 +383,14 @@ function weightedConsensus(punterNames, lbMap, profMap) {
   const n = (punterNames || []).length;
   if (n <= 1) return 0;
   // Step bonus per agreement count
-  let bonus = n === 2 ? 8 : n === 3 ? 15 : n === 4 ? 20 : 25;
-  // Extra +3 per ELITE/RELIABLE punter in the agreement group (cap +9)
-  const eliteBonus = Math.min(9, punterNames.filter(p => {
+  // Reduced: was 8/15/20/25 — inflated scores past 100. Now 5/9/12/16.
+  let bonus = n === 2 ? 5 : n === 3 ? 9 : n === 4 ? 12 : 16;
+  // Extra +2 per ELITE/RELIABLE punter (cap +6, was +9)
+  const eliteBonus = Math.min(6, punterNames.filter(p => {
     const t = getPunterData(lbMap, profMap, p).tier;
     return t === 'ELITE' || t === 'RELIABLE';
-  }).length * 3);
-  return Math.min(30, bonus + eliteBonus);
+  }).length * 2);
+  return Math.min(22, bonus + eliteBonus);
 }
 
 // ─── LEAGUE TIERS ────────────────────────────────────────────────────────────
@@ -337,8 +424,8 @@ function leagueTier(league, leagueIntel) {
 
 // ─── MASTER SCORE (v7) ────────────────────────────────────────────────────────
 function masterScore(sel, deps) {
-  const { lbMap, profMap, specMap, leagueIntel, marketIntel, teamIntel, selHistory, weakMatches, killerLeagues } = deps;
-  const safety = marketSafety(sel.marketName || sel.market, sel.specifier, sel.outcomeName || sel.outcome);
+  const { lbMap, profMap, specMap, leagueIntel, marketIntel, teamIntel, selHistory, weakMatches, killerLeagues, h2hMap } = deps;
+  const safety = marketSafety(sel.marketName || sel.market, sel.specifier, sel.outcomeName || sel.outcome, sel.homeTeam, sel.awayTeam);
   if (safety < 0) return -1;
 
   const league = sel.league || '';
@@ -360,7 +447,7 @@ function masterScore(sel, deps) {
 
   // League historical
   const li      = leagueIntel[league];
-  const lgScore = li && (li.won + li.lost) >= 4 ? li.hitRate : 63;
+  const lgScore = li && (li.won + li.lost) >= 4 ? li.hitRate : 55;
 
   // Market historical
   const mi    = marketIntel[sel.marketName || sel.market || ''];
@@ -388,13 +475,18 @@ function masterScore(sel, deps) {
     else if (fr >= 40) weakAdj = -8;
   }
 
-  // Odds sanity
+  // Odds value — penalize extremes, reward accumulator-viable range (1.45-2.20)
+  // Low odds (≤1.35) previously got +8: wrong for accumulators where one loss wipes many wins
   const odds = sel.originalOdds || sel.odds || 0;
   let oddsAdj = 0;
-  if (odds > 10) oddsAdj = -20;
-  else if (odds > 5) oddsAdj = -10;
-  else if (odds <= 1.35 && odds > 0) oddsAdj = 8;
-  else if (odds <= 1.7 && odds > 0)  oddsAdj = 4;
+  if (odds > 10)        oddsAdj = -20;
+  else if (odds > 5)    oddsAdj = -10;
+  else if (odds > 3.0)  oddsAdj = -5;
+  else if (odds >= 1.80) oddsAdj = 5;  // sweet spot: good return, realistic probability
+  else if (odds >= 1.45) oddsAdj = 2;  // acceptable range
+  else if (odds >= 1.25) oddsAdj = 0;  // neutral
+  else if (odds >  1.10) oddsAdj = -6; // near-certainty: low value, high accumulator risk
+  else if (odds >  0)    oddsAdj = -12; // price implies certainty — reality never is
 
   // Team intelligence
   const out = (sel.outcomeName || sel.outcome || '').toLowerCase();
@@ -410,6 +502,42 @@ function masterScore(sel, deps) {
     else if (tai.away.hitRate < 40) teamAdj -= 8;
   }
 
+  // v36 — real head-to-head data now feeds the CORE score, not just the
+  // Convert tool's Deep Scan side feature. h2hMap is prefetched once per
+  // unique event in runAnalysis (pick-independent: avgGoals/bttsPct/
+  // homeWinRate from the last ~5 meetings + recent form), via the SAME
+  // waterfall /api/h2h already uses — API-Football when a working key is
+  // set (currently suspended, see getH2HStats' comment in server.js),
+  // SportyBet's own stats endpoints or TheSportsDB otherwise. Same
+  // direction as apiFootballH2H's own safety-score heuristic, scaled to
+  // this function's other ±5-to-±20 adjustment terms.
+  let h2hAdj = 0;
+  const h2h = h2hMap && h2hMap[sel.eventId];
+  const mkt = (sel.marketName || sel.market || '').toLowerCase();
+  if (h2h && h2h.found && h2h.keyStats) {
+    const ks = h2h.keyStats;
+    if (ks.avgGoals != null) {
+      if (ks.avgGoals < 1.5) {
+        if (out.includes('over 1.5')) h2hAdj += 10;
+        if (out.includes('over 2.5') || out.includes('over 3')) h2hAdj -= 12;
+      } else if (ks.avgGoals > 3) {
+        if (out.includes('over 2.5') || out.includes('over 3')) h2hAdj += 10;
+        if (out.includes('under 1.5') || out.includes('under 2')) h2hAdj -= 10;
+      }
+    }
+    if (ks.bttsPct != null && (mkt.includes('gg') || mkt.includes('both teams'))) {
+      if (ks.bttsPct >= 65 && out === 'yes') h2hAdj += 8;
+      if (ks.bttsPct <= 25 && out === 'yes') h2hAdj -= 10;
+      if (ks.bttsPct <= 25 && out === 'no') h2hAdj += 6;
+    }
+    if (ks.homeWinRate != null) {
+      if (ks.homeWinRate >= 75 && ['home','1','home win'].includes(out)) h2hAdj += 8;
+      if (ks.homeWinRate <= 20 && ['home','1','home win'].includes(out)) h2hAdj -= 10;
+      if (ks.homeWinRate <= 20 && ['away','2','away win'].includes(out)) h2hAdj += 6;
+    }
+    h2hAdj = Math.max(-15, Math.min(15, h2hAdj));
+  }
+
   // v7 weighted base — punter quality boosted to 23% total weight
   const base =
     pLeagueHR       * 0.20 +
@@ -420,16 +548,28 @@ function masterScore(sel, deps) {
     pd.effTrust     * 0.13 +
     pd.formScore    * 0.10;
 
-  return Math.round((base + lgBonus + consensusBonus + histAdj + weakAdj + oddsAdj + teamAdj - killerPenalty) * pd.tierMult);
+  return Math.min(97, Math.round((base + lgBonus + consensusBonus + histAdj + weakAdj + oddsAdj + teamAdj + h2hAdj - killerPenalty) * pd.tierMult));
 }
 
 // ─── NETWORK HELPERS ──────────────────────────────────────────────────────────
+// v46 — REAL BUG: SportyBet's CloudFront WAF started 403-blocking the bare
+// "Mozilla/5.0" User-Agent (confirmed live 2026-09-09 in server.js's
+// fetchJSON — same endpoint, fuller UA string, 403 vs 200 back to back).
+// These three were never updated with that fix, so every Advanced Generator
+// run got a CloudFront HTML error page in place of JSON for every punter
+// code lookup, every live market-board check, and every code-generation
+// POST — the whole pipeline was silently network-dead. Same fuller UA +
+// Referer combo fetchJSONWithStatus already uses successfully in server.js.
+const SB_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  'Referer': 'https://www.sportybet.com/ng/',
+};
 function sbGet(code) {
   return new Promise((res, rej) => {
     const req = https.get({
       hostname: 'www.sportybet.com',
       path: '/api/ng/orders/share/' + encodeURIComponent(code),
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+      headers: { ...SB_HEADERS, 'Accept': 'application/json' },
     }, r => { let d=''; r.on('data', c=>d+=c); r.on('end',()=>{ try{res(JSON.parse(d))}catch(e){rej(e)} }); });
     req.on('error', rej);
     req.setTimeout(12000, () => { req.destroy(); rej(new Error('timeout')); });
@@ -441,7 +581,7 @@ function sbGetEvent(eventId) {
     const req = https.get({
       hostname: 'www.sportybet.com',
       path: `/api/ng/factsCenter/event?eventId=${encodeURIComponent(eventId)}`,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+      headers: { ...SB_HEADERS, 'Accept': 'application/json' },
     }, r => { let d=''; r.on('data', c=>d+=c); r.on('end',()=>{ try{res(JSON.parse(d))}catch(e){rej(e)} }); });
     req.on('error', rej);
     req.setTimeout(10000, () => { req.destroy(); rej(new Error('timeout')); });
@@ -452,12 +592,89 @@ function sbPost(selections) {
     const data = JSON.stringify({ selections });
     const req = https.request({
       hostname: 'www.sportybet.com', path: '/api/ng/orders/share', method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Content-Length':Buffer.byteLength(data), 'User-Agent':'Mozilla/5.0' },
+      headers: { ...SB_HEADERS, 'Content-Type':'application/json', 'Content-Length':Buffer.byteLength(data) },
     }, r => { let d=''; r.on('data',c=>d+=c); r.on('end',()=>{ try{res(JSON.parse(d))}catch(e){rej(e)} }); });
     req.on('error', rej);
     req.setTimeout(15000, () => { req.destroy(); rej(new Error('timeout')); });
     req.write(data); req.end();
   });
+}
+
+/**
+ * ── THE ONLY CORRECT WAY TO REPORT ODDS FOR A GENERATED CODE ──────────────
+ *
+ * Every pick carries an `odds` value from whenever it was scored (pool build
+ * time, a market scan, a punter's original code) — that number is a snapshot,
+ * not a live fact, and can be hours stale by the time a ticket is actually
+ * posted. Posting on stale odds and then reporting the STALE product as
+ * "the odds" is exactly how a supposedly-safe pick (Over 1.5 @1.3) turns into
+ * a settled leg at @7-13 with nobody having caught it.
+ *
+ * This function posts the ticket, then reads the code straight back and
+ * pulls the CURRENT price for every leg from the live `outcomes[]` market
+ * data. Do NOT read odds from `ticket.selections` — that field has no odds
+ * at all until the match has already settled, so checking it always passes
+ * vacuously (this exact bug shipped once already).
+ *
+ * Any leg whose live price has drifted outside `oddsCap` (or gone inactive)
+ * is dropped and the ticket is reposted without it, up to `maxRetries`
+ * times. The returned `totalOdds` / per-pick `odds` are the VERIFIED live
+ * numbers — always report these, never the pre-post snapshot product.
+ *
+ * @param {object[]} picks    - pool items with eventId/marketId/specifier/outcomeId/productId/sportId
+ * @param {number}   oddsCap  - reject/redo if any leg's live odds fall outside (1.01, oddsCap]
+ * @param {number}   maxRetries
+ * @param {Function} logger
+ * @returns {Promise<{code, url, picks, totalOdds, dropped}|null>} null if it never converges above 4 legs
+ */
+async function verifyAndPostTicket(picks, oddsCap, maxRetries = 3, logger = () => {}) {
+  let working = [...picks];
+  const allDropped = [];
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (working.length < 4) return null;
+    const payload = working.map(s => ({
+      eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
+      specifier: s.specifier || '', productId: parseInt(s.productId) || 3, sportId: s.sportId || 'sr:sport:1',
+    }));
+    let posted;
+    try { posted = await sbPost(payload); } catch (e) { logger(`  post failed: ${e.message}`); return null; }
+    if (posted.bizCode !== 10000 || !posted.data?.shareCode) { logger(`  SportyBet rejected post: ${posted.msg || posted.bizCode}`); return null; }
+    const code = posted.data.shareCode, url = posted.data.shareURL || '';
+
+    await new Promise(r => setTimeout(r, 400));
+    let j;
+    try { j = await sbGet(code); } catch (e) { logger(`  readback failed: ${e.message} — cannot verify, discarding`); return null; }
+    if (!j || j.bizCode !== 10000 || !j.data) { logger(`  readback returned no data — cannot verify, discarding`); return null; }
+
+    const ticketSels = j.data.ticket?.selections || [];
+    const liveByEvent = new Map((j.data.outcomes || []).map(o => [String(o.eventId), o]));
+
+    const bad = [], verified = [];
+    for (const ts of ticketSels) {
+      const p = working.find(w => String(w.eventId) === String(ts.eventId) && String(w.marketId) === String(ts.marketId));
+      if (!p) continue;
+      const ev = liveByEvent.get(String(ts.eventId));
+      const mkt = ev?.markets?.find(m => String(m.id) === String(ts.marketId) && (m.specifier || '') === (ts.specifier || ''));
+      const out = mkt?.outcomes?.find(o => String(o.id) === String(ts.outcomeId));
+      const liveOdds = out ? parseFloat(out.odds) : null;
+      if (liveOdds == null || out.isActive !== 1) { bad.push({ p, liveOdds: 'inactive/unknown' }); continue; }
+      if (liveOdds <= 1.01 || liveOdds > oddsCap) { bad.push({ p, liveOdds }); continue; }
+      verified.push({ ...p, odds: liveOdds, oddsVerified: true, oddsVerifiedAt: new Date().toISOString() });
+    }
+
+    if (!bad.length && verified.length === working.length) {
+      const totalOdds = Math.round(verified.reduce((a, p) => a * p.odds, 1) * 100) / 100;
+      return { code, url, picks: verified, totalOdds, dropped: allDropped };
+    }
+
+    for (const b of bad) {
+      logger(`  ⚠ ${b.p.homeTeam} vs ${b.p.awayTeam} — expected ~${b.p.odds}, live now ${b.liveOdds} — dropping`);
+      allDropped.push({ home: b.p.homeTeam, away: b.p.awayTeam, expectedOdds: b.p.odds, liveOdds: b.liveOdds });
+    }
+    const badIds = new Set(bad.map(b => b.p.eventId));
+    working = working.filter(p => !badIds.has(p.eventId));
+  }
+  return null;
 }
 
 // Market name normaliser (SportyBet IDs → friendly names)
@@ -483,12 +700,13 @@ const OUT_NAMES = {
  * @param {Object} punterMap — { punterName: 'CODE' }
  * @param {Function} logger  — optional (msg) => void for progress updates
  */
-async function runAnalysis(punterMap, logger = ()=>{}) {
-  const today  = localToday();
-  const now    = Date.now();
-
-  // Load all intelligence
-  logger('Loading historical intelligence…');
+/**
+ * Loads every historical intelligence file into the same `deps` shape
+ * masterScore() expects. Shared by runAnalysis() and any other caller
+ * (e.g. a broad market scanner) that needs to score selections outside
+ * the punter-code pipeline.
+ */
+function loadIntelDeps(logger = () => {}) {
   const leagueIntel = safeJSON(LEAGUE_FILE, {});
   const marketIntel = safeJSON(MARKET_FILE, {});
   const teamIntel   = safeJSON(TEAM_FILE,   {});
@@ -496,16 +714,13 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
   const profMap     = safeJSON(PROF_FILE,   {});
   const weakMatches = safeJSON(WEAK_FILE,   {});
 
-  // Build leaderboard map from file (rich source of trust + form)
   let lb = [];
   try { lb = safeJSON(LB_FILE, []); } catch {}
   const lbMap = new Map(lb.map(p => [p.punter, p]));
 
-  // Selection history for exact pick tracking
   const selHistoryFile = path.join(DATA, 'selection-history.json');
   const selHistory = safeJSON(selHistoryFile, {});
 
-  // ── Load ALL historical reports (3 weeks), weight recent more heavily ─────────
   const killerEvents  = new Set();
   const killerLeagues = {}; // league → weighted killer count
   try {
@@ -527,7 +742,41 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
     logger(`  Loaded ${reportFiles.length} historical reports for killer/pattern intelligence`);
   } catch {}
 
-  const deps = { lbMap, profMap, specMap, leagueIntel, marketIntel, teamIntel, selHistory, weakMatches, killerLeagues };
+  // Neutral synthetic "punter" — used when scoring a pick that has no real
+  // punter behind it (e.g. the broad market scanner). Seeded at RELIABLE-tier
+  // averages so masterScore's punter-dependent terms land at a neutral
+  // multiplier (1.00) instead of being dragged into COLD/EXPERIMENTAL territory
+  // purely for lacking punter history.
+  lbMap.set('__MARKET__', { punter: '__MARKET__', trustScore: 75, hitRate: 75, consistency: 70, codes: [] });
+
+  return { lbMap, profMap, specMap, leagueIntel, marketIntel, teamIntel, selHistory, weakMatches, killerLeagues, killerEvents };
+}
+
+// Same simple bounded-concurrency worker pool pattern already used by
+// advanced-generator-engine.js's mapWithConcurrency — duplicated here rather
+// than cross-required since the two engine files don't otherwise depend on
+// each other and this is a handful of lines.
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let idx = 0;
+  async function runner() {
+    while (idx < items.length) {
+      const my = idx++;
+      results[my] = await worker(items[my], my);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
+  return results;
+}
+
+async function runAnalysis(punterMap, logger = ()=>{}, fetchH2H = null) {
+  const today  = localToday();
+  const now    = Date.now();
+
+  // Load all intelligence
+  logger('Loading historical intelligence…');
+  const deps = loadIntelDeps(logger);
+  const { lbMap, profMap, specMap, leagueIntel, marketIntel, teamIntel, selHistory, weakMatches, killerLeagues, killerEvents } = deps;
 
   // Fetch punter data
   logger(`Fetching picks from ${Object.keys(punterMap).length} punters…`);
@@ -535,64 +784,87 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
   const fetchLog = {};
 
   for (const [punter, code] of Object.entries(punterMap)) {
-    if (!code || typeof code !== 'string') continue;
-    const codeStr = code.trim().toUpperCase();
-    if (!codeStr) continue;
-    try {
-      const j = await sbGet(codeStr);
-      if (!j || j.bizCode !== 10000 || !j.data) {
-        fetchLog[punter] = { code: codeStr, status: 'fail', error: j?.message || 'no data' };
-        continue;
-      }
-      const outcomes = j.data.outcomes || [];
-      const ticketSels = j.data.ticket?.selections || [];
-      const ticketMap = new Map((ticketSels || []).map(ts => [ts.eventId, ts]));
-      let cnt = 0;
-
-      for (const o of outcomes) {
-        const ms = (o.matchStatus || '').toLowerCase();
-        if (['ended','h1','h2','ht','p1','p2','inprogress'].includes(ms)) continue;
-        const kick = o.estimateStartTime || 0;
-        if (kick && kick <= now) continue;
-
-        const mkt  = (o.markets || [])[0] || {};
-        const pick = (mkt.outcomes || [])[0] || {};
-        const ts   = ticketMap.get(o.eventId) || {};
-
-        const marketId   = String(ts.marketId || mkt.id || '');
-        const marketName = MKT_NAMES[marketId] || mkt.desc || ('Mkt' + marketId);
-        const specifier  = ts.specifier || mkt.specifier || '';
-        const outcomeId  = String(ts.outcomeId || pick.id || '');
-        const outcomeName = pick.desc || OUT_NAMES[outcomeId] || outcomeId;
-        const odds = parseFloat(ts.odds || pick.odds || 1);
-        if (odds <= 1.0) continue;
-
-        const league   = o.sport?.category?.tournament?.name || o.sport?.category?.name || '';
-        const category = o.sport?.category?.name || '';
-
-        allRaw.push({
-          punter, code: codeStr,
-          eventId:    String(o.eventId),
-          homeTeam:   o.homeTeamName || '',
-          awayTeam:   o.awayTeamName || '',
-          league, category,
-          kickoff:    kick ? new Date(kick).toISOString() : '',
-          kick,
-          marketId, marketName, specifier,
-          outcomeId, outcomeName, odds,
-          productId:  ts.productId || mkt.product || 3,
-          sportId:    String(o.sport?.id || 'sr:sport:1'),
-          matchKey:   `${o.eventId}|${marketId}|${specifier}|${outcomeId}`,
-        });
-        cnt++;
-      }
-      fetchLog[punter] = { code: codeStr, status: 'ok', picks: cnt };
-      logger(`  ${punter} (${codeStr}): ${cnt} upcoming picks`);
-      await new Promise(r => setTimeout(r, 200));
-    } catch(e) {
-      fetchLog[punter] = { code: codeStr, status: 'error', error: e.message };
-      logger(`  ${punter}: ERROR — ${e.message}`);
+    // Normalise to an array of code strings — handles single, comma-separated, or array
+    let codeList = [];
+    if (Array.isArray(code)) {
+      codeList = code.map(c => String(c).trim().toUpperCase()).filter(Boolean);
+    } else if (typeof code === 'string' && code.includes(',')) {
+      codeList = code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+    } else if (typeof code === 'string' && code.trim()) {
+      codeList = [code.trim().toUpperCase()];
     }
+    if (!codeList.length) continue;
+
+    let totalCnt = 0;
+    const seenEvents = new Set(); // dedupe across multiple codes for same punter
+
+    for (const codeStr of codeList) {
+      try {
+        const j = await sbGet(codeStr);
+        if (!j || j.bizCode !== 10000 || !j.data) {
+          fetchLog[`${punter}[${codeStr}]`] = { code: codeStr, status: 'fail', error: j?.message || 'no data' };
+          continue;
+        }
+        const outcomes = j.data.outcomes || [];
+        const ticketSels = j.data.ticket?.selections || [];
+        const ticketMap = new Map((ticketSels || []).map(ts => [ts.eventId, ts]));
+        let cnt = 0;
+
+        for (const o of outcomes) {
+          const ms = (o.matchStatus || '').toLowerCase();
+          if (['ended','h1','h2','ht','p1','p2','inprogress'].includes(ms)) continue;
+          const kick = o.estimateStartTime || 0;
+          if (kick && kick <= now) continue;
+
+          const mkt  = (o.markets || [])[0] || {};
+          const pick = (mkt.outcomes || [])[0] || {};
+          const ts   = ticketMap.get(o.eventId) || {};
+
+          const marketId   = String(ts.marketId || mkt.id || '');
+          const specifier  = ts.specifier || mkt.specifier || '';
+          const outcomeId  = String(ts.outcomeId || pick.id || '');
+          const dedupeKey  = `${o.eventId}|${marketId}|${specifier}|${outcomeId}`;
+          if (seenEvents.has(dedupeKey)) continue;
+          seenEvents.add(dedupeKey);
+
+          // Live desc MUST win over the static fallback table — MKT_NAMES flattens
+          // distinct markets sharing an id (e.g. 18 "Over/Under" full-match vs 19
+          // "{Team} Over/Under" team-scoped) into the same generic label, which
+          // silently defeats isTeamScopedMarket() downstream. Only fall back to
+          // the static table when the feed genuinely omits a description.
+          const marketName = mkt.desc || MKT_NAMES[marketId] || ('Mkt' + marketId);
+          const outcomeName = pick.desc || OUT_NAMES[outcomeId] || outcomeId;
+          const odds = parseFloat(ts.odds || pick.odds || 1);
+          if (odds <= 1.0) continue;
+
+          const league   = o.sport?.category?.tournament?.name || o.sport?.category?.name || '';
+          const category = o.sport?.category?.name || '';
+
+          allRaw.push({
+            punter, code: codeStr,
+            eventId:    String(o.eventId),
+            homeTeam:   o.homeTeamName || '',
+            awayTeam:   o.awayTeamName || '',
+            league, category,
+            kickoff:    kick ? new Date(kick).toISOString() : '',
+            kick,
+            marketId, marketName, specifier,
+            outcomeId, outcomeName, odds,
+            productId:  ts.productId || mkt.product || 3,
+            sportId:    String(o.sport?.id || 'sr:sport:1'),
+            matchKey:   `${o.eventId}|${marketId}|${specifier}|${outcomeId}`,
+          });
+          cnt++;
+        }
+        totalCnt += cnt;
+        logger(`  ${punter} (${codeStr}): ${cnt} upcoming picks`);
+        await new Promise(r => setTimeout(r, 200));
+      } catch(e) {
+        fetchLog[`${punter}[${codeStr}]`] = { code: codeStr, status: 'error', error: e.message };
+        logger(`  ${punter} (${codeStr}): ERROR — ${e.message}`);
+      }
+    }
+    fetchLog[punter] = { codes: codeList, status: 'ok', picks: totalCnt };
   }
 
   if (allRaw.length < 3) {
@@ -615,9 +887,42 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
     }
   }
 
+  // v36 — prefetch real head-to-head data ONCE per unique event (not once
+  // per raw pick — many picks across different punters/markets share the
+  // same event) before scoring, so masterScore can consult it synchronously
+  // via deps.h2hMap. Bounded concurrency keeps this from turning a ~40s
+  // analysis into several minutes on a real day's ~150-200 unique games.
+  deps.h2hMap = {};
+  if (typeof fetchH2H === 'function') {
+    const uniqueEvents = new Map();
+    for (const s of Object.values(selMap)) {
+      if (!uniqueEvents.has(s.eventId)) uniqueEvents.set(s.eventId, s);
+    }
+    const eventList = [...uniqueEvents.values()];
+    logger(`Fetching real head-to-head data for ${eventList.length} unique games…`);
+    let h2hFound = 0;
+    await mapWithConcurrency(eventList, 6, async (s) => {
+      try {
+        const h2h = await fetchH2H(s.eventId, s.homeTeam, s.awayTeam, '');
+        if (h2h) { deps.h2hMap[s.eventId] = h2h; if (h2h.found) h2hFound++; }
+      } catch {}
+    });
+    logger(`  H2H data found for ${h2hFound}/${eventList.length} games`);
+  }
+
   // ── Per-game deduplication: best market per event ──────────────────────────
   const gameMap = {}; // eventId → best pick for this game
   for (const s of Object.values(selMap)) {
+    // Filter women's leagues at pool level (not just portfolio time)
+    if (WOMEN_RE.test(s.league || '')) { s._score = -1; s._safety = -1; continue; }
+    // A youth/reserve squad (e.g. "... U21", "... II") competing in an otherwise
+    // normal senior division isn't caught by the league-name check above.
+    if (TEAM_YOUTH_RE.test((s.homeTeam || '').trim()) || TEAM_YOUTH_RE.test((s.awayTeam || '').trim())) { s._score = -1; s._safety = -1; continue; }
+    // Football only — punter codes sometimes mix in darts/table-tennis picks
+    if (s.sportId && s.sportId !== 'sr:sport:1') { s._score = -1; s._safety = -1; continue; }
+    // Team-scoped totals (e.g. "Rezeknes Fa/Bjss Over/Under") are not the full-match
+    // market — never score them against full-match safety calibration.
+    if (isTeamScopedMarket(s.marketName, s.homeTeam, s.awayTeam)) { s._score = -1; s._safety = -1; continue; }
     const safety = marketSafety(s.marketName, s.specifier, s.outcomeName);
     s._safety = safety;
     s._score  = safety < 0 ? -1 : masterScore(s, deps);
@@ -650,16 +955,25 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
         );
         const risk = classifyRisk(s.marketName, s.specifier, s.outcomeName);
         const convTypes = SAFE_CONVERSIONS[risk] || [];
+        const preScore = s._score;
         let converted = false;
         for (const cType of convTypes) {
-          const alt = findSafeMarket(avail, cType);
+          const alt = findSafeMarket(avail, cType, s.homeTeam, s.awayTeam);
           if (!alt) continue;
-          const newSafety = marketSafety(alt.marketName, alt.specifier, alt.outcomeName);
+          const newSafety = marketSafety(alt.marketName, alt.specifier, alt.outcomeName, s.homeTeam, s.awayTeam);
           // Validation gate:
           if (newSafety < 0) continue;                    // alt is itself unsafe
           if (newSafety <= s._safety) continue;           // no safety improvement
           if (alt.odds <= 1.01 || alt.odds > 9) continue; // odds out of range
           if (/^\d+$/.test((alt.outcomeName || '').trim()) && (alt.marketName || '').toLowerCase().includes('goal bounds')) continue; // bare digit Goal Bounds
+          // Confidence-improvement gate: simulate the swap and reject if it would
+          // actually lower the final score — a safer market on paper that the punter/league/
+          // form data doesn't support is not worth taking over the original pick.
+          const trial = { ...s, marketId: String(alt.marketId), marketName: alt.marketName,
+            specifier: alt.specifier || '', outcomeId: String(alt.outcomeId),
+            outcomeName: alt.outcomeName, odds: alt.odds, productId: alt.productId || 3 };
+          const trialScore = masterScore(trial, deps);
+          if (trialScore < preScore) continue;            // no confidence improvement — try next candidate
           const oldNote = `${s.marketName}: ${s.outcomeName} @${s.odds}`;
           s.marketId   = String(alt.marketId);
           s.marketName = alt.marketName;
@@ -670,7 +984,7 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
           s.productId  = alt.productId || 3;
           s.matchKey   = `${s.eventId}|${s.marketId}|${s.specifier}|${s.outcomeId}`;
           s._safety    = newSafety;
-          s._score     = masterScore(s, deps);
+          s._score     = trialScore;
           s._converted = true;
           s._conversionNote = `${oldNote} → ${alt.marketName}: ${alt.outcomeName}`;
           logger(`  ✓ Converted: ${s.homeTeam} vs ${s.awayTeam} — ${s._conversionNote}`);
@@ -679,11 +993,13 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
         }
         if (!converted) {
           s._score = -1;
+          s._noSafeConversion = true;
           logger(`  ✗ Removed: ${s.homeTeam} vs ${s.awayTeam} — ${s.marketName}: ${s.outcomeName} (no safe conversion)`);
         }
         await new Promise(r => setTimeout(r, 100));
       } catch(e) {
         s._score = -1;
+        s._noSafeConversion = true;
       }
     }
   }
@@ -694,11 +1010,19 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
 
   for (const s of Object.values(gameMap)) {
     if (s._score < 0) {
-      excluded.push({ game: `${s.homeTeam} vs ${s.awayTeam}`, league: s.league, reason: `Hard-removed market: ${s.marketName}`, score: s._score });
+      const reason = s._noSafeConversion
+        ? `No safe conversion found: ${s.marketName}: ${s.outcomeName}`
+        : `Hard-removed market: ${s.marketName}`;
+      excluded.push({ game: `${s.homeTeam} vs ${s.awayTeam}`, league: s.league, reason, score: s._score });
       continue;
     }
     if (s._score < 42) {
       excluded.push({ game: `${s.homeTeam} vs ${s.awayTeam}`, league: s.league, reason: `Confidence too low (${s._score})`, market: `${s.marketName} @${s.odds}` });
+      continue;
+    }
+    // User rule: odds over 2.0 are removed outright, no matter the market
+    if (s.odds > 2.0) {
+      excluded.push({ game: `${s.homeTeam} vs ${s.awayTeam}`, league: s.league, reason: `Odds too high (${s.odds} > 2.0 cap)`, market: `${s.marketName} @${s.odds}` });
       continue;
     }
 
@@ -721,6 +1045,11 @@ async function runAnalysis(punterMap, logger = ()=>{}) {
       confidence: Math.min(100, Math.max(0, s._score)),
       safety: s._safety,
       originalOdds: s.odds,
+      // Odds are a snapshot, not a fact that holds until kickoff — every pick
+      // must carry when it was read so nothing downstream mistakes a stale
+      // number for a live one. Never report an odds figure without this.
+      oddsSnapshotAt: new Date(now).toISOString(),
+      oddsVerified: false,
       killerWarning,
       converted: s._converted || false,
       conversionNote: s._conversionNote || null,
@@ -862,19 +1191,6 @@ function blendSort(w) {
   return (a, b) =>
     (b.confidence * w + Math.log(b.odds + 0.01) * 20 * (1 - w)) -
     (a.confidence * w + Math.log(a.odds + 0.01) * 20 * (1 - w));
-}
-
-async function generateCode(picks, logger) {
-  if (picks.length < 3) return null;
-  const payload = picks.map(s => ({
-    eventId: s.eventId, marketId: s.marketId, outcomeId: s.outcomeId,
-    specifier: s.specifier || '', productId: parseInt(s.productId) || 3, sportId: s.sportId || '',
-  }));
-  try {
-    const r = await sbPost(payload);
-    if (r.bizCode === 10000 && r.data?.shareCode) return r.data.shareCode;
-    return null;
-  } catch(e) { logger && logger(`Code gen error: ${e.message}`); return null; }
 }
 
 // ── Static theme definitions (28 themes) ─────────────────────────────────────
@@ -1030,13 +1346,19 @@ async function buildThemedCodes(masterPool, logger = ()=>{}) {
     }
 
     const oddsStr = odds>=1e6?(odds/1e6).toFixed(2)+'M':odds>=1e3?(odds/1e3).toFixed(2)+'K':Math.round(odds)+'x';
-    logger(`  [${theme.name}] ${picks.length}g ${oddsStr} — posting…`);
-    const code = await generateCode(picks, logger);
+    logger(`  [${theme.name}] ${picks.length}g ${oddsStr} — posting & verifying live odds…`);
+    // Post, then verify every leg's odds against the LIVE market data before
+    // reporting anything — the pre-post `odds` above is only a snapshot and
+    // can be hours stale (picks came from the master pool built earlier).
+    const verified = await verifyAndPostTicket(picks, 2.2, 3, logger);
     await new Promise(r => setTimeout(r, 400));
 
-    if (!code) { logger(`  [${theme.name}] Code generation failed`); continue; }
+    if (!verified) { logger(`  [${theme.name}] Code generation/verification failed`); continue; }
+    const code = verified.code;
     if (generatedCodes.has(code)) { logger(`  [${theme.name}] SKIPPED — duplicate code ${code}`); continue; }
     generatedCodes.add(code);
+    picks = verified.picks;   // verified live odds, possibly fewer legs than requested
+    odds = verified.totalOdds; // verified live product — never report the stale snapshot product
 
     // Build breakdown metrics
     const leagueBreakdown = {}, punterBreakdown = {};
@@ -1106,7 +1428,7 @@ function scoreSelections(selections) {
 
     // Otherwise score fresh
     const norm = { ...s, marketName: s.market || s.marketName, outcomeName: s.outcome || s.outcomeName };
-    const safety = marketSafety(norm.marketName, norm.specifier, norm.outcomeName);
+    const safety = marketSafety(norm.marketName, norm.specifier, norm.outcomeName, norm.homeTeam, norm.awayTeam);
     if (safety < 0) return { ...s, confidence: 0, safety: -1, warning: 'Market removed — too risky' };
     const conf = masterScore(norm, deps);
 
@@ -1199,4 +1521,4 @@ function getXContext() {
   return ctx;
 }
 
-module.exports = { runAnalysis, getMasterPool, buildThemedCodes, scoreSelections, getXContext, marketSafety, masterScore, classifyRisk, findSafeMarket, getLine, leagueTier, getPunterData };
+module.exports = { runAnalysis, getMasterPool, buildThemedCodes, scoreSelections, getXContext, marketSafety, masterScore, classifyRisk, findSafeMarket, getLine, leagueTier, getPunterData, sbGetEvent, sbGet, sbPost, SAFE_CONVERSIONS, isTeamScopedMarket, loadIntelDeps, verifyAndPostTicket };

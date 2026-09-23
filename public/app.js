@@ -3113,7 +3113,7 @@ window.copyAllPermCodes = function() {
 // Shared link handler: /#optimizer?code=XXXX
 (function() {
   const hash = location.hash || "";
-  const m = hash.match(/code=([A-Z0-9]+)/i);
+  const m = hash.match(/^#optimizer\?code=([A-Z0-9]+)/i);
   if (m && m[1]) {
     setTimeout(() => {
       activateTab("optimizer");
